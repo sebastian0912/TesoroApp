@@ -37,12 +37,14 @@ const COMUN_BASE_APOYO_BLU = [
   'Figura Humana',
   'Prueba Lectoescritura',
   'SST',
+  'Prueba SST',
   'Otras Pruebas',
   'EPS',
   'CCF',
   'Pago Seguridad Social',
   'Diplomas y Certificados de Estudios',
   'Referencias (1 personal, 1 familiar, 2 laborales)',
+  'Carnet',
 ];
 
 const COMUN_BASE_TA = [
@@ -56,12 +58,26 @@ const COMUN_BASE_TA = [
   'Figura Humana',
   'Prueba Lectoescritura',
   'SST',
+  'Prueba SST',
   'Otras Pruebas',
   'EPS',
   'CCF',
   'Pago Seguridad Social',
   'Diplomas y Certificados de Estudios',
   'Referencias (1 personal, 1 familiar, 2 laborales)',
+  // Cartas transversales a la temporal: aplican a cualquier candidato de
+  // Tu Alianza, no sólo a Jardines de los Andes. Se generan como PDF
+  // (ver `cartas-tu-alianza-fill.ts`).
+  'Carta Descuento de Flor',
+  'Formato Timbre Ingreso/Salida',
+  'Carta Autorización Correo Electrónico',
+];
+
+/** Las tres cartas de arriba, para los perfiles TA que no heredan COMUN_BASE_TA. */
+const CARTAS_TA = [
+  'Carta Descuento de Flor',
+  'Formato Timbre Ingreso/Salida',
+  'Carta Autorización Correo Electrónico',
 ];
 
 export const PERFILES_EMPRESA: PerfilEmpresa[] = [
@@ -161,13 +177,12 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
       /YUNDAMA|CURUBITAL/i,
     ],
     documentos: [
+      // Las 3 cartas ya vienen en COMUN_BASE_TA.
       ...COMUN_BASE_TA.filter(t => t !== 'Inducción'),
       'Inducción Jardines de los Andes',
-      'Carta Descuento de Flor',
       'Autorización de Datos',
-      'Formato Timbre Ingreso/Salida',
-      'Carta Autorización Correo Electrónico',
       'Colinesterasa',
+      'OTRO SI Jornada Laboral',
     ],
   },
   {
@@ -189,10 +204,12 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
       'Prueba Lectoescritura',
       'Figura Humana',
       'SST',
+      'Prueba SST',
       'Otras Pruebas',
       'CCF',
       'EPS',
       'Pago Seguridad Social',
+      ...CARTAS_TA,
     ],
   },
   {
@@ -301,10 +318,12 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
       'Prueba Lectoescritura',
       'Figura Humana',
       'SST',
+      'Prueba SST',
       'Otras Pruebas',
       'CCF',
       'EPS',
       'Pago Seguridad Social',
+      ...CARTAS_TA,
       // Operativos
       'Entrega Carnets',
       'Inducción Capacitación',
@@ -375,6 +394,8 @@ const SECCION_BY_TITLE: Record<string, DocSeccion> = {
   'Entrevista de Ingreso Tu Alianza':                     'generales',
   'Hoja de Vida Minerva':                                 'generales',
   'Contratos Otrosí':                                     'generales',
+  'OTRO SI Jornada Laboral':                              'generales',
+  'Carnet':                                               'generales',
   'Auxilio Alimentación':                                 'generales',
   'Autorización Daños Pérdidas':                          'generales',
   // Contrato
@@ -522,8 +543,29 @@ export function resolverPerfil(ctx: FilterCtx): PerfilEmpresa | null {
 const MINIMOS = ['Cédula', 'Contrato', 'Hoja de Vida Minerva'];
 const MINIMOS_KEYS = new Set(MINIMOS.map(normalizeTitle));
 
+/**
+ * Documentos que NO dependen de la empresa usuaria ni de la finca: los emite la
+ * temporal, así que basta con que la vacante tenga una temporal reconocida
+ * (Apoyo Laboral / Tu Alianza). Quedan fuera de la whitelist por perfil.
+ */
+const SOLO_POR_TEMPORAL = ['Autorización de Datos'];
+const SOLO_POR_TEMPORAL_KEYS = new Set(SOLO_POR_TEMPORAL.map(normalizeTitle));
+
+/** ¿La temporal de la vacante es Apoyo Laboral o Tu Alianza? */
+export function esTemporalReconocida(temporal: string | null | undefined): boolean {
+  const t = normalizeNombre(temporal);
+  return t.includes('APOYO') || t.includes('ALIANZA');
+}
+
 export function isDocumentoVisible(titulo: string, ctx: FilterCtx): boolean {
   const k = normalizeTitle(titulo);
+
+  // Se resuelve ANTES que el perfil: ni la empresa usuaria ni la finca deben
+  // poder esconder un documento que depende solo de la temporal.
+  if (SOLO_POR_TEMPORAL_KEYS.has(k)) {
+    return esTemporalReconocida(ctx.temporal);
+  }
+
   const perfil = resolverPerfil(ctx);
 
   if (!perfil) {

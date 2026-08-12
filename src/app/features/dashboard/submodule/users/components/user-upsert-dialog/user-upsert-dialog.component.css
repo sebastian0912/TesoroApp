@@ -147,6 +147,31 @@
   gap: 8px;
 }
 
+/* Acción primaria: navy en reposo, lima al interactuar */
+.btn-managerial {
+  background-color: var(--navy) !important;
+  color: var(--lime) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  transition: background-color 0.2s ease, color 0.2s ease !important;
+}
+
+.btn-managerial:hover:not([disabled]) {
+  background-color: var(--lime) !important;
+  color: var(--navy) !important;
+}
+
+/* El spinner del botón hereda el color del label para sobrevivir a la inversión del hover */
+.saving-indicator mat-progress-spinner {
+  --mdc-circular-progress-active-indicator-color: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-managerial {
+    transition: none !important;
+  }
+}
+
 /* Responsive: 2 columnas */
 @media (max-width: 900px) {
   .form-grid {

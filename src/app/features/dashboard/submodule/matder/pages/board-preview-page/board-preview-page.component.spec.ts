@@ -52,10 +52,15 @@ describe('BoardPreviewPageComponent', () => {
     expect(component.priorityLabel('UNKNOWN')).toBe('UNKNOWN');
   });
 
-  it('startAddCard() should set addingToListId', () => {
+  it('startAddCard() should open the card modal for the target list', () => {
+    component.lists.set([
+      { id: 5, uuid: '', board: 1, name: 'Todo', list_type: 'TODO', position: 0, cards: [], created_at: '', updated_at: '' },
+    ]);
     component.startAddCard(5);
-    expect(component.addingToListId).toBe(5);
-    expect(component.newCardTitle).toBe('');
+    expect(component.showCardModal).toBe(true);
+    expect(component.editingCardListId).toBe(5);
+    expect(component.editingCardId).toBeNull();
+    expect(component.cardFormTitle).toBe('');
   });
 
   it('cancelAddCard() should reset addingToListId', () => {

@@ -1,7 +1,7 @@
-import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, ElementRef, ViewChild, DestroyRef, inject } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, ElementRef, ViewChild, DestroyRef, EventEmitter, Output, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, interval, Subject, take } from 'rxjs';
-import { startWith, switchMap, takeUntil } from 'rxjs/operators';
+import { filter, startWith, switchMap, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -11,10 +11,10 @@ import { MatDialog } from '@angular/material/dialog';
 import { VetadosService } from '../../service/vetados/vetados.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
-import { EventEmitter, Output } from '@angular/core';
 import { SharedModule } from '@/app/shared/shared.module';
 import { AntecedenteEstadoFuente, AntecedenteFuente, CandidatoRecienteItem, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { docKey } from '@/app/shared/utils/tipo-doc.util';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,12 +29,7 @@ import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dial
   templateUrl: './search-for-candidate.component.html',
   styleUrl: './search-for-candidate.component.css',
 } )
-export class SearchForCandidateComponent implements OnInit, OnDestroy {
-  readonly yesNoStatusConfig: Record<string, { color: string; background: string }> = {
-    'Sí': { color: '#065f46', background: '#d1fae5' },
-    'No': { color: '#991b1b', background: '#fee2e2' },
-  };
-
+export class SearchForCandidateComponent implements OnInit {
   /**
    * Fuentes de antecedentes que consulta el robot, en el orden que pidió el
    * operador. La abreviatura se muestra en cada chip de la tabla y el label
@@ -59,12 +54,20 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   };
 
   /* ──────────  Outputs  ────────── */
-  @Output() codigoContratoChange = new EventEmitter<string>();
-  @Output() cedulaSeleccionada = new EventEmitter<string>();
-  @Output() nombreCompletoChange = new EventEmitter<string>();
-  @Output() idInfoEntrevistaAndreaChange = new EventEmitter<number>();
-  // objetos completos
+  /** Candidato completo hallado por la búsqueda; lo consume recruitment-pipeline. */
   @Output() candidatoSeleccionado = new EventEmitter<any>();
+  /**
+   * Pide al pipeline abrir la generación masiva de carnets, mandándole las
+   * cédulas que hay hoy en la cola: es el arranque más común y ahorra
+   * pegarlas a mano (en el diálogo se pueden editar o pegar otras).
+   */
+  @Output() carnetMasivo = new EventEmitter<string[]>();
+
+  pedirCarnetMasivo(): void {
+    this.carnetMasivo.emit(
+      (this.recientes ?? []).map(r => String(r.numero_documento ?? '').trim()).filter(Boolean),
+    );
+  }
 
   /* ──────────  Propiedades  ────────── */
   cedula = '';
@@ -82,20 +85,25 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   observacion = '';
   mostrarObservacion = false;
   procesoValido = false;
-  datosSeleccion: any = null;
   sede = '';
-
-  /* Propiedades eliminadas tabla vetados */
-  showTable = false;
-  filtroCedula: string = '';
 
   /* Lista por orden de llegada (consultados o llenando el formulario) */
   recientes: CandidatoRecienteItem[] = [];
-  recientesLoading = false;
-  private readonly RECIENTES_REFRESH_MS = 3000;
+  /* Arranca en true: cubre el indicador de carga inicial. El sondeo de fondo NO
+     lo vuelve a activar (sería un parpadeo constante); sólo el refresco manual. */
+  recientesLoading = true;
+  /**
+   * Cada refresco cuesta caro: `/candidatos/recientes/` consulta candidatos,
+   * sus entrevistas con proceso y contrato, y el estado de los robots por
+   * cédula — 0,3–0,5 s por llamada contra la MySQL remota. A 8 s eran ~450
+   * requests/hora por cada TesoroApp abierto.
+   *
+   * La cola de turnos no cambia tan rápido; 15 s es de sobra y hay botón de
+   * refrescar para cuando se quiere ver ya. Además se pausa si la ventana no
+   * está visible (ver `startRecientesPolling`).
+   */
+  private readonly RECIENTES_REFRESH_MS = 15000;
   private readonly RECIENTES_LIMIT = 50;
-  /* Cédulas que el usuario marcó "Atender" en este mismo render para refresco optimista. */
-  private atendiendoSet = new Set<string>();
 
   /* Búsqueda manual por cédula: ahora es un slider inline (no un panel lateral). */
   busquedaAbierta = false;
@@ -132,11 +140,6 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     this.startRecientesPolling();
   }
 
-  ngOnDestroy(): void {
-    // Limpieza adicional si aplica (las suscripciones se auto-cancelan
-    // por takeUntilDestroyed sin acción manual).
-  }
-
   private async initUsuarioYAbreviacion(): Promise<void> {
     try {
       const user: any = await this.utilityService.getUser();
@@ -149,14 +152,15 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   private startRecientesPolling(): void {
     interval(this.RECIENTES_REFRESH_MS).pipe(
       startWith(0),
-      switchMap(() => {
-        this.recientesLoading = true;
-        this.cdr.markForCheck();
-        return this.registroProcesoContratacion.getCandidatosRecientes(
-          this.RECIENTES_LIMIT,
-          this.sede || undefined
-        );
-      }),
+      // No sondear cuando la pestaña/ventana está oculta (ahorra requests de fondo).
+      filter(() => !(typeof document !== 'undefined' && document.hidden)),
+      // Sondeo de fondo silencioso: no togglea el spinner cada tick (evitaba el
+      // parpadeo del botón "Refrescar" y del texto "Cargando…"). El indicador de
+      // carga queda para el arranque (recientesLoading=true) y el refresco manual.
+      switchMap(() => this.registroProcesoContratacion.getCandidatosRecientes(
+        this.RECIENTES_LIMIT,
+        this.sede || undefined
+      )),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (data) => {
@@ -190,13 +194,21 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
       });
   }
 
-  /** Quita filas con el mismo numero_documento conservando la primera (el backend ya ordena: no atendidos por llegada, atendidos al final). */
+  /**
+   * Una fila por PERSONA (el backend ya ordena: no atendidos por llegada,
+   * atendidos al final).
+   *
+   * La clave era el `numero_documento` crudo, así que `1002498616` y
+   * `X1002498616` —la misma persona con dos filas de Candidato, 2821 casos en
+   * prod— contaban como distintos y salían las dos en la lista. `docKey()`
+   * quita la `X` inicial, igual que `Candidato.normalize_doc` del backend.
+   */
   private dedupeRecientes(data: CandidatoRecienteItem[] | null | undefined): CandidatoRecienteItem[] {
     if (!data?.length) return [];
     const vistos = new Set<string>();
     const out: CandidatoRecienteItem[] = [];
     for (const item of data) {
-      const key = String(item?.numero_documento ?? '').trim();
+      const key = docKey(item?.numero_documento);
       if (!key) {
         out.push(item);
         continue;
@@ -211,11 +223,15 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   seleccionarReciente(item: CandidatoRecienteItem): void {
     if (!item?.numero_documento) return;
     this.cedula = String(item.numero_documento);
+    // El tipo de documento de la FILA manda: sin esto, "Atender" a un CE/PPT
+    // con el selector en su default (CC) aseguraba la fila del robot bajo el
+    // tipo equivocado — el mismo patrón de filas duplicadas (cedula, tipo
+    // distinto) que ya causó bucles de robots y gasto de 2captcha.
+    const tipoFila = String(item.tipo_doc ?? '').trim();
+    if (tipoFila) this.tipoDocSeleccionado = tipoFila;
 
     // Optimismo: marca local y reordena al final mientras llega la respuesta del backend.
-    const ced = String(item.numero_documento);
-    this.atendiendoSet.add(ced);
-    this.applyOptimisticAttended(ced);
+    this.applyOptimisticAttended(String(item.numero_documento));
 
     // Marca atendido en backend (tolerante a fallos: no bloquea la navegación).
     this.registroProcesoContratacion
@@ -226,15 +242,10 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
       })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
-          this.atendiendoSet.delete(ced);
-          // Refresco inmediato para reflejar el reorden real del backend
-          this.refrescarRecientes();
-        },
-        error: () => {
-          // Si falla, revertimos la marca optimista en el siguiente refresco
-          this.atendiendoSet.delete(ced);
-        },
+        // Refresco inmediato para reflejar el reorden real del backend.
+        next: () => this.refrescarRecientes(),
+        // Si falla, el siguiente sondeo revierte la marca optimista.
+        error: () => { /* tolerante a fallos */ },
       });
 
     this.buscarCandidato();
@@ -327,9 +338,26 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     return item.candidato_id;
   }
 
+  /** Secuencia de búsquedas: la respuesta de una búsqueda vieja se descarta. */
+  private _busquedaSeq = 0;
+
   buscarCandidato(): void {
     this.cedula = this.cedula.trim();
     if (!this.cedula) return;
+
+    // TODO congelado al momento de disparar: si el operador busca otra cédula
+    // (o toca el toggle de cola) antes de que responda esta, la respuesta
+    // tardía NO debe emitir al candidato viejo ni encolarlo con el estado
+    // nuevo del toggle.
+    const seq = ++this._busquedaSeq;
+    const cedulaBuscada = this.cedula;
+    const tipoBuscado = this.tipoDocSeleccionado;
+    const encolar = this.encolarEnTabla;
+
+    // La consulta de vetados iba en un método que nada invocaba (buscarCedula):
+    // una persona reportada pasaba por todo el flujo sin ninguna alerta. Corre
+    // en paralelo y no bloquea la búsqueda.
+    this.consultarVetados(cedulaBuscada, seq);
 
     // Asegura/actualiza la fila de antecedentes del robot (EstadosRobots) para
     // el tipo de documento seleccionado + cédula. Crea la fila si el Candidato
@@ -337,60 +365,101 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     // igual que el formulario web. Se hace SIEMPRE al buscar, sin depender del
     // toggle de cola; tolerante a fallos.
     this.registroProcesoContratacion
-      .asegurarEstadoRobot({ tipo_doc: this.tipoDocSeleccionado, numero_documento: this.cedula })
+      .asegurarEstadoRobot({ tipo_doc: tipoBuscado, numero_documento: cedulaBuscada })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {},
         error: (err: any) => console.warn('[asegurarEstadoRobot] no se pudo asegurar', err?.status, err?.error),
       });
 
-    this.registroProcesoContratacion.getCandidatoPorDocumento(this.cedula, true).pipe(take(1)).subscribe({
+    this.registroProcesoContratacion
+      .getCandidatoPorDocumento(cedulaBuscada, true, tipoBuscado)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (candidato: any) => {
-        if (!candidato) {
-          this.candidatoSeleccionado.emit(null);
-          Swal.fire('No encontrado', 'No se encontró un candidato con esa cédula.', 'info');
-          return;
-        }
-        this.candidatoSeleccionado.emit(candidato);
-
-        // Encolar la cédula en la cola FIFO de mi sede para HOY.
-        // Idempotente en backend: si ya estaba en cola hoy en esta sede, no se
-        // reordena. Si no, queda al final de la cola.
-        // Sólo se encola si el usuario dejó activo el toggle "Agregar a la cola".
-        // Cuando está apagado, la consulta procede pero el candidato no aparece
-        // en la tabla del día.
-        const cedula = String(candidato?.numero_documento || this.cedula || '').trim();
-        const tipoDoc = String(candidato?.tipo_doc || '').trim() || undefined;
-        if (cedula && this.encolarEnTabla) {
+        // Llegó después de que el operador buscó a otra persona: ignorar.
+        if (seq !== this._busquedaSeq) return;
+        if (!candidato && tipoBuscado) {
+          // El selector pudo quedar "pegado" del Atender anterior (CE/PPT) o
+          // la persona existe con otro tipo: reintentar SIN filtro antes de
+          // decir que no existe — un "No encontrado" falso invita a
+          // re-registrarla y a crear justo el duplicado que queremos evitar.
           this.registroProcesoContratacion
-            .encolarCandidato({ tipo_doc: tipoDoc, numero_documento: cedula })
+            .getCandidatoPorDocumento(cedulaBuscada, true)
             .pipe(take(1), takeUntilDestroyed(this.destroyRef))
             .subscribe({
-              next: () => this.refrescarRecientes(),
-              error: (err: any) => {
-                console.warn('[encolar] no se pudo agregar a cola', err?.status, err?.error);
-                // No bloqueamos el flujo: la consulta del candidato igual procede.
+              next: (c2: any) => {
+                if (seq !== this._busquedaSeq) return;
+                this.procesarResultadoBusqueda(c2, cedulaBuscada, encolar);
+              },
+              error: () => {
+                if (seq !== this._busquedaSeq) return;
+                Swal.fire('Error', 'Error al buscar el candidato.', 'error');
               },
             });
+          return;
         }
+        this.procesarResultadoBusqueda(candidato, cedulaBuscada, encolar);
       },
-      error: () => Swal.fire('Error', 'Error al buscar el candidato.', 'error')
+      error: () => {
+        if (seq !== this._busquedaSeq) return;
+        Swal.fire('Error', 'Error al buscar el candidato.', 'error');
+      },
     });
   }
 
-  async buscarCedula(): Promise<void> {
-    if (!this.cedula) return;
-
-    this.cedulaSeleccionada.emit(this.cedula);
-
-    try {
-      const vetado = await firstValueFrom(
-        this.vetadosService.listarReportesVetadosPorCedula(this.cedula).pipe(take(1))
-      );
-      this.procesarVetado(vetado);
-    } catch {
-      Swal.fire('Error', 'Error inesperado al consultar la cédula.', 'error');
+  private procesarResultadoBusqueda(candidato: any, cedulaBuscada: string, encolar: boolean): void {
+    if (!candidato) {
+      this.candidatoSeleccionado.emit(null);
+      Swal.fire('No encontrado', 'No se encontró un candidato con esa cédula.', 'info');
+      return;
     }
+    // El selector refleja al titular REAL encontrado: así no queda pegado en
+    // un tipo viejo para la siguiente búsqueda.
+    const tipoReal = String(candidato?.tipo_doc || '').trim();
+    if (tipoReal) this.tipoDocSeleccionado = tipoReal;
+
+    this.candidatoSeleccionado.emit(candidato);
+
+    // Encolar la cédula en la cola FIFO de mi sede para HOY.
+    // Idempotente en backend: si ya estaba en cola hoy en esta sede, no se
+    // reordena. Si no, queda al final de la cola.
+    // Sólo se encola si el toggle estaba activo AL BUSCAR.
+    const cedula = String(candidato?.numero_documento || cedulaBuscada || '').trim();
+    const tipoDoc = tipoReal || undefined;
+    if (cedula && encolar) {
+      this.registroProcesoContratacion
+        .encolarCandidato({ tipo_doc: tipoDoc, numero_documento: cedula })
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => this.refrescarRecientes(),
+          error: (err: any) => {
+            console.warn('[encolar] no se pudo agregar a cola', err?.status, err?.error);
+            // No bloqueamos el flujo: la consulta del candidato igual procede.
+          },
+        });
+    }
+  }
+
+  /** Consulta vetados y avisa. Tolerante a fallos: no frena la búsqueda. */
+  private consultarVetados(cedula: string, seq: number): void {
+    this.procesoValido = false;
+    this.vetadosService.listarReportesVetadosPorCedula(cedula)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (vetado: any[] | null) => {
+          if (seq !== this._busquedaSeq) return;
+          if (!vetado?.length) return;
+          this.procesarVetado(vetado);
+          Swal.fire({
+            icon: 'warning',
+            title: 'Persona con reporte',
+            text: 'Esta cédula tiene reportes en la lista de vetados. Revisa antes de continuar con el proceso.',
+            confirmButtonText: 'Entendido',
+          });
+        },
+        error: (err: any) => console.warn('[vetados] no se pudo consultar', err?.status, err?.error),
+      });
   }
 
   /* vetados */
@@ -401,7 +470,6 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
 
   /* ──────────  Observación  ────────── */
   mostrarCampoObservacion(): void {
-    console.log('mostrarCampoObservacion()');
     this.mostrarObservacion = true;
   }
 
@@ -427,14 +495,20 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
         reportadoPor: nombre
       };
 
-      this.vetadosService.enviarReporte(reporte, sedeNombre).pipe(take(1)).subscribe({
-        next: () => {
-          Swal.fire('Éxito', 'Observación enviada.', 'success');
-          this.mostrarObservacion = false;
-          this.observacion = '';
-        },
-        error: () => Swal.fire('Error', 'No se pudo enviar la observación.', 'error')
-      });
+      this.vetadosService.enviarReporte(reporte, sedeNombre)
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            Swal.fire('Éxito', 'Observación enviada.', 'success');
+            this.mostrarObservacion = false;
+            this.observacion = '';
+            // Estamos dentro de un .then() de una promesa: en modo zoneless el fin
+            // del HTTP no agenda repintado, hay que forzarlo para que el panel de
+            // observación se cierre y el textarea se limpie en pantalla.
+            this.cdr.markForCheck();
+          },
+          error: () => Swal.fire('Error', 'No se pudo enviar la observación.', 'error')
+        });
     });
   }
 

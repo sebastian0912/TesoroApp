@@ -3,7 +3,7 @@ import {
   ChangeDetectionStrategy
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatDateFormats } from '@angular/material/core';
 import { MomentDateAdapter, MatMomentDateModule } from '@angular/material-moment-adapter';
@@ -42,6 +42,9 @@ import QRCode from 'qrcode';
 
 import { PdfService } from '@/app/shared/services/pdf/pdf.service';
 import { HomeService } from '../../../home/service/home.service';
+import { ReportesService } from '../../service/reportes/reportes.service';
+import { HiringService } from '../../service/hiring.service';
+import { getLocalStorageItem } from '@/app/core/utils/safe-storage';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
@@ -53,7 +56,15 @@ import {
   etiquetaPruebaTecnica,
   resultadoDePruebaTecnica,
 } from './prueba-tecnica.rules';
-import { esContratoRealMini, estadoContratoPill, tieneContratoActivoReal } from './contrato.rules';
+import { esContratoRealMini, estadoContratoPill, procesoDelContrato, tieneContratoActivoReal } from './contrato.rules';
+import { pedirResultadoEtapa, payloadResultadoEtapa } from '../../components/resultado-etapa/resultado-etapa.dialog';
+import { CarnetMasivoDialogComponent } from '../../components/carnet-masivo-dialog/carnet-masivo-dialog.component';
+import {
+  ArlExcelError,
+  ArlIndex,
+  leerArlExcel,
+  validarCedulaContraArl,
+} from '../../shared/arl-excel.helper';
 
 export const MY_DATE_FORMATS: MatDateFormats = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -124,22 +135,35 @@ export class RecruitmentPipelineComponent {
   });
 
   /**
+   * Proceso del que se lee el CONTRATO.
+   *
+   * No es `entrevistas[0].proceso`: cuando la persona vuelve y se le abre un turno
+   * nuevo, la entrevista más reciente todavía no tiene proceso (o tiene otro), y el
+   * contrato vive en una anterior. Con `entrevistas[0]` el header salía sin píldora
+   * mientras el historial laboral decía CONTRATADO, así que no había cómo dar de
+   * baja (caso CC 1097727446). Ver `procesoDelContrato` en contrato.rules.ts.
+   */
+  private readonly _procesoContrato = computed<any>(() =>
+    procesoDelContrato(this.candidatoSeleccionado())
+  );
+
+  /**
    * True cuando el candidato consultado tiene un CONTRATO ACTIVO REAL. Mientras
    * lo tenga no puede avanzar al resto del pipeline hasta darle de baja el
    * contrato (ver contrato.rules.ts).
    */
   readonly contratoActivo = computed<boolean>(() =>
-    tieneContratoActivoReal(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso)
+    tieneContratoActivoReal(this._procesoContrato())
   );
 
   /** Estado del pill de contrato del header: activo / retirado / en_tramite / sin_fila. */
   readonly contratoPill = computed(() =>
-    estadoContratoPill(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso)
+    estadoContratoPill(this._procesoContrato())
   );
 
   /** Qué falta de "Pago y Transporte" para poder generar la documentación. */
   readonly faltantesPagoTransporte = computed<string[]>(() =>
-    faltantesDePagoTransporte(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato)
+    faltantesDePagoTransporte(this._procesoContrato()?.contrato)
   );
 
   readonly puedeGenerarDocumentacion = computed<boolean>(() =>
@@ -156,6 +180,135 @@ export class RecruitmentPipelineComponent {
       return 'Generar o subir documentación';
     }
     return `Completa y guarda "Pago y Transporte" (tab Contratación). Falta: ${faltan.join(', ')}`;
+  });
+
+  /** Contrato que muestra el header (del proceso que realmente lo tiene). */
+  readonly contratoHeader = computed<any>(() => this._procesoContrato()?.contrato ?? null);
+
+  /**
+   * Los tabs se bloquean por contrato activo, SALVO que se haya activado
+   * "Modificar de todas formas": ese override existe justo para poder corregir
+   * datos de alguien contratado sin tener que darle de baja.
+   */
+  readonly bloqueoContratoTabs = computed<boolean>(
+    () => this.contratoActivo() && !this.modificacionForzada(),
+  );
+
+  // ───────── Override "Modificar de todas formas" ─────────
+  /**
+   * Permite EDITAR el pipeline de una persona con contrato activo SIN darle de
+   * baja. Es una edición pura forward-only: el backend (guard
+   * `modificacion_forzada` en update-by-document) NO reinicia banderas ni abre
+   * proceso/entrevista nuevos, y sella quién/cuándo.
+   */
+  readonly modificacionForzada = signal(false);
+
+  /** Auditoría del override para el banner (la fecha la sella el servidor). */
+  readonly overrideAuditNombre = signal<string>('');
+  readonly overrideAuditFecha = signal<string | null>(null);
+
+  // ───────── Examen médico (pill del header) ─────────
+  // Independiente de `examenes_medicos` (que solo dice que se cargaron): esto
+  // registra CÓMO salió. Mismos tres resultados que la prueba técnica.
+  readonly resultadoExamen = computed<'sin_resultado' | 'paso' | 'no_paso' | 'no_se_presento'>(() => {
+    const proc = this._proceso();
+    if (proc?.no_paso_examen_medico === true) return 'no_paso';
+    if (proc?.no_se_presento_examen_medico === true) return 'no_se_presento';
+    if (proc?.paso_examen_medico === true) return 'paso';
+    return 'sin_resultado';
+  });
+
+  readonly etiquetaExamen = computed<string>(() => {
+    switch (this.resultadoExamen()) {
+      case 'paso': return 'Examen: pasó';
+      case 'no_paso': return 'Examen: no pasó';
+      case 'no_se_presento': return 'Examen: no se presentó';
+      default: return 'Examen médico';
+    }
+  });
+
+  readonly tooltipExamen = computed<string>(() => {
+    const proc = this._proceso();
+    switch (this.resultadoExamen()) {
+      case 'paso':
+        return 'Pasó el examen médico. Click para cambiar el resultado';
+      case 'no_paso': {
+        const motivo = proc?.motivo_no_paso_examen_medico;
+        return motivo ? `No pasó el examen. Motivo: ${motivo}` : 'No pasó el examen médico. Click para cambiar';
+      }
+      case 'no_se_presento': {
+        const motivo = proc?.motivo_no_se_presento_examen_medico;
+        return motivo
+          ? `No se presentó al examen. Motivo: ${motivo}`
+          : 'No se presentó al examen médico. Click para cambiar';
+      }
+      default:
+        return 'Click para registrar el resultado del examen médico';
+    }
+  });
+
+  // ───────── Finalizar contratación (ARL) ─────────
+  /**
+   * El Excel de ARL se cachea por sesión: es un export masivo del portal, así
+   * que pedirlo en cada finalización obligaría a subir el mismo archivo veinte
+   * veces en una jornada.
+   */
+  readonly arlIndex = signal<ArlIndex | null>(null);
+  readonly finalizando = signal(false);
+  /** Cédulas finalizadas en esta sesión, para no repetir el ida y vuelta. */
+  private readonly finalizadas = signal<Set<string>>(new Set());
+
+  readonly contratacionFinalizada = computed<boolean>(() => {
+    const ced = this.candidatoSeleccionado()?.numero_documento;
+    return !!ced && this.finalizadas().has(String(ced));
+  });
+
+  /**
+   * La fecha de ingreso del contrato guardado. Es la que se cruza contra
+   * "INICIO VIGENCIA" del ARL y la que va a la columna 9 del cruce generado.
+   */
+  private readonly fechaIngresoContrato = computed<string | null>(
+    () => this._procesoContrato()?.contrato?.fecha_ingreso ?? null,
+  );
+
+  /**
+   * Oficina del proceso que tiene el contrato.
+   *
+   * OJO: el backend anida `entrevista.proceso`, NO al revés — `proceso.entrevista`
+   * NO existe en el payload. Hay que buscar la entrevista dueña del proceso;
+   * `entrevistas[0]` no sirve porque el contrato puede estar en una anterior
+   * (el turno nuevo aún no tiene proceso).
+   */
+  private readonly oficinaDelContrato = computed<string>(() => {
+    const proc = this._procesoContrato();
+    const entrevistas: any[] = this.candidatoSeleccionado()?.entrevistas ?? [];
+    const propia = proc ? entrevistas.find((e) => e?.proceso?.id === proc.id) : null;
+    return String(propia?.oficina ?? entrevistas[0]?.oficina ?? '').trim();
+  });
+
+  readonly puedeFinalizarContratacion = computed<boolean>(() => {
+    if (!this.candidatoSeleccionado()?.numero_documento) return false;
+    if (this.finalizando()) return false;
+    // Mismos requisitos que generar documentación + fecha de ingreso: sin ella
+    // no hay nada que cruzar contra el ARL ni que escribir en el Excel.
+    if (this.faltantesPagoTransporte().length > 0) return false;
+    return !!this.fechaIngresoContrato();
+  });
+
+  readonly tooltipFinalizarContratacion = computed<string>(() => {
+    if (!this.candidatoSeleccionado()?.numero_documento) return 'Selecciona un candidato';
+    if (this.contratacionFinalizada()) return 'Ya finalizado. Click para volver a enviarlo al reporte';
+
+    const faltan = this.faltantesPagoTransporte();
+    if (faltan.length) {
+      return `Completa y guarda "Pago y Transporte" (tab Contratación). Falta: ${faltan.join(', ')}`;
+    }
+    if (!this.fechaIngresoContrato()) {
+      return 'El contrato no tiene fecha de ingreso. Guárdala en "Pago y Transporte".';
+    }
+    return this.arlIndex()
+      ? `Finalizar contratación (ARL: ${this.arlIndex()!.nombreArchivo})`
+      : 'Finalizar contratación (te pedirá el Excel del ARL)';
   });
 
   /**
@@ -305,11 +458,14 @@ export class RecruitmentPipelineComponent {
   private util = inject(UtilityServiceService);
   private pdfSvc = inject(PdfService);
   private registroProceso = inject(RegistroProcesoContratacion);
+  private reportesSvc = inject(ReportesService);
+  private hiringSvc = inject(HiringService);
   private homeService = inject(HomeService);
   private electronWindow = inject(ElectronWindowService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
   private seleccionEstado = inject(SeleccionEstadoService);
+  private readonly router = inject(Router);
 
   /**
    * El candidato quedó EN ESPERA de vacante o NO APLICA (observación del
@@ -1196,6 +1352,18 @@ export class RecruitmentPipelineComponent {
   }
 
   // ───────── Tabla ─────────
+  /**
+   * Cerrar contratación del día: el cierre cubre a TODAS las personas
+   * contratadas HOY. Navega al Reporte de Contratación con `auto=hoy`, que
+   * descarga del sistema la base de contratados del día, la adjunta como
+   * Cruce Diario y dispara la validación automáticamente — el usuario solo
+   * agrega ARL/SST si aplica, elige sede y envía. No depende del candidato
+   * seleccionado en el pipeline.
+   */
+  irACerrarContratacion(): void {
+    this.router.navigate(['/dashboard/hiring/hiring-report'], { queryParams: { auto: 'hoy' } });
+  }
+
   mostrarTabla(): void {
     const ced = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento();
     if (!ced) return;
@@ -2252,4 +2420,370 @@ export class RecruitmentPipelineComponent {
       await Swal.fire({ icon: 'error', title: 'Error', text: error?.message || 'Ocurrió un error al generar carnet.' });
     }
   }
+
+  /** Descarta el ARL cargado para poder subir uno más nuevo. */
+  limpiarArl(): void {
+    this.arlIndex.set(null);
+    this.snack.open('Excel de ARL descartado. La próxima finalización lo pedirá de nuevo.', 'OK', {
+      duration: 3000,
+    });
+  }
+
+  /** Lee el Excel del ARL y lo deja cacheado. Devuelve false si el archivo no sirve. */
+  async cargarArlExcel(evt: Event): Promise<boolean> {
+    const input = evt.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return false;
+
+    try {
+      const index = await leerArlExcel(file);
+      this.arlIndex.set(index);
+      this.snack.open(
+        `ARL cargado: ${index.nombreArchivo} (${index.totalFilas} filas).`,
+        'OK',
+        { duration: 3500 },
+      );
+      return true;
+    } catch (e: any) {
+      if (e instanceof ArlExcelError) {
+        await Swal.fire({ icon: 'error', title: e.message, html: e.detalleHtml });
+      } else {
+        console.error('[cargarArlExcel] Error inesperado:', e);
+        await Swal.fire({
+          icon: 'error',
+          title: 'No se pudo leer el Excel del ARL',
+          text: e?.message || 'Sin detalle disponible.',
+        });
+      }
+      this.arlIndex.set(null);
+      return false;
+    }
+  }
+
+  /** Carga el ARL y, si quedó bien, continúa con la finalización. */
+  async onArlSeleccionadoYFinalizar(evt: Event): Promise<void> {
+    const ok = await this.cargarArlExcel(evt);
+    if (ok) await this.finalizarContratacion();
+  }
+
+  async finalizarContratacion(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    const cedula = String(cand?.numero_documento ?? '').trim();
+    if (!cedula || this.finalizando()) return;
+
+    const fechaIngreso = this.fechaIngresoContrato();
+    if (!fechaIngreso) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Falta la fecha de ingreso',
+        text: 'Guarda la fecha de ingreso en "Pago y Transporte" antes de finalizar.',
+      });
+      return;
+    }
+
+    const index = this.arlIndex();
+    if (!index) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Falta el Excel del ARL',
+        html:
+          'Sube el archivo que descargaste del portal de la ARL.<br><br>' +
+          'Se queda cargado para el resto de las contrataciones de hoy; ' +
+          'solo tendrás que subirlo una vez.',
+      });
+      return;
+    }
+
+    const responsable = this.usuarioActual();
+    if (!responsable) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Sin usuario',
+        text: 'No se pudo identificar al usuario logueado. Vuelve a iniciar sesión.',
+      });
+      return;
+    }
+
+    // ── Cruce contra el ARL ──
+    const arl = validarCedulaContraArl(index, cedula, fechaIngreso);
+
+    if (arl.hallazgos.length) {
+      // Auditoría: los hallazgos quedan en la misma tabla de errores que
+      // alimentaba hiring-report, con el mismo `tipo`, para no partir el
+      // histórico de "Validación ARL" en dos fuentes.
+      void this.guardarHallazgosArl(cedula, arl.hallazgos.map((h) => h.mensaje));
+    }
+
+    if (!arl.ok) {
+      const items = arl.hallazgos.map((h) => `<li>${h.mensaje}</li>`).join('');
+      const res = await Swal.fire({
+        icon: 'error',
+        title: 'El ARL no cuadra',
+        html:
+          `<ul style="text-align:left;">${items}</ul>` +
+          `<p style="text-align:left; margin-top:10px;">` +
+          `Corrige la afiliación en el portal de la ARL o la fecha de ingreso del contrato, ` +
+          `descarta el Excel y vuelve a subirlo.</p>`,
+        showCancelButton: true,
+        confirmButtonText: 'Finalizar de todas formas',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true,
+      });
+      if (!res.isConfirmed) return;
+    } else if (arl.hallazgos.length) {
+      // Fecha correcta pero con duplicados: avisa y sigue.
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Revisar ARL',
+        html: `<ul style="text-align:left;">${arl.hallazgos.map((h) => `<li>${h.mensaje}</li>`).join('')}</ul>`,
+      });
+    }
+
+    this.finalizando.set(true);
+    Swal.fire({ title: 'Finalizando...', didOpen: () => Swal.showLoading() });
+
+    try {
+      const resp: any = await firstValueFrom(
+        this.reportesSvc.finalizarContratacion({
+          numero_documento: cedula,
+          tipo_doc: cand?.tipo_doc ?? null,
+          responsable,
+          arl: {
+            ok: arl.ok,
+            fecha: arl.fechaIso,
+            detalle: arl.hallazgos.map((h) => h.mensaje).join('. ') || null,
+          },
+        }),
+      );
+
+      Swal.close();
+
+      const docs = resp?.documentos ?? {};
+      const faltantes: string[] = [];
+      if (!docs.cedula) faltantes.push('cédula escaneada');
+      if (!docs.sst_individual) faltantes.push('SST');
+
+      const totales = resp?.totales ?? {};
+      this.finalizadas.update((prev) => new Set(prev).add(cedula));
+
+      await Swal.fire({
+        icon: faltantes.length ? 'warning' : 'success',
+        title: resp?.creado === false ? 'Reporte actualizado' : 'Contratación finalizada',
+        html:
+          `Quedó en el reporte de <b>${resp?.contratacion?.oficina ?? '—'}</b> ` +
+          `como <b>${resp?.contratacion?.tem ?? 'sin empresa'}</b>.<br><br>` +
+          `Acumulado del día: Tu Alianza <b>${totales.cantidadContratosTuAlianza ?? 0}</b>, ` +
+          `Apoyo Laboral <b>${totales.cantidadContratosApoyoLaboral ?? 0}</b>.` +
+          (faltantes.length
+            ? `<br><br><span style="color:#b45309;">No se encontró en gestión documental: ` +
+              `<b>${faltantes.join(', ')}</b>. Súbelo desde "Generar documentación" y ` +
+              `vuelve a finalizar para enlazarlo.</span>`
+            : ''),
+      });
+    } catch (e: any) {
+      Swal.close();
+      console.error('[finalizarContratacion] Error:', e);
+      const backend = e?.error ?? e;
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo finalizar',
+        html:
+          (backend?.message || e?.message || 'El servidor respondió con un error sin detalle.') +
+          (backend?.detail ? `<br><br><small>${backend.detail}</small>` : ''),
+      });
+    } finally {
+      this.finalizando.set(false);
+    }
+  }
+
+  /** Envío silencioso de los hallazgos ARL a la tabla de errores de validación. */
+  private async guardarHallazgosArl(cedula: string, mensajes: string[]): Promise<void> {
+    if (!mensajes.length) return;
+    try {
+      await this.hiringSvc.enviarErroresValidacion({
+        errores: [{ registro: cedula, errores: mensajes }],
+        responsable: this.usuarioActual(),
+        oficina: this.oficinaDelContrato(),
+        tipo: 'Validación ARL',
+      });
+    } catch (e) {
+      // Silencioso a propósito: es auditoría, no puede bloquear la finalización.
+      console.error('[guardarHallazgosArl] Falló el envío:', e);
+    }
+  }
+
+  /**
+   * Abre la revisión de generación masiva de carnets con las cédulas de la
+   * cola del día. El diálogo valida quién tiene todo completo, marca por
+   * defecto solo a los que aún no tienen carnet y deja previsualizar antes de
+   * generar.
+   */
+  async abrirCarnetMasivo(cedulas: string[] = []): Promise<void> {
+    const ref = this.dialog.open(CarnetMasivoDialogComponent, {
+      maxWidth: '96vw',
+      maxHeight: '92vh',
+      data: { cedulas },
+      panelClass: 'dialog-responsive',
+    });
+    const hubo = await firstValueFrom(ref.afterClosed());
+    // Si se generó alguno, el candidato abierto puede haber cambiado de estado.
+    if (hubo && this.candidatoSeleccionado()?.numero_documento) this.recargarCandidato();
+  }
+
+  /**
+   * Re-abre las 8 fuentes de antecedentes del candidato consultado para que la
+   * flota vuelva a consultarlas y suba PDFs nuevos.
+   *
+   * Normalmente el backend solo re-consulta cuando la fila lleva más de
+   * ESTADO_ROBOT_STALE_DAYS sin tocarse (o cuando la persona llena el
+   * formulario web). Este botón es la salida manual para cuando se necesita el
+   * antecedente al día ya. Cuesta una pasada completa de robots, por eso pide
+   * confirmación explícita.
+   */
+  async forzarConsultaAntecedentes(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    const doc = cand?.numero_documento != null ? String(cand.numero_documento).trim() : '';
+    if (!doc) return;
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'question',
+      title: 'Forzar consulta de antecedentes',
+      html:
+        `Se volverán a consultar <b>todos</b> los antecedentes de ` +
+        `<b>${this.nombreCandidato() || doc}</b> (${doc}).<br><br>` +
+        `Los estados actuales se archivan y quedan en <b>SIN_CONSULTAR</b>; ` +
+        `los robots los toman en los próximos minutos y suben los PDF nuevos.`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, volver a consultar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#111827',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      Swal.fire({ title: 'Re-abriendo antecedentes...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const resp = await firstValueFrom(this.registroProceso.forzarConsultaAntecedentes({
+        tipo_doc: cand?.tipo_doc ?? null,
+        numero_documento: doc,
+      }));
+      Swal.close();
+      const msg = resp?.mensaje || 'Antecedentes re-abiertos.';
+      if (resp?.reabierto) {
+        this.snack.open(msg, 'OK', { duration: 5000 });
+      } else {
+        // Ya estaba en cola / no había nada que re-abrir: no es un error.
+        Swal.fire({ icon: 'info', title: 'Sin cambios', text: msg, confirmButtonColor: '#111827' });
+      }
+    } catch (err: any) {
+      Swal.close();
+      console.error('[antecedentes] forzar falló', err);
+      const detalle = err?.error?.detail || err?.message || 'No se pudo re-abrir la consulta.';
+      Swal.fire({ icon: 'error', title: 'No se pudo', text: detalle, confirmButtonColor: '#111827' });
+    }
+  }
+
+  /**
+   * Registra el resultado del examen médico desde el pill del header.
+   *
+   * Marcador de outcome: NO toca `examenes_medicos` (que indica que los
+   * exámenes se cargaron) ni bloquea el pipeline. Usa el mismo diálogo que el
+   * de cumplimiento de vacantes.
+   */
+  async registrarResultadoExamen(): Promise<void> {
+    const cc = this.candidatoSeleccionado()?.numero_documento;
+    if (!cc) return;
+
+    const proc = this._proceso();
+    const elegido = await pedirResultadoEtapa(this.dialog, 'examen', {
+      resultado: this.resultadoExamen(),
+      motivoNoPaso: proc?.motivo_no_paso_examen_medico,
+      motivoNoSePresento: proc?.motivo_no_se_presento_examen_medico,
+    }, this.nombreCandidato());
+    if (!elegido) return;
+
+    const payload: any = {
+      numero_documento: String(cc),
+      proceso_id: this._proceso()?.id ?? undefined,
+      ...payloadResultadoEtapa('examen', elegido.resultado, elegido.motivo),
+    };
+
+    Swal.fire({ title: 'Guardando resultado...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+      await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload, 'PATCH'));
+
+      // Estado local con referencias nuevas para que el pill cambie en el acto
+      // (los computed del header memoizan por referencia).
+      const cand = this.candidatoSeleccionado();
+      const proceso = cand?.entrevistas?.[0]?.proceso;
+      if (proceso) {
+        const ahora = new Date().toISOString();
+        const noPaso = elegido.resultado === 'no_paso';
+        const noShow = elegido.resultado === 'no_se_presento';
+        const procActualizado = {
+          ...proceso,
+          paso_examen_medico: elegido.resultado === 'paso',
+          paso_examen_medico_at: elegido.resultado === 'paso' ? ahora : null,
+          no_paso_examen_medico: noPaso,
+          no_paso_examen_medico_at: noPaso ? ahora : null,
+          motivo_no_paso_examen_medico: noPaso ? elegido.motivo : null,
+          no_se_presento_examen_medico: noShow,
+          no_se_presento_examen_medico_at: noShow ? ahora : null,
+          motivo_no_se_presento_examen_medico: noShow ? elegido.motivo : null,
+        };
+        const entrevistas = [...(cand!.entrevistas ?? [])];
+        entrevistas[0] = { ...entrevistas[0], proceso: procActualizado };
+        this.candidatoSeleccionado.set({ ...cand, entrevistas });
+      }
+
+      const titulos: Record<string, string> = {
+        paso: 'Registrado: pasó el examen médico.',
+        no_paso: 'Registrado: no pasó el examen médico.',
+        no_se_presento: 'Registrado: no se presentó al examen médico.',
+      };
+      await Swal.fire({
+        title: titulos[elegido.resultado],
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      console.error('Error registrando resultado del examen médico:', err);
+      const detalle = err?.error?.detail || 'No se pudo registrar el resultado.';
+      await Swal.fire({ title: 'Error', text: detalle, icon: 'error' });
+    }
+  }
+
+  /**
+   * Activa el override. Muestra el sello de auditoría PREVIO si el proceso ya trae
+   * uno; el sello nuevo lo confirma el servidor al primer guardado en este modo.
+   */
+  activarModificacionForzada(): void {
+    this.modificacionForzada.set(true);
+    const proc = this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso;
+    this.overrideAuditNombre.set(proc?.modificado_por || '');
+    this.overrideAuditFecha.set(proc?.modificado_en || null);
+  }
+
+  /** Nombre del usuario logueado (localStorage `user`) para la auditoría del override. */
+  usuarioActual(): string {
+    try {
+      const raw = getLocalStorageItem('user');
+      if (!raw) return '';
+      const u = JSON.parse(raw);
+      const nom = [u?.datos_basicos?.nombres, u?.datos_basicos?.apellidos]
+        .filter(Boolean).join(' ').trim();
+      if (nom) return nom;
+      const alt = [u?.primer_nombre, u?.primer_apellido].filter(Boolean).join(' ').trim();
+      return alt || String(u?.numero_de_documento ?? '');
+    } catch {
+      return '';
+    }
+  }
+
+
 }

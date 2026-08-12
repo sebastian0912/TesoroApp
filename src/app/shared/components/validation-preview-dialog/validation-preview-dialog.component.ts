@@ -94,6 +94,10 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
   submitting = false;
   private lastServerResult: unknown = undefined;
 
+  /** Motivo del último fallo al enviar (timeout/500/red). Se pinta en el diálogo:
+   *  sin esto, un envío que falla dejaba la pantalla igual y parecía "no hizo nada". */
+  submitError: string | null = null;
+
   // header texts (sin casts en template)
   titleText = 'Previsualización de validación';
   subtitleText = 'Corrige los datos aquí antes de continuar.';
@@ -204,12 +208,30 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     return this.totalErrors > 0;
   }
 
+  /** ¿El diálogo confirma contra servidor? En ese modo "Confirmar Todo" aplica TODAS
+   *  las filas sin error —las que solo tienen ADVERTENCIA sí se aplican— y deja fuera
+   *  únicamente las que tienen error. */
+  get serverMode(): boolean {
+    return !!this.serverValidate;
+  }
+
+  private activeItems(): TItem[] {
+    return this.items.filter((it) => !this.removedIds.has(this.schema.itemId(it)));
+  }
+
+  /** Filas que se van a aplicar (sin errores; las advertencias NO cuentan). */
+  get submittableCount(): number {
+    return this.activeItems().filter((it) => this.issueCount(it) === 0).length;
+  }
+
+  /** Filas que quedarán fuera por tener al menos un error. */
+  get blockedCount(): number {
+    return this.activeItems().filter((it) => this.issueCount(it) > 0).length;
+  }
+
   // Flujo iterativo: ¿hay al menos una fila enviable al servidor?
   hasSubmittableItems(): boolean {
-    return this.items.some(
-      (it) =>
-        !this.removedIds.has(this.schema.itemId(it)) && this.issueCount(it) === 0,
-    );
+    return this.submittableCount > 0;
   }
 
   // Habilita "Confirmar Todo". En modo serverValidate alcanza con que UNA fila
@@ -587,6 +609,7 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     if (!this.serverValidate) return;
 
     this.submitting = true;
+    this.submitError = null;
     this.cdr.markForCheck();
 
     let resp: ServerValidateResult;
@@ -594,10 +617,11 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
       resp = await this.serverValidate(itemsToSend);
     } catch (e) {
       this.submitting = false;
+      // No marcamos issues por fila (el server no respondió estructurado), pero SÍ
+      // lo mostramos en el diálogo: un 503/timeout dejaba la pantalla idéntica y
+      // parecía que "Confirmar Todo" no hacía nada.
+      this.submitError = this.mensajeDeError(e);
       this.cdr.markForCheck();
-      // No marcamos issues por fila (el server no respondió estructurado): el
-      // llamador maneja el error global via toast/snackbar. El dialog queda
-      // abierto para reintentar.
       console.error('serverValidate falló', e);
       return;
     }
@@ -640,6 +664,18 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
 
     this.submitting = false;
     this.cdr.markForCheck();
+  }
+
+  /** Traduce el error HTTP a algo accionable para el operador. */
+  private mensajeDeError(e: any): string {
+    const status = e?.status;
+    if (status === 503 || status === 504 || status === 0) {
+      return 'El servidor tardó demasiado en responder y la conexión se cortó. '
+        + 'Es posible que el proceso haya quedado corriendo: vuelve a previsualizar '
+        + 'para verificar el estado antes de reintentar.';
+    }
+    const detalle = e?.error?.error ?? e?.error?.mensaje ?? e?.message;
+    return 'No se pudo completar el envío' + (detalle ? `: ${detalle}` : '.');
   }
 
   // ----------------------------

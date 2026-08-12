@@ -17,7 +17,7 @@
         mat-stroked-button
         class="vr-filter-chip"
         matTooltip="Cambiar rango de fechas"
-        (click)="openDateRangeDialog('filterTables')">
+        (click)="openDateRangeDialog()">
         <mat-icon>calendar_today</mat-icon>
         <span class="vr-filter-chip__label">{{ activeRangeLabel() }}</span>
       </button>
@@ -107,15 +107,15 @@
   <mat-card-content class="card-content">
     @if (isAdminReportUser) {
       <mat-menu #menu="matMenu" class="vr-menu">
-        <button mat-menu-item (click)="openDateRangeDialog('exportContratacion')">
+        <button mat-menu-item (click)="exportContratacion()">
           <mat-icon>description</mat-icon>
           <span>Base contratación por código de contrato</span>
         </button>
-        <button mat-menu-item (click)="openDateRangeDialog('generateCentroCostoTable')">
+        <button mat-menu-item (click)="generateCentroCostoTable()">
           <mat-icon>account_tree</mat-icon>
           <span>Generar reporte centro de costos</span>
         </button>
-        <button mat-menu-item (click)="openDateRangeDialog('exportFincas')">
+        <button mat-menu-item (click)="exportFincas()">
           <mat-icon>agriculture</mat-icon>
           <span>Generar reporte fincas</span>
         </button>
@@ -283,11 +283,34 @@
                       <mat-icon>health_and_safety</mat-icon>
                     </button>
                   }
+                  @if (isArray(row.contrataciones) && row.contrataciones.length > 0) {
+                    <button
+                      mat-icon-button
+                      class="vr-doc-btn vr-doc-btn--primary"
+                      [matTooltip]="'Ver contrataciones finalizadas (' + row.contrataciones.length + ')'"
+                      (click)="$event.stopPropagation(); openContratacionesDialog(row)">
+                      <mat-icon>task_alt</mat-icon>
+                      <span class="vr-doc-badge">{{ row.contrataciones.length }}</span>
+                    </button>
+                  }
                 } @else {
                   <span class="vr-docs-empty">
                     <mat-icon>inbox</mat-icon>
                     Sin documentos
                   </span>
+                }
+
+                <!-- SST GRUPAL + nota del día. Lo individual de cada persona se
+                     enlaza solo al finalizar su contratación; esto es lo que no
+                     sale del pipeline. -->
+                @if (row.id) {
+                  <button
+                    mat-icon-button
+                    class="vr-doc-btn"
+                    [matTooltip]="row.sst_document?.file_url ? 'Reemplazar SST grupal / editar nota' : 'Adjuntar SST grupal / nota'"
+                    (click)="$event.stopPropagation(); abrirAdjuntos(row)">
+                    <mat-icon>attach_file</mat-icon>
+                  </button>
                 }
               </div>
             </ng-template>
@@ -313,7 +336,64 @@
               [defaultPageSize]="25"
               [isLoading]="isLoadingReportes()"
               [tableTitle]="'Consolidado por oficina'">
+
+              <ng-template #actionsTemplate let-row>
+                @if (totalDocsParaSede(row.sede) > 0) {
+                  <button
+                    mat-icon-button
+                    class="vr-doc-btn vr-doc-btn--primary"
+                    [matTooltip]="'Ver documentos (' + totalDocsParaSede(row.sede) + ')'"
+                    (click)="$event.stopPropagation(); abrirDocumentosConsolidado(row.sede)">
+                    <mat-icon>folder_open</mat-icon>
+                    <span class="vr-doc-badge">{{ totalDocsParaSede(row.sede) }}</span>
+                  </button>
+                } @else {
+                  <span class="vr-docs-empty" style="font-size:12px;">
+                    <mat-icon style="font-size:16px;height:16px;width:16px;">inbox</mat-icon>
+                  </span>
+                }
+              </ng-template>
+
             </app-standard-filter-table>
+          </div>
+        </mat-tab>
+
+        <!-- TAB CRUCES EXCEL -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="vr-tab-icon">table_view</mat-icon>
+            <span>Cruces Excel</span>
+            <span class="vr-tab-badge">{{ excelReportes().length }}</span>
+          </ng-template>
+
+          <div class="vr-tab-body">
+            @if (excelReportes().length === 0 && !isLoadingReportes()) {
+              <div class="vr-empty-state">
+                <mat-icon>table_view</mat-icon>
+                <h3>Sin cruces Excel</h3>
+                <p>No hay archivos Excel de cruce en los reportes del rango <b>{{ activeRangeLabel() }}</b>.</p>
+              </div>
+            } @else {
+              <app-standard-filter-table
+                [data]="excelReportes()"
+                [columnDefinitions]="cruceColumns"
+                [pageSizeOptions]="[10, 25, 50]"
+                [defaultPageSize]="25"
+                [isLoading]="isLoadingReportes()"
+                [tableTitle]="'Cruces Excel cargados'">
+
+                <ng-template #actionsTemplate let-row>
+                  <button
+                    mat-icon-button
+                    class="vr-doc-btn vr-doc-btn--accent"
+                    matTooltip="Ver cruce diario"
+                    (click)="$event.stopPropagation(); openDocsDialog('Cruce — ' + row.sede, [row.cruce_document])">
+                    <mat-icon>table_view</mat-icon>
+                  </button>
+                </ng-template>
+
+              </app-standard-filter-table>
+            }
           </div>
         </mat-tab>
 
@@ -394,7 +474,7 @@
                   <button
                     mat-flat-button
                     class="btn-managerial"
-                    (click)="openDateRangeDialog('generateCentroCostoTable')">
+                    (click)="generateCentroCostoTable()">
                     <mat-icon>calendar_month</mat-icon>
                     Generar reporte por centro de costo
                   </button>

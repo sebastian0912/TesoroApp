@@ -1,10 +1,13 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   effect,
   inject,
   input,
+  NgZone,
   OnInit,
+  output,
 } from '@angular/core';
 import {
   FormArray,
@@ -42,8 +45,25 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FormEntrevistaComponent implements OnInit {
-  // ====== Inputs / Servicios ======
+  // ====== Inputs / Outputs / Servicios ======
   candidatoSeleccionado = input<any | null>(null);
+  /**
+   * Override "Modificar de todas formas". Sin esto, guardar la entrevista de un
+   * candidato cuyo proceso ya es terminal (contratado, retirado, rechazado, no
+   * pasó la prueba, NO_APLICA/EN_ESPERA) abre una entrevista y un proceso NUEVOS
+   * — que es la regla correcta cuando de verdad se re-inicia el proceso, pero no
+   * cuando el usuario destrabó los tabs justamente para CORREGIR el actual.
+   * Con la bandera en true el backend edita la entrevista existente en sitio.
+   */
+  /** Nº de consulta del buscador: re-consultar a la misma persona re-rellena. */
+  consultaSeq = input<number>(0);
+  /** Último titular (tipo|número#consulta) ya rellenado; ver el effect del constructor. */
+  private cedulaRellenada: string | null = null;
+  modificacionForzada = input<boolean>(false);
+  modificadoPor = input<string>('');
+  /** Se emite tras guardar la entrevista con éxito, para que el padre recargue
+   *  el candidato (y aparezca el proceso nuevo sin re-buscar). */
+  guardado = output<void>();
 
   private readonly fb = inject(FormBuilder);
   private readonly dateAdapter = inject<DateAdapter<Date>>(
@@ -54,6 +74,8 @@ export class FormEntrevistaComponent implements OnInit {
   private readonly candidateService = inject(RegistroProcesoContratacion);
   private readonly catalogos = inject(GestionParametrizacionService);
   private readonly seleccionEstado = inject(SeleccionEstadoService);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly ngZone = inject(NgZone);
 
   // ====== Catálogos ======
   private safeCatalog(code: string, label: string): Observable<CatalogValue[]> {
@@ -351,9 +373,23 @@ export class FormEntrevistaComponent implements OnInit {
         this.refreshSteps();
       });
 
-    // Cuando cambie el candidato seleccionado, rellenamos el form
+    // Cuando cambie el candidato seleccionado, rellenamos el form.
+    //
+    // GUARDA: el padre vuelve a emitir el candidato (referencia nueva, misma
+    // cédula) tras guardar cualquier pestaña; re-ejecutar aquí pisaba media
+    // entrevista escrita sin guardar y recortaba las filas de hijos al conteo
+    // del servidor. La llave incluye el TIPO de documento porque dos titulares
+    // distintos pueden compartir número (CC vs CE), y `consultaSeq` porque una
+    // consulta NUEVA del buscador sí debe re-rellenar aunque sea la misma
+    // persona; las recargas internas tras guardar (mismo seq) no pisan lo editado.
     effect(() => {
       const cand = this.candidatoSeleccionado();
+      const ced = cand?.numero_documento ? String(cand.numero_documento) : null;
+      const clave = ced
+        ? `${String(cand?.tipo_doc || 'CC').trim().toUpperCase()}|${ced}#${this.consultaSeq()}`
+        : null;
+      if (clave !== null && clave === this.cedulaRellenada) return;
+      this.cedulaRellenada = clave;
       this.rellenarForm(cand);
     });
 
@@ -1057,6 +1093,16 @@ export class FormEntrevistaComponent implements OnInit {
     const estadoCivilQuick =
       ['VI', 'UL', 'SO', 'SE', 'CA'].includes(estadoCivilNorm) ? estadoCivilNorm : '';
 
+    // El select de "tipo de experiencia en flores" solo acepta
+    // CULTIVO/POSCOSECHA/AMBAS/OTROS. `area_experiencia` puede venir como
+    // multi-valor general ("A, B") desde el formulario web: si no matchea una
+    // opción válida se deja vacío para que lo elija el evaluador, en vez de
+    // meter basura en un campo restringido.
+    const VALID_TIPO_FLORES = ['CULTIVO', 'POSCOSECHA', 'AMBAS', 'OTROS'];
+    const areaExpNorm = this.normalizeText(cand?.experiencia_resumen?.area_experiencia).toUpperCase();
+    const tipoExperienciaFloresVal =
+      VALID_TIPO_FLORES.find((t) => areaExpNorm.includes(t)) || '';
+
     // 1) patchValue sin emitir eventos
     this.formVacante.patchValue(
       {
@@ -1085,7 +1131,7 @@ export class FormEntrevistaComponent implements OnInit {
         proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || evalAux?.motivacion || '',
         estudiaActualmente: !!cand?.vivienda?.estudia_actualmente,
         experienciaFlores: cand?.experiencia_resumen?.tiene_experiencia ? 'Sí' : 'No',
-        tipoExperienciaFlores: cand?.experiencia_resumen?.area_experiencia || '',
+        tipoExperienciaFlores: tipoExperienciaFloresVal,
 
         comoSeEntero: entrevistas?.[0]?.como_se_entero || '',
         // Backend guarda 'SI' | 'NO' (CharField). El bug previo trataba el valor
@@ -1165,10 +1211,28 @@ export class FormEntrevistaComponent implements OnInit {
     
     // Referencias vienen en formato array por el backend
     const refs = Array.isArray(cand?.referencias) ? cand.referencias : [];
-    const fam1 = refs.find((r: any) => r.tipo === 'FAMILIAR1');
-    const fam2 = refs.find((r: any) => r.tipo === 'FAMILIAR2');
-    const per1 = refs.find((r: any) => r.tipo === 'PERSONAL1');
-    const per2 = refs.find((r: any) => r.tipo === 'PERSONAL2');
+    /**
+     * Conviven dos convenciones de `tipo`: los registros migrados del sistema
+     * viejo guardan dos filas planas ('PERSONAL', 'FAMILIAR') y los creados por
+     * esta app usan slot numerado ('PERSONAL1'/'PERSONAL2'). Buscando solo el
+     * slot numerado se perdían los migrados, que son la enorme mayoría, y los
+     * campos salían vacíos aunque el candidato sí tuviera referencias.
+     * Se ordena por id para que la 1ª y la 2ª sean estables (el orden por
+     * defecto del modelo es alfabético por nombre).
+     */
+    const slotRef = (base: 'PERSONAL' | 'FAMILIAR', n: 1 | 2) => {
+      const tipoDe = (r: any) => String(r?.tipo ?? '').trim().toUpperCase();
+      const exacto = refs.find((r: any) => tipoDe(r) === `${base}${n}`);
+      if (exacto) return exacto;
+      const planas = refs
+        .filter((r: any) => tipoDe(r) === base)
+        .sort((a: any, b: any) => (a?.id ?? 0) - (b?.id ?? 0));
+      return planas[n - 1] ?? null;
+    };
+    const fam1 = slotRef('FAMILIAR', 1);
+    const fam2 = slotRef('FAMILIAR', 2);
+    const per1 = slotRef('PERSONAL', 1);
+    const per2 = slotRef('PERSONAL', 2);
 
     this.formVacante.patchValue(
       {
@@ -1372,7 +1436,9 @@ export class FormEntrevistaComponent implements OnInit {
       const resp: any = await firstValueFrom(
         this.candidateService.upsertCandidatoByDocumentoFromForm(payload, {
           entrevistado: true,
-        })
+        }, this.modificacionForzada()
+          ? { modificacion_forzada: true, modificado_por: this.modificadoPor() || null }
+          : undefined)
       );
 
       // Detectar respuesta offline falsa del interceptor
@@ -1386,6 +1452,11 @@ export class FormEntrevistaComponent implements OnInit {
         });
         return;
       }
+
+      // Guardado real y confirmado (no offline): avisar al padre para que recargue
+      // el candidato. Si el proceso anterior era terminal, ahora hay uno nuevo y
+      // debe reflejarse en las píldoras / Historial sin tener que re-buscar.
+      this.guardado.emit();
 
       await Swal.fire({
         icon: 'success',
@@ -1528,7 +1599,14 @@ export class FormEntrevistaComponent implements OnInit {
         confirmButtonColor: '#3085d6',
       });
     } finally {
-      this.isSubmitting = false;
+      // OnPush + Electron: el `await` puede resolver FUERA de la zona de Angular
+      // (el interceptor offline resuelve vía IPC de Electron). Sin esto, el botón
+      // se queda en "Enviando…" hasta el próximo evento (un click). Forzamos el
+      // reset y el re-render dentro de la zona.
+      this.ngZone.run(() => {
+        this.isSubmitting = false;
+        this.cdr.markForCheck();
+      });
     }
   }
 }

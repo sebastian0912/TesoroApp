@@ -70,6 +70,40 @@ export function describeQueuedRequest(method: string, url: string): QueuedReques
   return { icon: 'cloud_upload', label: segmento ? `${verbo}: ${segmento}` : verbo };
 }
 
+export interface UrlCategory {
+  label: string;
+  category: string;
+  icon: string;
+}
+
+/** Traduce una URL de API a un grupo de recurso legible para la UI de caché. */
+export function categorizeCacheUrl(url: string): UrlCategory {
+  const u = (url || '').toLowerCase();
+
+  if (u.includes('/reportes')) return { label: 'Reportes de Contratación', category: 'Reportes', icon: 'assessment' };
+  if (u.includes('/biometria')) return { label: 'Biometría', category: 'Biometría', icon: 'fingerprint' };
+  if (u.includes('/gestion_documental/documentos')) return { label: 'Documentos', category: 'Documentos', icon: 'description' };
+  if (u.includes('/gestion_documental')) return { label: 'Gestión Documental', category: 'Documentos', icon: 'folder' };
+  if (u.includes('/afiliaciones')) return { label: 'Afiliaciones', category: 'Afiliaciones', icon: 'health_and_safety' };
+  if (u.includes('/seleccion') || u.includes('/pipeline')) return { label: 'Pipeline de Selección', category: 'Selección', icon: 'people' };
+  if (u.includes('/vacantes')) return { label: 'Vacantes', category: 'Selección', icon: 'work' };
+  if (u.includes('/gestion_hr') || u.includes('/contratacion') || u.includes('/candidatos')) return { label: 'Contratación', category: 'Contratación', icon: 'how_to_reg' };
+  if (u.includes('/gestion_payroll') || u.includes('/nomina') || u.includes('/desprendibles')) return { label: 'Nómina', category: 'Nómina', icon: 'payments' };
+  if (u.includes('/tesoreria') || u.includes('/transacciones')) return { label: 'Tesorería', category: 'Nómina', icon: 'account_balance_wallet' };
+  if (u.includes('/modulos') || u.includes('/gestion_admin/modulo')) return { label: 'Módulos', category: 'Admin', icon: 'menu' };
+  if (u.includes('/gestion_admin')) return { label: 'Administración', category: 'Admin', icon: 'admin_panel_settings' };
+  if (u.includes('/estadosrobots') || u.includes('/robots')) return { label: 'Antecedentes / Robots', category: 'Automatización', icon: 'smart_toy' };
+  if (u.includes('/health')) return { label: 'Estado del servidor', category: 'Sistema', icon: 'monitor_heart' };
+
+  // Fallback: primer segmento significativo de la ruta
+  let seg = '';
+  try {
+    const path = u.startsWith('http') ? new URL(u).pathname : u.split('?')[0];
+    seg = path.split('/').filter(Boolean)[0] || '';
+  } catch { /* noop */ }
+  return { label: seg ? seg.replace(/[_-]/g, ' ') : 'Otros', category: 'Otros', icon: 'storage' };
+}
+
 /**
  * Formatea una antigüedad relativa ("hace 5 min") a partir del timestamp que
  * guarda SQLite (`CURRENT_TIMESTAMP`, en UTC, forma "YYYY-MM-DD HH:MM:SS").

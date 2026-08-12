@@ -39,6 +39,74 @@
         }
       </div>
 
+      <!-- BOTÓN REPORTAR BUG -->
+      <div class="botonBug">
+        <button mat-icon-button class="icono icon-bug" aria-label="Reportar Bug"
+          matTooltip="Reportar un bug" (click)="abrirReporteBug()">
+          <mat-icon>bug_report</mat-icon>
+        </button>
+      </div>
+
+      <!-- CAMPANA DE NOTIFICACIONES (desplegable estilo Facebook) -->
+      <div class="botonNotif">
+        <button mat-icon-button class="icono notif-bell" aria-label="Notificaciones"
+          [matMenuTriggerFor]="notifMenu" (menuOpened)="loadNotifs()"
+          [matTooltip]="unreadCount > 0 ? unreadCount + ' sin leer' : 'Notificaciones'">
+          <mat-icon>notifications</mat-icon>
+          @if (unreadCount > 0) {
+            <span class="notif-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          }
+        </button>
+
+        <mat-menu #notifMenu="matMenu" class="notif-menu-panel" xPosition="before">
+          <div class="notif-head" (click)="$event.stopPropagation()">
+            <div class="notif-head-left">
+              <span class="notif-head-title">Notificaciones</span>
+              @if (unreadCount > 0) {
+                <span class="notif-head-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+              }
+            </div>
+            @if (unreadCount > 0) {
+              <button type="button" class="notif-head-action" (click)="markAllNotifs($event)">
+                <mat-icon>done_all</mat-icon> Marcar leídas
+              </button>
+            }
+          </div>
+
+          @if (loadingNotifs) {
+            <div class="notif-empty">
+              <mat-icon class="spin">autorenew</mat-icon>
+              <span>Cargando…</span>
+            </div>
+          } @else if (notifications.length === 0) {
+            <div class="notif-empty">
+              <mat-icon>notifications_none</mat-icon>
+              <span>Estás al día</span>
+              <small>No tienes notificaciones nuevas</small>
+            </div>
+          } @else {
+            <div class="notif-list">
+              @for (n of notifications; track n.id) {
+                <button mat-menu-item class="notif-item" [class.is-unread]="!n.read" (click)="onNotifClick(n)">
+                  <span class="notif-avatar" [style.background]="notifColor(n.type)">
+                    <mat-icon>{{ notifIcon(n.type) }}</mat-icon>
+                  </span>
+                  <span class="notif-body">
+                    <span class="notif-title">{{ n.title }}</span>
+                    @if (n.message) { <span class="notif-msg">{{ n.message }}</span> }
+                    <span class="notif-time">{{ notifTimeAgo(n.created_at) }}</span>
+                  </span>
+                  @if (!n.read) { <span class="notif-unread-dot"></span> }
+                </button>
+              }
+            </div>
+            <button mat-menu-item class="notif-seeall" (click)="goToNotifications()">
+              <mat-icon>open_in_new</mat-icon> Ver todas
+            </button>
+          }
+        </mat-menu>
+      </div>
+
       <div class="botonConfig">
         <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Configuración" class="icono"
           (menuOpened)="cargarSedes()">
@@ -53,10 +121,6 @@
           <button mat-menu-item [matMenuTriggerFor]="sedeMenu">
             <mat-icon>location_city</mat-icon>
             <span class="spanAux">Cambiar Sede</span>
-          </button>
-          <button mat-menu-item (click)="abrirReporteBug()">
-            <mat-icon class="icon-bug">bug_report</mat-icon>
-            <span class="spanAux">Reportar Bug</span>
           </button>
           <!-- Mostrar la versión de la aplicación -->
           <button mat-menu-item disabled>

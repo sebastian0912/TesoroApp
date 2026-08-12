@@ -209,3 +209,87 @@ video.mirror {
   width: 48px;
   height: 48px;
 }
+
+/* --- Text Action Buttons ---
+   Botones planos propios en lugar de mat-flat-button con color="primary"/"warn":
+   el texto por defecto de Material es oscuro y sobre el visor negro quedaba invisible.
+   Primario = lima (superficie de acción) sobre navy; secundario = neutro translúcido. */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.action-btn mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.action-btn:active {
+  transform: scale(0.97);
+}
+
+.action-primary {
+  background: var(--lime, #8CD50A);
+  color: var(--navy, #21263C);
+}
+
+.action-primary:hover {
+  background: #7cbf09;
+}
+
+.action-secondary {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.action-secondary:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* --- Responsive: en móvil la cámara necesita alto y controles compactos --- */
+@media (max-width: 600px) {
+  .camera-dialog-container {
+    height: 88vh;
+  }
+
+  .dialog-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .header-title {
+    font-size: 1rem;
+  }
+
+  .controls-overlay {
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+
+  .controls-row {
+    gap: 1rem;
+  }
+
+  .shutter-btn {
+    width: 64px;
+    height: 64px;
+  }
+
+  .action-btn {
+    flex: 1;
+    min-width: 0;
+  }
+}

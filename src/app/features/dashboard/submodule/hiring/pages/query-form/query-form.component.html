@@ -12,22 +12,46 @@
   </mat-card-header>
   <mat-card-content class="card-content">
 
-    <!-- Campo de entrada para filtrar por cédula -->
-    <mat-form-field class="example-full-width">
-      <mat-label>Buscar por Cédula</mat-label>
-      <input matInput (input)="onCedulaInput($event)" placeholder="Ingrese número de cédula">
-    </mat-form-field>
+    <!-- Buscador: admite una cédula o muchas pegadas de golpe -->
+    <div class="search-bar">
+      <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+        <mat-label>Buscar por cédula</mat-label>
+        <textarea matInput rows="1" [value]="cedula" (input)="onCedulaInput($event)"
+          (paste)="onPaste($event)" (keydown.enter)="$event.preventDefault(); buscarPorCedula()"
+          placeholder="Una cédula, o pega varias (de Excel, separadas por comas o espacios)"></textarea>
+        <mat-icon matPrefix class="prefix-icon">badge</mat-icon>
+        @if (cedula) {
+          <button mat-icon-button matSuffix (click)="limpiar()" matTooltip="Limpiar">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </mat-form-field>
 
+      <button mat-flat-button class="btn-managerial" (click)="buscarPorCedula()" [disabled]="buscando">
+        <mat-icon>search</mat-icon>
+        {{ buscando ? 'Buscando…' : (cedulasDetectadas > 1 ? 'Buscar ' + cedulasDetectadas : 'Buscar') }}
+      </button>
 
-    <!-- Botón para buscar por cédula -->
-    <button mat-flat-button class="btn-managerial" style="margin-left: 20px; margin-right: 20px;" (click)="buscarPorCedula()">
-      <mat-icon>search</mat-icon> Buscar
-    </button>
+      <button mat-stroked-button class="btn-ghost" (click)="copyTableToClipboard()"
+        [disabled]="!dataSource.data.length" matTooltip="Copiar la tabla para pegar en Excel">
+        <mat-icon>content_copy</mat-icon> Copiar tabla
+      </button>
+    </div>
 
-    <!-- Botón para copiar tabla -->
-    <button mat-raised-button color="primary" (click)="copyTableToClipboard()">
-      <mat-icon>content_copy</mat-icon> Copiar Tabla
-    </button>
+    <!-- Resumen: con varias cédulas hay que decir cuáles no aparecieron -->
+    @if (yaBusco && !buscando) {
+      <div class="search-summary">
+        <span class="chip chip-ok">
+          <mat-icon>check</mat-icon> {{ encontradas }} encontrada{{ encontradas === 1 ? '' : 's' }}
+        </span>
+        @if (noEncontradas.length) {
+          <span class="chip chip-warn" [matTooltip]="noEncontradas.join(', ')">
+            <mat-icon>error_outline</mat-icon>
+            {{ noEncontradas.length }} sin resultados
+          </span>
+        }
+      </div>
+    }
 
     <div class="table-container">
       <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">

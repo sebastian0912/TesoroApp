@@ -2,7 +2,7 @@ import { FincaItem } from './../../service/fincas/fincas.service';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
-import { Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild, ChangeDetectionStrategy, DestroyRef, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
@@ -84,7 +84,15 @@ type DepCiudades = { ciudades: string[] };
 export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   private readonly SI = 'Si';
   private readonly PRUEBA = 'Prueba';
+  private readonly CONTRATACION = 'Contratación';
   private readonly destroyRef = inject(DestroyRef);
+  /**
+   * Zoneless: los catálogos (cargos, centros de costo, sedes, municipios) se
+   * asignan dentro de .subscribe(). Sin markForCheck no hay ciclo que repinte y
+   * los desplegables se quedan vacíos hasta que el usuario toca cualquier campo
+   * y dispara CD por un evento de plantilla.
+   */
+  private readonly cdr = inject(ChangeDetectorRef);
 
   vacanteForm!: FormGroup;
 
@@ -218,6 +226,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           startWith(cargoCtrl.value ?? ''),
           map((value: string) => this._filter(value || '', this.cargos))
         );
+        this.cdr.markForCheck();
       });
 
     // --------- AUTOCOMPLETE FINCAS ----------
@@ -231,6 +240,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           startWith(fincaCtrl.value ?? ''),
           map((value: string) => this._filter(value || '', this.centrosCostos))
         );
+        this.cdr.markForCheck();
       });
 
     // --------- SEDES ----------
@@ -248,6 +258,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .subscribe((sucursales: SedeDto[]) => {
         if (!Array.isArray(sucursales)) {
           this.sedes = [];
+          this.cdr.markForCheck();
           return;
         }
 
@@ -259,6 +270,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           }))
           .filter((s) => !!s.nombre)
           .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+        this.cdr.markForCheck();
       });
 
     // --------- OFICINAS SELECCIONADAS => FORMARRAY ----------
@@ -280,6 +292,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
         this.municipiosFiltrados = [...this.municipiosColombia];
         this.resetFiltroMunicipio();
+        this.cdr.markForCheck();
       });
 
     this.municipioCtrl.valueChanges.pipe(startWith(''), takeUntilDestroyed(this.destroyRef)).subscribe(() => this.filtrarMunicipios());
@@ -302,12 +315,9 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
 
     // ====== Validaciones condicionales ======
-    this.applyTieneFechaIngreso(String(this.vacanteForm.get('tieneFechaIngreso')!.value ?? 'No'));
-    this.vacanteForm
-      .get('tieneFechaIngreso')!
-      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((v: unknown) => this.applyTieneFechaIngreso(String(v ?? 'No')));
-
+    // La fecha de ingreso la maneja applyPruebaContratacion -> syncFechaIngreso
+    // (solo aplica en "Contratación inmediata"). El toggle "Tiene Fecha de
+    // Ingreso" ya no se muestra ni se edita a mano.
     this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
     this.vacanteForm
       .get('pruebaOContratacion')!
@@ -318,13 +328,27 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {  }
 
   // ---------- Validaciones condicionales ----------
-  private applyTieneFechaIngreso(valor: string): void {
+  /**
+   * La Fecha de Ingreso se muestra y se exige SOLO en "Contratación inmediata"
+   * (misma lógica que tenía la "Autorización de ingreso": entra de una vez).
+   * El toggle "Tiene Fecha de Ingreso" ya no se muestra: se maneja aquí solo.
+   * Al cambiar a otra opción (p.ej. Prueba técnica) se BORRA la fecha para no
+   * dejar un dato viejo colgado, y se oculta.
+   */
+  private syncFechaIngreso(): void {
+    const esContratacion =
+      String(this.vacanteForm.get('pruebaOContratacion')?.value ?? '') === this.CONTRATACION;
+
+    // Toggle oculto, coherente con el payload (Si/No).
+    this.vacanteForm.get('tieneFechaIngreso')!
+      .setValue(esContratacion ? this.SI : 'No', { emitEvent: false });
+
     const ctrl = this.vacanteForm.get('fechadeIngreso')!;
-    if (valor === this.SI) {
+    if (esContratacion) {
       ctrl.enable({ emitEvent: false });
       ctrl.setValidators([Validators.required]);
     } else {
-      ctrl.reset(null, { emitEvent: false });
+      ctrl.reset(null, { emitEvent: false });   // borra el dato al cambiar de opción
       ctrl.clearValidators();
       ctrl.disable({ emitEvent: false });
     }
@@ -356,6 +380,9 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     fPrueba.updateValueAndValidity({ emitEvent: false });
     hPrueba.updateValueAndValidity({ emitEvent: false });
     uPrueba.updateValueAndValidity({ emitEvent: false });
+
+    // La fecha de ingreso depende de esta opción (Contratación inmediata).
+    this.syncFechaIngreso();
   }
 
   // ---------- Distribución por municipio ----------
@@ -593,7 +620,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .map((x: any) => String(x ?? '').trim())
       .filter(Boolean);
 
-    this.applyTieneFechaIngreso(String(this.vacanteForm.get('tieneFechaIngreso')!.value ?? 'No'));
+    this.syncFechaIngreso();
     this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
 
     this.vacanteForm.updateValueAndValidity({ emitEvent: false });
@@ -641,6 +668,9 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           direccion: finca?.direccion ?? null,
           temporal: temporalCanon,
         });
+        // `temporal` es un mat-select: su valor lo escribe el CVA, pero el
+        // texto visible del trigger sí depende de un ciclo de detección.
+        this.cdr.markForCheck();
       });
   }
 

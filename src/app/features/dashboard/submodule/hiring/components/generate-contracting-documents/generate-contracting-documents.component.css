@@ -675,3 +675,68 @@
     gap: 8px;
   }
 }
+/* ── Documentos de otras pantallas (solo lectura) ───────────────────────── */
+.doc-externos-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: .76rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.doc-externos-nota .mat-icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+/* Sin hover ni cursor de accion: aqui no se sube nada. */
+.doc-item-externo { cursor: default; }
+
+.doc-item-externo .doc-origen {
+  display: block;
+  font-size: .72rem;
+  color: #94a3b8;
+}
+
+/* ───────── Giro manual de la foto ─────────
+   Va en el header del panel de documentos porque la foto la comparten varios
+   (ficha técnica, hoja de vida Minerva y carnet): girarla ahí los arregla todos. */
+.foto-giro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.foto-giro-thumb {
+  width: 34px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  flex: 0 0 auto;
+}
+
+.foto-giro-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.foto-giro-label { font-size: .74rem; font-weight: 700; color: #374151; }
+.foto-giro-hint { font-size: .7rem; color: #6b7280; line-height: 1.25; }
+.foto-giro-btn { flex: 0 0 auto; }

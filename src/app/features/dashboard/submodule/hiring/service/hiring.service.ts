@@ -192,6 +192,8 @@ export class HiringService {
         registro: string; errores: any[];
       }[];
       responsable: string;
+      /** Oficina que reporta: sin ella el consolidado no puede agrupar los errores. */
+      oficina?: string;
       tipo: string;
     },
 
@@ -202,6 +204,7 @@ export class HiringService {
     const data = {
       errores: payload.errores,
       responsable: payload.responsable,
+      oficina: payload.oficina ?? '',
       tipo: payload.tipo,
     };
 
@@ -219,10 +222,13 @@ export class HiringService {
     }
   }
 
-  // Obtener base contratacion por rango de fechas
-  public obtenerBaseContratacionPorFechas(start: string, end: string): Observable<Blob> {
+  // Obtener base contratacion por rango de fechas.
+  // `oficina` (opcional) filtra por la oficina del contrato, que el backend
+  // deduce del código: es el cierre por sede. Sin ella el reporte es global.
+  public obtenerBaseContratacionPorFechas(start: string, end: string, oficina?: string): Observable<Blob> {
 
-    const params = { start, end };
+    const params: { [k: string]: string } = { start, end };
+    if (oficina?.trim()) params['oficina'] = oficina.trim();
 
     // Indicamos que el responseType será 'blob' para manejar archivos binarios
     return this.http.get(`${this.apiUrl}/contratacion/descargarReporte/`, {

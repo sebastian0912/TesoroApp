@@ -30,10 +30,16 @@ export const routes: Routes = [
       { path: 'merchandise', loadChildren: () => import('./submodule/merchandise/merchandise.routes').then(m => m.routes) },
       { path: 'market', loadChildren: () => import('./submodule/market/market.routes').then(m => m.routes) },
       { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.routes').then(m => m.routes) },
+      // Administración: el grupo ya no es solo un redirect, tiene pantallas propias
+      // (Correos electrónicos). Su ruta '' conserva el redirect al primer hijo del grupo.
+      { path: 'gestion-del-programa', loadChildren: () => import('./submodule/gestion-del-programa/gestion-del-programa.routes').then(m => m.routes) },
+      { path: 'herramientas-ia', loadChildren: () => import('./submodule/herramientas-ia/herramientas-ia.routes').then(m => m.routes) },
+      { path: 'gestion-legal', loadChildren: () => import('./submodule/gestion-legal/gestion-legal.routes').then(m => m.routes) },
 
       // Redirects para módulos PADRE del menú (db_admin.modulo) cuyas rutas apuntan
       // a paths sin pantalla propia. Antes hacían redirect silencioso al home;
       // ahora navegan al primer hijo del grupo.
+      { path: 'juridico',                    redirectTo: 'gestion-legal/bandeja',             pathMatch: 'full' },
       { path: 'tesoreria',                   redirectTo: 'treasury/manage-workers',           pathMatch: 'full' },
       { path: 'autorizaciones',              redirectTo: 'authorizations/market-bonus',       pathMatch: 'full' },
       { path: 'operaciones-de-tesoreria',    redirectTo: 'treasury/manage-workers',           pathMatch: 'full' },
@@ -44,7 +50,6 @@ export const routes: Routes = [
       { path: 'salud',                       redirectTo: 'disabilities/formulario',           pathMatch: 'full' },
       { path: 'seleccion-y-contratacion',    redirectTo: 'hiring/recruitment-pipeline',       pathMatch: 'full' },
       { path: 'contratacion/reportes',       redirectTo: 'hiring/hiring-report',              pathMatch: 'full' },
-      { path: 'gestion-del-programa',        redirectTo: 'users/manage-users',                pathMatch: 'full' },
       { path: 'gestion-documental',          redirectTo: 'document-management/company-docs-access', pathMatch: 'full' },
       { path: 'traslados',                   redirectTo: 'eps-transfers/process-transfers',   pathMatch: 'full' },
 

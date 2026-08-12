@@ -2,9 +2,18 @@
     <mat-card-content>
         <div class="hiring-wrapper">
 
-            <header class="page-header">
-                <h1 class="page-title">Reporte de Contratación</h1>
-                <p class="page-subtitle">Gestión diaria de ingresos, cruces y novedades.</p>
+            <!-- Cabecera navy, igual que el resto de la app: era un <h1> suelto
+                 y por eso la pantalla se veía descolgada de las demás. -->
+            <header class="card-header-premium">
+                <div class="header-content">
+                    <div class="header-icon-container">
+                        <mat-icon class="header-icon">assignment_turned_in</mat-icon>
+                    </div>
+                    <div class="header-text">
+                        <h1 class="titulo">Reporte de Contratación</h1>
+                        <p class="subtitulo">Gestión diaria de ingresos, cruces y novedades.</p>
+                    </div>
+                </div>
             </header>
 
             <form [formGroup]="reporteForm" class="dashboard-grid" (ngSubmit)="onSubmit()">
@@ -136,16 +145,32 @@
 
                         <div class="card-content">
 
-                            <div class="form-row">
-                                <mat-form-field appearance="outline" class="dense-field">
-                                    <mat-label>Sede</mat-label>
-                                    <mat-select formControlName="sede">
-                                        @for(s of sedes; track s) {
-                                        <mat-option [value]="s">{{ s.nombre }}</mat-option>
-                                        }
-                                    </mat-select>
-                                </mat-form-field>
-                            </div>
+                            @if (cargandoSedes) {
+                                <!-- Skeleton: el hueco tiene la forma y el tamaño de lo que va a
+                                     llegar, así el layout no salta cuando aparecen las sedes. -->
+                                <div class="skeleton-row" aria-hidden="true">
+                                    <span class="sk sk-label"></span>
+                                    <span class="sk sk-field"></span>
+                                </div>
+                                <span class="visually-hidden" role="status">Cargando sedes…</span>
+                            } @else if (fallaronSedes) {
+                                <div class="inline-alert">
+                                    <mat-icon>error_outline</mat-icon>
+                                    <span>No se pudieron cargar las sedes.</span>
+                                    <button mat-button class="retry-btn" (click)="reintentarSedes()">Reintentar</button>
+                                </div>
+                            } @else {
+                                <div class="form-row">
+                                    <mat-form-field appearance="outline" class="dense-field">
+                                        <mat-label>Sede</mat-label>
+                                        <mat-select formControlName="sede">
+                                            @for(s of sedes; track s) {
+                                            <mat-option [value]="s">{{ s.nombre }}</mat-option>
+                                            }
+                                        </mat-select>
+                                    </mat-form-field>
+                                </div>
+                            }
 
                             <div class="form-row two-col">
                                 <mat-form-field appearance="outline" class="dense-field">

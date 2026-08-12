@@ -52,6 +52,31 @@ export class DocViewerService {
   }
 
   /**
+   * Descarga el contenido del documento como Blob, poniendo el JWT cuando la URL es de la API.
+   *
+   * Es el unico camino correcto para bajar un documento fuera de HttpClient: el interceptor de
+   * Angular NO toca `fetch` nativo, asi que un `fetch(file_url)` a pelo sale sin Authorization y
+   * el gateway lo corta con 401 (X-Auth-Reason: missing_token). Los file_url del media legacy
+   * (formulario) son publicos y se bajan sin cabecera.
+   *
+   * Devuelve null si la descarga falla (incluido el 401), para que quien empaqueta pueda contar
+   * los fallidos en vez de romper el lote entero.
+   */
+  async fetchBlob(url: string | null | undefined): Promise<Blob | null> {
+    if (!url) return null;
+    const abs = this.toAbsolute(url);
+    try {
+      const res = await fetch(abs, this.isApiUrl(abs) ? { headers: this.authHeader() } : {});
+      if (!res.ok) return null;
+      const buf = await res.arrayBuffer();
+      const type = DocViewerService.sniffType(buf, res.headers.get('content-type'));
+      return new Blob([buf], { type });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Descarga el documento y devuelve un blob URL usable en iframe/img/open. Para blob:/data:
    * lo devuelve tal cual; para media legacy (no-API) devuelve la URL absoluta directa (publica);
    * para la API descarga con JWT. Devuelve null si falla.
@@ -61,18 +86,11 @@ export class DocViewerService {
     if (url.startsWith('blob:') || url.startsWith('data:')) return url;
     const abs = this.toAbsolute(url);
     if (!this.isApiUrl(abs)) return abs; // media legacy / otro host publico
-    try {
-      const res = await fetch(abs, { headers: this.authHeader() });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const buf = await res.arrayBuffer();
-      // Muchos docs tienen mime_type 'application/octet-stream' en BD → el navegador los
-      // DESCARGA en vez de previsualizarlos. Se detecta el tipo real por magic bytes para
-      // que el iframe / la pestaña nueva los MUESTREN (PDF/imagen).
-      const type = DocViewerService.sniffType(buf, res.headers.get('content-type'));
-      return URL.createObjectURL(new Blob([buf], { type }));
-    } catch {
-      return null;
-    }
+    // Muchos docs tienen mime_type 'application/octet-stream' en BD → el navegador los
+    // DESCARGA en vez de previsualizarlos. `fetchBlob` detecta el tipo real por magic bytes
+    // para que el iframe / la pestaña nueva los MUESTREN (PDF/imagen).
+    const blob = await this.fetchBlob(abs);
+    return blob ? URL.createObjectURL(blob) : null;
   }
 
   /** Detecta el content-type real por magic bytes (mime_type en BD suele ser octet-stream). */

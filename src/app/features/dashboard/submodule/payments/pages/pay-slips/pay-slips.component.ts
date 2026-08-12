@@ -1,10 +1,9 @@
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { PaymentsService } from '../../services/payments.service';
 import { SharedModule } from '@/app/shared/shared.module';
 
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
-import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { FormsModule } from '@angular/forms';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
@@ -16,7 +15,6 @@ import { StandardFilterTable } from '@/app/shared/components/standard-filter-tab
   standalone: true,
   imports: [
     SharedModule,
-    InfoCardComponent,
     FormsModule,
     StandardFilterTable
   ],
@@ -54,6 +52,23 @@ export class PaySlipsComponent implements OnInit {
   user: any
   correo: any;
 
+  /** Correos autorizados para gestionar (descargar/cargar) desprendibles. */
+  private readonly correosGestionDesprendibles = new Set<string>([
+    'nominacentral4@gmail.com',
+    'nomina.rtc@gmail.com',
+    'programador.ts@gmail.com',
+    'nomina.gandes@gmail.com',
+    'nominacentral7@gmail.com',
+    'antcontable4.ts@gmail.com',
+    'nominacentral6@gmail.com',
+    'nominacentral9@gmail.com',
+  ]);
+
+  /** true si el usuario puede descargar/cargar desprendibles. */
+  get puedeGestionarDesprendibles(): boolean {
+    return this.correosGestionDesprendibles.has(this.correo);
+  }
+
   claves = ["No", "Cedula", "Nombre", "Ingreso",
     "Retiro", "Finca", "Telefono", "CONCEPTO",
     "Desprendibles", "Certificaciones", "Cartas_Retiro",
@@ -63,6 +78,7 @@ export class PaySlipsComponent implements OnInit {
   constructor(
     private paymentsService: PaymentsService,
     private utilityService: UtilityServiceService,
+    private cdr: ChangeDetectorRef,
   ) { }
 
   async ngOnInit(): Promise<void> {
@@ -100,6 +116,17 @@ export class PaySlipsComponent implements OnInit {
       return;
     }
 
+    // Modal de carga mientras se consulta la información.
+    Swal.fire({
+      title: 'Buscando información...',
+      text: 'Por favor espera un momento.',
+      icon: 'info',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
     this.paymentsService.buscarDesprendibles(cleanedCedula).subscribe(
       (response: any) => {
         // El backend puede responder con un array directo [...] o con un
@@ -114,6 +141,7 @@ export class PaySlipsComponent implements OnInit {
 
         if (lista.length === 0) {
           this.dataList = [];
+          this.cdr.markForCheck();
           Swal.fire({
             icon: 'info',
             title: 'Información',
@@ -134,12 +162,17 @@ export class PaySlipsComponent implements OnInit {
           type_carta_cesantias: item.carta_cesantias,
           type_entrevista_retiro: item.entrevista_retiro
         }));
+        // OnPush: la respuesta llega async; hay que marcar para que se
+        // renderice sin necesidad de un segundo click.
+        this.cdr.markForCheck();
+        Swal.close();
       },
       (error: any) => {
         // Algunas versiones del backend responden 404 cuando no hay registros;
         // eso no es un error real, es "no encontrado".
         if (error?.status === 404) {
           this.dataList = [];
+          this.cdr.markForCheck();
           Swal.fire({
             icon: 'info',
             title: 'Información',

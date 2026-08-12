@@ -7,27 +7,32 @@
   height: 100%;
   width: 100%;
 
-  /* --- PALETA CORPORATIVA --- */
-  --sft-base: #21263C;
-  --sft-accent: #8CD50A;
+  /* --- PALETA CORPORATIVA ---
+     Esta tabla la usan 22 páginas: lo que se toque aquí las mueve todas.
+     Los tokens cuelgan de los globales de styles.css para que no vuelvan
+     a derivar. Lógica: navy=estructura, slate=superficie, lima=SOLO
+     interacción, ámbar=excepción. */
+  --sft-base: var(--navy, #21263C);
+  --sft-accent: var(--lime, #8CD50A);
 
-  /* --- PALETA UI (Derived/Neutral) --- */
-  --sft-bg-app: #f9fafb;
-  --sft-text-main: #333333;
-  --sft-text-secondary: #666666;
-  --sft-border: #e0e0e0;
+  /* --- PALETA UI (escala slate, no grises sueltos) --- */
+  --sft-bg-app: var(--slate-50, #f8fafc);
+  --sft-text-main: var(--slate-900, #0f172a);
+  --sft-text-secondary: var(--slate-500, #64748b);
+  --sft-border: var(--slate-200, #e8edf3);
 
   /* Tablet Theme Props */
   --sft-header-bg: var(--sft-base);
   --sft-header-text: #ffffff;
-  --sft-row-even-bg: #F8FAFC;
-  /* Softer even row */
+  --sft-row-even-bg: var(--slate-50, #f8fafc);
 
-  /* Zebra / Hover */
-  --sft-hover-bg: #E0E7FF;
-  /* Light Indigo hover */
-  --sft-selected-bg: #DBEAFE;
-  /* Blue 100 */
+  /* Hover y selección.
+     Venían #E0E7FF (índigo) y #DBEAFE (azul): dos colores que no existen
+     en la marca, y eran lo primero que veías al pasar el mouse por
+     cualquier fila de la app. Ahora hover = slate (neutro) y selección =
+     un velo de lima, que es el color reservado a la interacción. */
+  --sft-hover-bg: var(--slate-100, #f1f5f9);
+  --sft-selected-bg: rgba(140, 213, 10, 0.07);
   --sft-selected-border: var(--sft-accent);
 
   /* Drawer specific */
@@ -42,8 +47,20 @@
 .sf-drawer-container {
   width: 100%;
   height: 100%;
-  min-height: 500px;
+  /* Sin min-height fijo: ahora las páginas ocupan height:100% del wrapper y
+     ahogan su scroll, así que un suelo de 500px desbordaba la página en
+     pantallas bajas y devolvía el scroll al wrapper —justo lo contrario de
+     lo que se busca. min-height:0 deja que la tabla encoja hasta el alto real. */
+  min-height: 0;
   background-color: var(--sft-bg-app);
+}
+
+/* En móvil sí conviene un suelo: ahí la página vuelve a scrollear y una tabla
+   de 100px no sirve de nada. */
+@media (max-width: 900px) {
+  .sf-drawer-container {
+    min-height: 420px;
+  }
 }
 
 .sf-filter-drawer {
@@ -132,13 +149,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--slate-200, #e8edf3);
   border-radius: 6px;
   transition: background-color 0.2s;
 }
 
 .sf-col-item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--slate-100, #f1f5f9);
 }
 
 .sf-col-item-left {
@@ -150,7 +167,7 @@
 }
 
 .sf-col-filter-toggle {
-  color: #ccc;
+  color: var(--slate-400, #94a3b8);
   transform: scale(0.9);
 }
 
@@ -161,8 +178,8 @@
 /* Filter Blocks */
 .sf-filter-block {
   margin-bottom: 24px;
-  background: #fcfcfc;
-  border: 1px solid #eee;
+  background: var(--slate-50, #f8fafc);
+  border: 1px solid var(--slate-200, #e8edf3);
   border-radius: 8px;
   padding: 12px;
 }
@@ -273,7 +290,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  background: #f1f3f4;
+  background: var(--slate-100, #f1f5f9);
   border-radius: 24px;
   padding: 0 12px;
   height: 40px;
@@ -384,7 +401,7 @@
 
 .sf-chip-x:hover {
   opacity: 1;
-  color: #d32f2f;
+  color: #b42318;
 }
 
 .sf-chip-x mat-icon {
@@ -433,16 +450,16 @@
 }
 
 .sf-table-wrapper::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--slate-100, #f1f5f9);
 }
 
 .sf-table-wrapper::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--slate-300, #d8e0ea);
   border-radius: 4px;
 }
 
 .sf-table-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--slate-400, #94a3b8);
 }
 
 .sf-table {
@@ -521,10 +538,30 @@
   background-color: #fff;
   transition: background-color 0.15s ease-in-out;
 
+  /* Una celda hereda vertical-align:baseline, así que iconos y botones se
+     alineaban a la línea base del texto en vez de al centro. Con el wrapping
+     de abajo una celda puede ocupar 2 líneas, y entonces el icono se quedaba
+     pegado arriba, cuadrado con la primera línea. */
+  vertical-align: middle;
+
   /* Text Wrapping */
   white-space: normal;
   overflow-wrap: anywhere;
   max-width: 300px;
+}
+
+/* Los iconos dentro de celda son inline por defecto y arrastran el
+   espacio de línea (descender), que es lo que los baja 1-2px respecto
+   al texto. Con flex se centran de verdad. */
+.sf-table td mat-icon,
+.sf-table td .mat-mdc-icon-button {
+  vertical-align: middle;
+}
+
+.sf-table td .mat-mdc-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Number cells align right */
@@ -559,6 +596,8 @@
   min-width: 48px;
   padding: 0 8px !important;
   text-align: center;
+  /* El checkbox tampoco se centraba: misma herencia de baseline */
+  vertical-align: middle;
 }
 
 /* Ensure sticky checkbox sits on top */
@@ -682,7 +721,7 @@
 .sf-no-data-illustration {
   width: 120px;
   height: 120px;
-  background: #f3f4f6;
+  background: var(--slate-100, #f1f5f9);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -757,7 +796,7 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--slate-200, #e8edf3);
   padding-top: 12px;
 }
 

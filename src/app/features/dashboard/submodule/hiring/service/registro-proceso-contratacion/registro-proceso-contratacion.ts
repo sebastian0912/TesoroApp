@@ -213,20 +213,44 @@ export interface ExamenMedicoUpsertPayload {
 
 // ===== Contrato: control de generación de código =====
 /**
- * Si generar_codigo = true, sede_abbr es obligatorio.
- * Si generar_codigo = false, puedes omitir el bloque o enviar sede_abbr opcional.
+ * `sede_abbr` es una PISTA para elegir el rango de numeración de la oficina;
+ * si no llega, el backend la resuelve desde la entrevista. Acepta tanto la
+ * abreviatura (FPC, TOC, SUB...) como el nombre completo de la sede.
+ *
+ * La generación es idempotente: un contrato que ya tiene código lo conserva,
+ * así que mandar `generar_codigo: true` siempre es seguro.
  */
-export type ContratoCodigoRequest =
-  | { generar_codigo: true; sede_abbr: string }
-  | { generar_codigo: false; sede_abbr?: string };
+export type ContratoCodigoRequest = { generar_codigo: boolean; sede_abbr?: string };
 
 // ===== Request principal: /procesos/update-by-document/ =====
 export interface ProcesoUpdateByDocumentRequest {
   numero_documento: string;
+  /**
+   * Proceso EXACTO a modificar. Sin esto el backend resuelve la ÚLTIMA
+   * entrevista del candidato, que no siempre es la del contrato cuando la
+   * persona vuelve y se le abre un turno nuevo.
+   */
+  proceso_id?: number | null;
   publicacion?: number | null;
   vacante_tipo?: string | null;
   vacante_salario?: string | null;
   prueba_tecnica?: boolean;
+  /** Marca el resultado "no pasó la prueba técnica" (con motivo). */
+  no_paso_prueba_tecnica?: boolean;
+  /** Motivo por el que no pasó la prueba técnica. */
+  motivo_no_paso_prueba_tecnica?: string | null;
+  /** Marca el resultado "pasó la prueba técnica" (excluyente con no_paso). */
+  paso_prueba_tecnica?: boolean;
+  /** No se presentó a la prueba técnica: NO es un "no pasó" (nunca se evaluó). */
+  no_se_presento_prueba_tecnica?: boolean;
+  /** Motivo por el que no se presentó a la prueba técnica. */
+  motivo_no_se_presento_prueba_tecnica?: string | null;
+  /** Resultado del examen médico (excluyentes entre sí). */
+  paso_examen_medico?: boolean;
+  no_paso_examen_medico?: boolean;
+  motivo_no_paso_examen_medico?: string | null;
+  no_se_presento_examen_medico?: boolean;
+  motivo_no_se_presento_examen_medico?: string | null;
   autorizado?: boolean;
   vacante_fecha_prueba?: string | null;
 
@@ -262,6 +286,15 @@ export interface ProcesoUpdateByDocumentRequest {
   resultados?: string | null;
 
   contrato?: ContratoCodigoRequest;
+
+  /**
+   * Override "Modificar de todas formas": edición pura de una persona con contrato
+   * activo (sin darle de baja). El backend NO reinicia banderas ni abre proceso
+   * nuevo, y sella la auditoría con `modificado_por` + fecha/hora del servidor.
+   */
+  modificacion_forzada?: boolean;
+  /** Nombre del usuario que ejecuta el override (auditoría). */
+  modificado_por?: string | null;
 }
 
 
@@ -373,6 +406,8 @@ export interface CandidatoRecienteItem {
   // Encolado (cola FIFO por sede):
   en_turno_at?: string | null;
   en_turno_oficina?: string | null;
+  /** ¿Ya se le generó el carnet? (contrato.carnet_generado) */
+  carnet_generado?: boolean;
 }
 
 export type RangoFechas = { start: string | Date; end: string | Date };
@@ -401,6 +436,46 @@ export interface CandidatoPorVacanteItem {
   fecha_ingreso: string | null;      // ISO (YYYY-MM-DD) o null
   vacante_tipo: string | null;
   etapa: string | null;
+  /** Resultado: el candidato fue remitido a prueba técnica pero no la pasó. */
+  no_paso_prueba_tecnica?: boolean;
+  /** ISO datetime en que se marcó "no pasó la prueba técnica" (o null). */
+  no_paso_prueba_tecnica_at?: string | null;
+  /** Motivo registrado de por qué no pasó la prueba técnica. */
+  motivo_no_paso_prueba_tecnica?: string | null;
+  /** El candidato no se presentó a la prueba técnica. */
+  no_se_presento_prueba_tecnica?: boolean;
+  /** ISO datetime en que se marcó "no se presentó" (o null). */
+  no_se_presento_prueba_tecnica_at?: string | null;
+  /** Motivo registrado de por qué no se presentó a la prueba técnica. */
+  motivo_no_se_presento_prueba_tecnica?: string | null;
+  /** Resultado del examen médico (excluyentes entre sí). */
+  paso_examen_medico?: boolean;
+  paso_examen_medico_at?: string | null;
+  no_paso_examen_medico?: boolean;
+  no_paso_examen_medico_at?: string | null;
+  motivo_no_paso_examen_medico?: string | null;
+  no_se_presento_examen_medico?: boolean;
+  no_se_presento_examen_medico_at?: string | null;
+  motivo_no_se_presento_examen_medico?: string | null;
+
+  // ── Campos adicionales para los formatos por finca (Hato/Flores/Sagaro/San Carlos).
+  //    Todos opcionales; el backend los llena solo si el candidato tiene el dato.
+  rh?: string | null;                  // grupo sanguíneo (RH+)
+  email?: string | null;               // correo electrónico
+  municipio?: string | null;           // municipio de residencia
+  departamento?: string | null;
+  fecha_expedicion?: string | null;    // ISO YYYY-MM-DD
+  lugar_expedicion?: string | null;    // "EXPEDIDA EN"
+  lugar_nacimiento?: string | null;    // ciudad/municipio de nacimiento
+  num_hijos?: number | null;
+  contacto_emergencia?: string | null; // teléfono
+  nombre_emergencia?: string | null;
+  eps?: string | null;
+  afp?: string | null;                 // fondo de pensión
+  cesantias?: string | null;
+  salario?: string | null;             // salario de la vacante
+  calzado?: number | null;             // talla de calzado (dotación)
+  talla_overol?: number | null;        // talla de camisa (= overol)
 }
 
 
@@ -433,6 +508,32 @@ export class RegistroProcesoContratacion {
     }
 
     return this.http.post<CandidatoUpsertResponse>(url, payload);
+  }
+
+  /**
+   * GET /gestion_contratacion/reporte/contratados-del-dia/?fecha=&oficina=
+   *
+   * Cédulas con contrato firmado ese día. Es la fuente del botón "Cerrar
+   * contratación": el pipeline es lo que está vivo, mientras que la base de
+   * contratación se llena DESPUÉS, con el propio cierre.
+   */
+  contratadosDelDia(fecha: string, oficina?: string): Observable<any> {
+    let params = new HttpParams().set('fecha', fecha);
+    if (oficina?.trim()) params = params.set('oficina', oficina.trim());
+    return this.http.get(`${this.base}/reporte/contratados-del-dia/`, { params });
+  }
+
+  /**
+   * POST /gestion_contratacion/reporte/candidatos-excel/
+   *
+   * Base del cruce (Excel) para esas cédulas — la misma lógica de "sacar la
+   * base por cédula". Va por POST y no por GET porque un día completo pasa de
+   * 300 cédulas y esa lista en la URL son ~3 KB que algunos proxies cortan.
+   */
+  exportarBaseCandidatos(cedulas: string[], persona?: string): Observable<Blob> {
+    return this.http.post(`${this.base}/reporte/candidatos-excel/`,
+      { cedulas, persona: persona || '' },
+      { responseType: 'blob' });
   }
 
   /** Obtiene el Excel como Blob (con filtro opcional por oficina). */
@@ -513,6 +614,63 @@ export class RegistroProcesoContratacion {
     action?: string;
   }> {
     return this.http.post<any>(this.url('candidatos/asegurar-estado-robot'), payload).pipe(this.handle$());
+  }
+
+  /**
+   * POST /EstadosRobots/forzar-consulta-antecedentes
+   *
+   * Re-abre AHORA las 8 fuentes de antecedentes (SIN_CONSULTAR + limpieza de
+   * fechas y locks) para que la flota vuelva a consultar y suba PDFs nuevos.
+   * A diferencia de `asegurarEstadoRobot`, no espera a que la fila esté
+   * vencida. Cuesta una pasada completa de robots: confirmar antes de llamar.
+   *
+   * OJO a la ruta: NO cuelga de /gestion_contratacion. El estado de la cola de
+   * robots pertenece a ms-automation, que es el único que lo puede escribir;
+   * ms-hr solo tiene un stub que responde "noop".
+   */
+  forzarConsultaAntecedentes(payload: {
+    tipo_doc?: string | null;
+    numero_documento?: string | null;
+    oficina?: string | null;
+  }): Observable<{
+    ok: boolean;
+    numero_documento?: string;
+    tipo_documento?: string;
+    action?: string;
+    reabierto?: boolean;
+    mensaje?: string;
+  }> {
+    return this.http
+      .post<any>(`${this.apiUrl}/EstadosRobots/forzar-consulta-antecedentes`, payload)
+      .pipe(this.handle$());
+  }
+
+  /**
+   * POST /EstadosRobots/forzar-consulta-fuente
+   *
+   * Re-abre UNA sola fuente de antecedentes (no las 8).
+   *
+   * `fuente` ∈ adress | policivo | ofac | contraloria | sisben | procuraduria |
+   * fondo_pension | medidas_correctivas. Es lo que usa el botón "Forzar
+   * consultar" del documento vencido: re-consultar las 8 cuesta una pasada
+   * completa de la flota y 2captcha de más.
+   */
+  forzarConsultaFuente(payload: {
+    numero_documento: string;
+    tipo_doc?: string | null;
+    fuente: string;
+    oficina?: string | null;
+  }): Observable<{
+    ok: boolean;
+    numero_documento?: string;
+    fuente?: string;
+    action?: string;
+    reabierto?: boolean;
+    mensaje?: string;
+  }> {
+    return this.http
+      .post<any>(`${this.apiUrl}/EstadosRobots/forzar-consulta-fuente`, payload)
+      .pipe(this.handle$());
   }
 
   getUltimosEnEspera(oficina?: string | string[]): Observable<EnEsperaItem[]> {
@@ -680,11 +838,17 @@ export class RegistroProcesoContratacion {
     return this.http.patch(this.url('candidatos/by-document-upsert'), upper).pipe(this.handle$());
   }
 
-  /** Comodín: arma el payload desde el form y opcionalmente un proceso (p.ej. {entrevistado:true}) */
-  upsertCandidatoByDocumentoFromForm(form: any, proceso?: any): Observable<any> {
+  /**
+   * Comodín: arma el payload desde el form y opcionalmente un proceso (p.ej. {entrevistado:true}).
+   *
+   * `override` lleva las banderas de "Modificar de todas formas". Van al nivel
+   * raíz del payload (no dentro de `proceso`) porque el backend las lee de la
+   * raíz para decidir si edita la entrevista existente o abre una nueva.
+   */
+  upsertCandidatoByDocumentoFromForm(form: any, proceso?: any, override?: any): Observable<any> {
     const payload = this.buildCandidatoPayload(form, proceso);
     const upper = this.uppercaseDeepExcept(payload, new Set(['email', 'correo_electronico', 'password']));
-    return this.http.patch(this.url('candidatos/by-document-upsert'), upper).pipe(this.handle$());
+    return this.http.patch(this.url('candidatos/by-document-upsert'), { ...upper, ...(override || {}) }).pipe(this.handle$());
   }
 
   // ===================== CANDIDATOS =====================
@@ -727,17 +891,59 @@ export class RegistroProcesoContratacion {
   //
   // 1) Versión PATH: /candidatos/by-document/<numero_documento>?full=1
   //
-  getCandidatoPorDocumento(numeroDocumento: string, full = false) {
+  getCandidatoPorDocumento(numeroDocumento: string, full = false, tipoDoc?: string | null) {
     const safe = encodeURIComponent((numeroDocumento ?? '').trim());
     let params = new HttpParams();
     if (full) {
       params = params.set('full', '1');
       params = params.set('include_queue', '1');
     }
+    // Con cédula duplicada (una fila 'CC' y otra 'C.C'/'CE'), sin este filtro el backend
+    // devuelve "la más recientemente atendida" — que puede ser justo el titular que el
+    // operador NO eligió. El backend ya soporta ?tipo_doc=.
+    const tipo = String(tipoDoc ?? '').trim();
+    if (tipo) params = params.set('tipo_doc', tipo);
 
     return this.http
       .get<any>(this.url(`candidatos/by-document/${safe}`), { params })
-      .pipe(this.handle$());
+      // OJO: el `map` con adaptarCandidato NO está en el árbol de pruebas y hay que
+      // conservarlo. El backend devuelve el candidato anidado bajo `.candidato` y en
+      // camelCase, pero todo el flujo de contratación lo consume PLANO y en snake_case;
+      // sin esta adaptación el candidato llega pero ningún campo casa y la vista sale
+      // vacía (el "no me sale al buscar").
+      .pipe(map((resp) => this.adaptarCandidato(resp)), this.handle$());
+  }
+
+  /**
+   * El backend devuelve el candidato ANIDADO bajo `.candidato` y en camelCase
+   * ({candidato:{numeroDocumento,...}, vivienda, entrevistas, ...}), pero TODO el
+   * flujo de contratación lo consume PLANO y en snake_case
+   * (candidatoSeleccionado()?.numero_documento, entrevistas[0].proceso.contrato.contrato_activo…).
+   * Sin esta adaptación el candidato llegaba, pero ningún campo casaba y la vista
+   * quedaba vacía ("no me sale al buscar").
+   *
+   * Se sube `candidato` a la raíz, se conservan las colecciones hermanas
+   * (vivienda, entrevistas, …) y se convierten TODAS las claves a snake_case.
+   */
+  private adaptarCandidato(resp: any): any {
+    if (!resp || typeof resp !== 'object' || Array.isArray(resp)) return resp;
+    const { candidato, ...resto } = resp;
+    const plano = { ...(candidato ?? {}), ...resto };
+    return this.snakeDeep(plano);
+  }
+
+  /** Convierte camelCase -> snake_case en TODAS las claves, recorriendo objetos y arrays. */
+  private snakeDeep(value: any): any {
+    if (Array.isArray(value)) return value.map((v) => this.snakeDeep(v));
+    if (value && typeof value === 'object') {
+      const out: any = {};
+      for (const [k, v] of Object.entries(value)) {
+        const sk = k.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+        out[sk] = this.snakeDeep(v);
+      }
+      return out;
+    }
+    return value;
   }
 
   //
@@ -1042,6 +1248,31 @@ export class RegistroProcesoContratacion {
       parentescoReferenciaFamiliar1: get('parentescoReferenciaFamiliar1'),
       nombreReferenciaFamiliar2: get('nombreReferenciaFamiliar2'),
       parentescoReferenciaFamiliar2: get('parentescoReferenciaFamiliar2'),
+      // Las personales faltaban: el form las capturaba y el backend las sabe
+      // guardar, pero nunca salían de aquí, así que al reconsultar volvían vacías.
+      nombreReferenciaPersonal1: get('nombreReferenciaPersonal1'),
+      parentescoReferenciaPersonal1: get('parentescoReferenciaPersonal1'),
+      nombreReferenciaPersonal2: get('nombreReferenciaPersonal2'),
+      parentescoReferenciaPersonal2: get('parentescoReferenciaPersonal2'),
+      // Los demás campos de referencia (teléfono, ocupación, dirección, tiempo)
+      // entran por el formulario público; se mandan solo si el form los trae,
+      // porque `clean()` descarta lo vacío y el backend no pisa lo que no llega.
+      telefonoReferenciaFamiliar1: get('telefonoReferenciaFamiliar1'),
+      ocupacionReferenciaFamiliar1: get('ocupacionReferenciaFamiliar1'),
+      direccionReferenciaFamiliar1: get('direccionReferenciaFamiliar1'),
+      tiempoConoceReferenciaFamiliar1: get('tiempoConoceReferenciaFamiliar1'),
+      telefonoReferenciaFamiliar2: get('telefonoReferenciaFamiliar2'),
+      ocupacionReferenciaFamiliar2: get('ocupacionReferenciaFamiliar2'),
+      direccionReferenciaFamiliar2: get('direccionReferenciaFamiliar2'),
+      tiempoConoceReferenciaFamiliar2: get('tiempoConoceReferenciaFamiliar2'),
+      telefonoReferenciaPersonal1: get('telefonoReferenciaPersonal1'),
+      ocupacionReferenciaPersonal1: get('ocupacionReferenciaPersonal1'),
+      direccionReferenciaPersonal1: get('direccionReferenciaPersonal1'),
+      tiempoConoceReferenciaPersonal1: get('tiempoConoceReferenciaPersonal1'),
+      telefonoReferenciaPersonal2: get('telefonoReferenciaPersonal2'),
+      ocupacionReferenciaPersonal2: get('ocupacionReferenciaPersonal2'),
+      direccionReferenciaPersonal2: get('direccionReferenciaPersonal2'),
+      tiempoConoceReferenciaPersonal2: get('tiempoConoceReferenciaPersonal2'),
     });
 
     // ===== Contacto =====
@@ -1290,14 +1521,21 @@ export class RegistroProcesoContratacion {
   upsertSeleccionByDocumento(
     numeroDocumento: string,
     payload: AntecedentesPayload,
-    procesoId?: number | string
+    procesoId?: number | string,
+    override?: { modificacionForzada?: boolean; modificadoPor?: string | null }
   ) {
     const body: any = {
       numero_documento: (numeroDocumento ?? '').trim(),
       ...(procesoId != null ? { proceso_id: procesoId } : {}),
       ...this.clean(payload),
+      // Override "Modificar de todas formas" (pipeline): edición pura del proceso
+      // existente + auditoría (quién/cuándo la sella el servidor).
+      ...(override?.modificacionForzada
+        ? { modificacion_forzada: true, modificado_por: override.modificadoPor || null }
+        : {}),
     };
-    const data = this.uppercaseDeepExcept(body, new Set(['semanasCotizadas']));
+    // `modificado_por` NO debe ir a MAYÚSCULAS (es el nombre del usuario).
+    const data = this.uppercaseDeepExcept(body, new Set(['semanasCotizadas', 'modificado_por']));
     return this.http
       .post<{ message: string; proceso_id: number; procesoSeleccion: AntecedentesPayload }>(
         this.url('procesos/seleccion-by-document'),

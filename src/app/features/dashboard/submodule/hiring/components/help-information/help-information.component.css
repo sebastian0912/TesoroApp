@@ -20,6 +20,7 @@
 :host ::ng-deep .help-tabs .mat-mdc-tab-body-wrapper {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* Formulario dentro del tab "Remisión" */
@@ -29,25 +30,10 @@
   gap: 24px;
   width: auto;
   flex: 1;
+  min-width: 0;
   box-sizing: border-box;
   padding: 24px 0;
   margin-top: 16px;
-}
-
-/* ── Selector cascada (Empresa → Finca → Cargo) ── */
-.cascade-selectors {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.cascade-field {
-  flex: 1 1 200px;
-  min-width: 160px;
-}
-
-.cascade-field-cargo {
-  flex: 2 1 320px;
 }
 
 /* Grid de campos (auto-fit columnas fluidas) */
@@ -56,20 +42,12 @@
   gap: 20px;
   grid-template-columns: 1fr;
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
 .example-full-width {
   min-width: 100% !important;
-}
-
-/* Acciones (footer del formulario) */
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: auto;
-  /* Empuja los botones hacia abajo del todo */
 }
 
 /* Mat form fields siempre al 100% dentro del form */
@@ -78,11 +56,25 @@
   margin: 0;
 }
 
+.unified-selector {
+  margin-bottom: 20px;
+}
+
+.unified-selector mat-form-field {
+  width: 100%;
+}
+
+/* Acciones (footer del formulario) */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: auto; /* empuja los botones al fondo del formulario */
+}
+
 /* ========== Tabs (MDC) ========== */
-/* Nota: para ajustar tipografía/espaciados de etiquetas de tab,
-   usamos ::ng-deep para llegar a internals de Angular Material */
 :host ::ng-deep .help-tabs .mat-mdc-tab-header {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  background: linear-gradient(135deg, var(--slate-900) 0%, #1e293b 60%, var(--slate-700) 100%) !important;
   border-radius: 12px 12px 0 0;
   border: none;
   padding: 0 8px;
@@ -94,8 +86,7 @@
 }
 
 :host ::ng-deep .help-tabs .mdc-tab__content {
-  gap: 8px;
-  /* separa el icono del texto */
+  gap: 8px; /* separa el icono del texto */
 }
 
 :host ::ng-deep .help-tabs .mat-mdc-tab .mdc-tab__text-label,
@@ -103,7 +94,7 @@
   font-weight: 600;
   letter-spacing: .2px;
   color: #cbd5e1 !important;
-  transition: all 0.3s !important;
+  transition: color 0.3s ease !important;
 }
 
 :host ::ng-deep .help-tabs .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label,
@@ -116,8 +107,9 @@
   border-radius: 12px 12px 0 0;
 }
 
-:host ::ng-deep .mat-mdc-tab-indicator__inner--theme-demo {
-  border-color: #3b82f6 !important;
+/* Subrayado del tab activo = lima (única interacción sobre navy: 9.89:1) */
+:host ::ng-deep .help-tabs .mat-mdc-tab-indicator__inner {
+  border-color: var(--lime) !important;
 }
 
 /* Icono en la etiqueta del tab */
@@ -128,7 +120,7 @@
   line-height: 20px;
 }
 
-/* ========== Select: trigger y opciones ========== */
+/* ========== Select: trigger ========== */
 .trigger-wrap {
   display: flex;
   align-items: center;
@@ -140,54 +132,100 @@
 .trigger-title {
   white-space: normal;
   line-height: 1.3;
+  min-width: 0;
 }
 
-/* Fuerza el color del select deshabilitado para que sea más legible */
+.trigger-sin-vacante {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.vacante-option .spacer,
+.trigger-wrap .spacer {
+  flex: 1 1 auto;
+}
+
+/* Color legible del select deshabilitado */
 ::ng-deep .mat-mdc-select-disabled .mat-mdc-select-value {
-  color: rgba(0, 0, 0, 0.75) !important;
+  color: var(--slate-700) !important;
 }
 
-/* Evitar espacio blanco en el panel desplegable para que el buscador pegue arriba, y aumentar el alto del panel */
+/* ========== Select: panel (overlay, fuera del componente) ========== */
+/* El panel vive en el cdk-overlay: reglas globales acotadas por panelClass. */
 ::ng-deep .custom-select-panel.mat-mdc-select-panel {
   padding-top: 0 !important;
-  min-height: 50vh !important;
-  max-height: 50vh !important;
+  max-height: 60vh !important;
 }
 
-.trigger-meta {
-  display: block;
-  font-size: 12px;
-  opacity: 0.8;
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Fila del buscador pegada al tope del panel */
-.filter-row {
-  display: flex !important;
-  align-items: center;
-  gap: .5rem;
-  padding: .5rem .75rem !important;
+/* Buscador pegado al tope del panel */
+.panel-search {
+  padding: 10px 16px;
   position: sticky;
   top: 0;
-  z-index: 1;
-  background: var(--mat-select-panel-background, #fff);
-  cursor: default !important;
-  border-bottom: 1px solid rgba(0, 0, 0, .06);
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid var(--slate-200);
 }
 
-.filter-input {
-  flex: 1 1 auto;
-  border: none;
-  outline: none;
-  background: transparent;
-  font: inherit;
+.panel-search-field {
+  width: 100%;
+  margin-bottom: -1.25em;
 }
 
-/* Opción de vacante (dos filas) */
+.panel-search-icon {
+  color: var(--slate-500);
+}
+
+/* Nivel 1: Empresa (label del optgroup) */
+::ng-deep .custom-select-panel .mat-mdc-optgroup-label {
+  font-weight: 700;
+  color: var(--navy);
+  font-size: 15px;
+}
+
+/* Nivel 2: Finca (option deshabilitada usada como encabezado) */
+::ng-deep .custom-select-panel .finca-option.mat-mdc-option {
+  opacity: 1 !important;
+  color: var(--slate-700);
+  font-weight: 600;
+  padding-left: 24px;
+  min-height: 48px;
+}
+
+::ng-deep .custom-select-panel .finca-option .mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  vertical-align: baseline;
+}
+
+/* Nivel 3: Cargo / Vacante */
+::ng-deep .custom-select-panel .vacante-mat-option.mat-mdc-option {
+  padding-left: 48px;
+  min-height: auto;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  line-height: normal;
+}
+
+/* Opción "Sin vacante" (quitar asignación) */
+::ng-deep .custom-select-panel .opcion-sin-vacante.mat-mdc-option {
+  min-height: 48px;
+  font-weight: 600;
+  color: var(--danger);
+  border-bottom: 1px solid var(--slate-200);
+}
+
+::ng-deep .custom-select-panel .opcion-sin-vacante .mat-icon {
+  color: var(--danger);
+  margin-right: 6px;
+  vertical-align: baseline;
+}
+
+/* Contenido de la opción de vacante (dos filas) */
 .vacante-option {
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -198,69 +236,62 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   font-weight: 600;
   min-width: 0;
 }
 
-.vacante-option .row-2 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  opacity: 0.85;
-  flex-wrap: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.vacante-option .row-1-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--slate-500);
 }
 
 .vacante-option .cargo {
   max-width: 40ch;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.vacante-option .spacer,
-.trigger-wrap .spacer {
-  flex: 1 1 auto;
+.vacante-option .row-2 {
+  font-size: 12px;
+  color: var(--slate-500);
+  margin-left: 24px;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Píldoras (KPIs) */
+/* ========== Píldoras (KPIs) ========== */
+/* Densas y neutras por defecto; sólo "Falt" (lo que aún falta cubrir) resalta. */
 .pill {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
   white-space: nowrap;
   letter-spacing: 0.03em;
-}
-
-.pill-req {
-  background-color: #e0f2fe;
-  color: #0284c7;
-}
-
-.pill-ok {
-  background-color: #dcfce7;
-  color: #166534;
+  background: var(--slate-100);
+  color: var(--slate-700);
+  border: 1px solid var(--slate-200);
 }
 
 .pill-warn {
-  background-color: #fef08a;
-  color: #ca8a04;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border-color: var(--warn-border);
 }
 
-.pill-error {
-  background-color: #fee2e2;
-  color: #dc2626;
-}
-
-.pill-neutral {
-  background-color: #f3f4f6;
-  color: #4b5563;
+/* "Firm" = contratados (hito cerrado): acento navy, sin verde en cada fila. */
+.pill-ok {
+  color: var(--navy);
+  border-color: var(--slate-300);
 }
 
 .badges-row {
@@ -270,134 +301,7 @@
   flex-wrap: wrap;
 }
 
-.badges-row .pill {
-  padding: 2px 6px;
-  font-size: 11px;
-  border-radius: 4px;
-  transition: all 0.2s ease-in-out;
-}
-
-.badges-row .pill:hover {
-  filter: brightness(0.95);
-  transform: translateY(-1px);
-}
-
-/* ========== Secciones y cards reutilizables ========== */
-.section {
-  width: 100%;
-  padding: 16px 0;
-  margin: 16px 0;
-}
-
-.section-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.section-title {
-  margin: 0;
-  font-weight: 600;
-}
-
-.cards-stack {
-  display: grid;
-  flex: 1 1 auto;
-  gap: 12px;
-  padding: 10pt;
-}
-
-.card {
-  padding: 12px 0;
-}
-
-.card-title {
-  font-weight: 600;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-}
-
-.section-header {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 16px 0 8px;
-}
-
-.section-header .spacer,
-.card-title .spacer {
-  flex: 1 1 auto;
-}
-
-/* ========== Utilidades previas (limpias) ========== */
-.datos {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.archivo,
-.file-input {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 20px;
-}
-
-/* ========== Responsividad ========== */
-@media (min-width: 600px) {
-
-  /* Grid pasa a 2 columnas fluidas */
-  .grid {
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  }
-}
-
-
-/* ====== (Opcional) Ajustes heredados de otros layouts ====== */
-.logo {
-  max-width: 100%;
-  height: auto;
-}
-
-.title h1 {
-  line-height: 1.2;
-}
-
-h3 {
-  margin-bottom: 0;
-}
-
-/* Botoneras antiguas (si las usas) */
-.botones button {
-  width: 150px;
-  margin: 0 10px 0 0;
-}
-
-/* Caja de búsqueda (si existe en otras vistas) */
-.cajabusqueda {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-
-.cajabusqueda mat-form-field {
-  width: 100%;
-}
-
-@media (min-width: 900px) {
-  .cajabusqueda mat-form-field {
-    width: 48%;
-  }
-}
-/* ───────── Bloqueo "EN ESPERA de vacante" ───────── */
+/* ───────── Bloqueo "EN ESPERA de vacante / NO APLICA" ───────── */
 .bloqueo-espera-banner {
   display: flex;
   align-items: center;
@@ -405,16 +309,16 @@ h3 {
   margin: 4px 0 16px;
   padding: 12px 16px;
   border-radius: 12px;
-  background: #fff8e1;
-  border: 1px solid #ffe082;
-  color: #6d4c00;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--warn-fg);
   font-size: 13px;
   line-height: 1.35;
 }
 
 .bloqueo-espera-banner mat-icon {
   flex: 0 0 auto;
-  color: #f9a825;
+  color: var(--warn-fg);
 }
 
 /* La sección queda visible pero inutilizable mientras esté en espera. */
@@ -423,4 +327,119 @@ h3 {
   opacity: 0.55;
   user-select: none;
   filter: grayscale(0.2);
+}
+
+/* ========== Botones ========== */
+.btn-managerial,
+.btn-quitar {
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0 20px;
+  height: 40px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+/* Primario visible: navy + texto lima; hover invierte. */
+.btn-managerial {
+  background: var(--navy);
+  color: var(--lime);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.btn-managerial:hover:not(:disabled) {
+  background: var(--lime);
+  color: var(--navy);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25);
+}
+
+/* Destructivo: neutro en reposo, rojo sólo en hover. */
+.btn-quitar {
+  background: var(--slate-100);
+  color: var(--slate-700);
+  border: 1px solid var(--slate-300);
+}
+
+.btn-quitar:hover:not(:disabled) {
+  background: #fef3f2;
+  color: var(--danger);
+  border-color: #f2b4ad;
+}
+
+.btn-managerial:disabled,
+.btn-quitar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-managerial mat-icon,
+.btn-quitar mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* ========== Responsividad ========== */
+@media (min-width: 600px) {
+  /* 2 columnas fluidas; min() evita el scroll horizontal en pantallas estrechas */
+  .grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  }
+}
+
+/* ── "No pasó la prueba técnica" ── */
+.no-paso-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.no-paso-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fdecea;
+  border: 1px solid #f5c2c0;
+  color: #8a1c14;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.no-paso-banner mat-icon {
+  flex: 0 0 auto;
+  color: #c62828;
+}
+
+.no-paso-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.no-paso-fecha {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.no-paso-motivo {
+  margin-top: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.no-paso-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }

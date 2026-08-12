@@ -133,12 +133,12 @@
 
       <!-- ============ Estado y seguridad ============ -->
       <div class="toggles-row span-full">
-        <mat-slide-toggle formControlName="estado_solicitudes" color="primary">
+        <mat-slide-toggle formControlName="estado_solicitudes">
           Usuario activo
         </mat-slide-toggle>
 
         @if (!isCreate()) {
-          <mat-slide-toggle [checked]="changePw()" (change)="onToggleChangePw($event.checked)" color="primary">
+          <mat-slide-toggle [checked]="changePw()" (change)="onToggleChangePw($event.checked)">
             Cambiar contraseña
           </mat-slide-toggle>
         }
@@ -188,7 +188,8 @@
 
 <mat-dialog-actions align="end" class="dlg-actions">
   <button mat-stroked-button mat-dialog-close type="button">Cancelar</button>
-  <button mat-flat-button color="primary" [disabled]="form.invalid || saving()" type="submit" [attr.form]="'userForm'">
+  <button mat-flat-button class="btn-managerial" [disabled]="form.invalid || saving()" type="submit"
+    [attr.form]="'userForm'">
     @if (!saving()) {
       <span>{{ isCreate() ? 'Crear usuario' : 'Guardar cambios' }}</span>
     }

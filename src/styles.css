@@ -19,10 +19,71 @@
 @import "material-icons/iconfont/material-icons.css";
 @import "material-symbols/outlined.css";
 
+/* ============================================================
+   RESPONSIVE del header de página
+   `.card-header-premium` está copiado tal cual en 28 componentes y
+   NINGUNO lo hace responsive: es un flex sin `flex-wrap` y sin media
+   queries, así que en móvil el título y los botones se pelean por el
+   ancho. Se arregla aquí una vez, no en 28 archivos.
+
+   Solo se tocan propiedades que los componentes NO declaran
+   (flex-wrap, row-gap, min-width), para no pelear con su especificidad
+   —los estilos de componente llevan atributo de encapsulado y ganarían.
+   ============================================================ */
+@media (max-width: 700px) {
+  .card-header-premium {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+
+  /* Sin esto el texto no encoge y empuja los botones fuera de la caja */
+  .card-header-premium .header-content { min-width: 0; }
+  .card-header-premium .header-text { min-width: 0; }
+
+  /* Los grupos de acciones pasan a ocupar la fila completa al envolver */
+  .card-header-premium .header-actions { width: 100%; }
+}
+
 /* ======================
    Design tokens
 ====================== */
 :root {
+  /* ============================================================
+     MARCA — fuente única de verdad. Antes no existía ningún token
+     de marca aquí, así que cada componente repintaba navy y lima a
+     mano y derivaban (llegó a haber 2 limas y 3 navies conviviendo).
+     Si necesitas la marca en un componente, USA ESTOS TOKENS.
+
+     Lógica de color (cada tono tiene UN trabajo):
+       navy  -> estructura y jerarquía
+       slate -> superficie dominante (~60%)
+       lima  -> SOLO interacción (hover, foco, acción primaria)
+       ámbar -> la excepción / aviso
+     El lima NUNCA va como texto o icono sobre blanco: da 1.80:1 de
+     contraste (AA exige 4.5). Solo como relleno sólido, con el navy
+     encima (ese par da 8.27:1).
+     ============================================================ */
+  --navy: #21263C;
+  --navy-deep: #0f172a;
+  --lime: #8CD50A;
+
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e8edf3;
+  --slate-300: #d8e0ea;
+  --slate-500: #64748b;
+  --slate-400: #94a3b8;
+  --slate-700: #334155;
+  --slate-900: #0f172a;
+
+  /* Semántico: NO verde, la marca ya es verde lima */
+  --warn-bg: #fdf4e3;
+  --warn-fg: #925a06;
+  --warn-border: #f2dcac;
+  --ok-bg: #ecfdf5;
+  --ok-fg: #0f766e;
+  --ok-border: #b9e6df;
+
   /* Typography */
   --font-sans: "Roboto", "Helvetica Neue", Arial, sans-serif;
 
@@ -33,10 +94,10 @@
   --muted: rgba(17, 24, 39, 0.62);
   --border: #e5e7eb;
 
-  --primary: #3b82f6;
-  --success: #22c55e;
+  --primary: var(--navy);
+  --success: var(--ok-fg);
   --warning: #f59e0b;
-  --danger: #ef4444;
+  --danger: #b42318;
 
   /* Radius */
   --r-sm: 10px;
@@ -52,12 +113,71 @@
   --pad: 16px;
 
   /* Focus ring */
-  --ring: 0 0 0 4px rgba(59, 130, 246, 0.14);
+  --ring: 0 0 0 4px rgba(33, 38, 60, 0.14);
+
+  /* ============================================================
+     TEMA DE ANGULAR MATERIAL — se le pone la marca encima.
+     angular.json carga 'prebuilt-themes/azure-blue.css' ANTES que
+     este archivo, así que aquí se sobrescriben sus tokens de sistema.
+     Sin esto, TODO `color="primary"` de la app sale azul #005cbb:
+     checkboxes, radios, foco de los campos, spinners… en 83 páginas.
+
+     Solo se toca la familia `primary` (+ error y tertiary, que venían
+     azul/violeta). Las superficies y outlines se dejan como están para
+     no mover media app de golpe.
+     ============================================================ */
+  --mat-sys-primary: #21263C;
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: #e4e7ee;
+  --mat-sys-on-primary-container: #21263C;
+  --mat-sys-primary-fixed: #e4e7ee;
+  --mat-sys-on-primary-fixed: #21263C;
+  --mat-sys-inverse-primary: #b9c0d4;
+  --mat-sys-surface-tint: #21263C;
+
+  /* Venía #343dff (azul violeta): fuera de marca */
+  --mat-sys-tertiary: #21263C;
+  --mat-sys-on-tertiary: #ffffff;
+
+  /* Rojo de error alineado al de la paleta */
+  --mat-sys-error: #b42318;
+  --mat-sys-on-error: #ffffff;
 
   /* Table */
   --table-head: #0f172a;
   --table-row-even: #f3f4f6;
   --table-row-odd: #ffffff;
+
+  /* ===== Marca Matder (navy + azul corporativo + verde lima) ===== */
+  --mt-navy: #0f172a;
+  --mt-navy-2: #1e293b;
+  --mt-blue: #3b82f6;
+  --mt-blue-strong: #2563eb;
+  --mt-accent: #8cd50a;          /* verde lima de la compañía */
+  --mt-accent-2: #64b800;
+  --mt-accent-ink: #365314;
+  --mt-accent-soft: #ecfccb;
+  /* Degradado corporativo para héroes/encabezados */
+  --mt-hero: linear-gradient(135deg, #0f172a 0%, #1e293b 48%, #1d4ed8 128%);
+  --mt-hero-ring: radial-gradient(1200px 400px at 85% -20%, rgba(140,213,10,.22), transparent 60%);
+  /* Superficies */
+  --mt-surface: #ffffff;
+  --mt-surface-2: #f8fafc;
+  --mt-border: #d6dde9;
+  --mt-ink: #0f172a;
+  --mt-muted: #64748b;
+  --mt-faint: #94a3b8;
+  /* Estados de tarea (consistentes en todo el módulo) */
+  --mt-todo: #64748b;   --mt-todo-soft: #f1f5f9;
+  --mt-prog: #2563eb;   --mt-prog-soft: #dbeafe;
+  --mt-block: #dc2626;  --mt-block-soft: #fee2e2;
+  --mt-done: #16a34a;   --mt-done-soft: #dcfce7;
+  /* Sombras suaves de tarjeta */
+  --mt-shadow: 0 3px 12px rgba(15, 23, 42, .10);
+  --mt-shadow-hover: 0 14px 34px rgba(15, 23, 42, .16);
+  --mt-r: 16px;
+  --mt-r-sm: 12px;
+  --mt-ease: cubic-bezier(.2, .8, .2, 1);
 }
 
 /* ======================
@@ -450,8 +570,16 @@ mat-card-content p {
 
   .dashboard-content {
     margin-left: 0;
-    padding: 1rem 1rem 80px 1rem;
-    /* Extra padding bottom for mobile bottom-bar */
+    /* Solo el hueco de la barra inferior. El padding lateral vivía aquí Y en
+       .dashboard-page-wrapper: sumados con el del :host de cada página se
+       comían 124 de 375 px en un móvil (el 33% de la pantalla), y con tan poco
+       ancho las tablas desbordaban y la página scrolleaba en horizontal. */
+    padding: 0 0 80px 0;
+  }
+
+  /* Un único padding lateral en móvil, y estrecho: el ancho es el recurso escaso */
+  .dashboard-page-wrapper {
+    padding: 0.75rem 0.75rem;
   }
 
   .nombre {
@@ -989,4 +1117,128 @@ button {
    MatDialog quedan por detrás). */
 .swal2-container {
   z-index: 100000 !important;
+}
+
+/* === Desplegable de notificaciones (campana del top bar) ===
+   El panel se renderiza en un overlay CDK fuera del componente sidebar, por eso
+   se estiliza aquí (global) vía la clase `notif-menu-panel` del <mat-menu>. */
+.notif-menu-panel {
+  min-width: 372px !important;
+  max-width: 392px !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, .18), 0 2px 8px rgba(15, 23, 42, .08) !important;
+}
+.notif-menu-panel .mat-mdc-menu-content { padding: 0 !important; }
+
+/* Encabezado */
+.notif-menu-panel .notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eef1f6;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+}
+.notif-menu-panel .notif-head-left { display: flex; align-items: center; gap: 8px; }
+.notif-menu-panel .notif-head-title {
+  font-weight: 800; font-size: 15.5px; color: #0f172a; letter-spacing: -.2px;
+}
+.notif-menu-panel .notif-head-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: 10px; background: #ef4444; color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1;
+}
+.notif-menu-panel .notif-head-action {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #eef2ff; border: 0; cursor: pointer; border-radius: 8px;
+  color: #4f46e5; font-size: 12px; font-weight: 600; padding: 5px 9px;
+  transition: background .15s;
+}
+.notif-menu-panel .notif-head-action:hover { background: #e0e7ff; }
+.notif-menu-panel .notif-head-action .mat-icon {
+  width: 15px; height: 15px; font-size: 15px; line-height: 15px; margin: 0;
+}
+
+/* Estado vacío / cargando */
+.notif-menu-panel .notif-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 34px 16px; text-align: center;
+}
+.notif-menu-panel .notif-empty .mat-icon {
+  width: 40px; height: 40px; font-size: 40px; color: #cbd5e1; margin-bottom: 4px;
+}
+.notif-menu-panel .notif-empty span { font-size: 14px; font-weight: 600; color: #334155; }
+.notif-menu-panel .notif-empty small { font-size: 12px; color: #94a3b8; }
+.notif-menu-panel .notif-empty .spin { animation: notifspin 1s linear infinite; color: #93c5fd; }
+@keyframes notifspin { to { transform: rotate(360deg); } }
+
+/* Lista scrolleable (header y footer quedan fijos) */
+.notif-menu-panel .notif-list { max-height: 380px; overflow-y: auto; }
+.notif-menu-panel .notif-list::-webkit-scrollbar { width: 8px; }
+.notif-menu-panel .notif-list::-webkit-scrollbar-thumb {
+  background: #d5dbe6; border-radius: 8px; border: 2px solid #fff;
+}
+
+/* Cada notificación: se rompe el layout de una sola línea de mat-menu-item. */
+.notif-menu-panel .notif-item {
+  height: auto !important;
+  min-height: 0 !important;
+  line-height: 1.35 !important;
+  white-space: normal !important;
+  padding: 11px 16px 11px 13px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 11px;
+  border-bottom: 1px solid #f4f6fa;
+  border-left: 3px solid transparent;
+  transition: background .12s;
+}
+.notif-menu-panel .notif-item:hover { background: #f6f8fc; }
+.notif-menu-panel .notif-item.is-unread { background: #f2f7ff; border-left-color: #3b82f6; }
+.notif-menu-panel .notif-item.is-unread:hover { background: #e9f2ff; }
+
+.notif-menu-panel .notif-avatar {
+  flex: 0 0 auto;
+  width: 38px; height: 38px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .9), 0 2px 5px rgba(15, 23, 42, .16);
+}
+.notif-menu-panel .notif-avatar .mat-icon {
+  width: 20px; height: 20px; font-size: 20px; line-height: 20px; margin: 0;
+}
+.notif-menu-panel .notif-body { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.notif-menu-panel .notif-title {
+  font-weight: 600; font-size: 13.5px; color: #0f172a;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.notif-menu-panel .notif-item.is-unread .notif-title { font-weight: 700; }
+.notif-menu-panel .notif-msg {
+  font-size: 12.5px; color: #64748b; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; max-width: 100%;
+}
+.notif-menu-panel .notif-time {
+  font-size: 11px; color: #94a3b8; margin-top: 3px; font-weight: 500;
+}
+
+.notif-menu-panel .notif-unread-dot {
+  flex: 0 0 auto; align-self: center;
+  width: 9px; height: 9px; border-radius: 50%; background: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .18);
+}
+
+/* Footer "Ver todas" */
+.notif-menu-panel .notif-seeall {
+  justify-content: center !important;
+  gap: 6px;
+  color: #2563eb !important; font-weight: 700; font-size: 13px;
+  border-top: 1px solid #eef1f6;
+  background: #fbfcfe !important;
+}
+.notif-menu-panel .notif-seeall:hover { background: #f1f5f9 !important; }
+.notif-menu-panel .notif-seeall .mat-icon {
+  width: 18px; height: 18px; font-size: 18px; margin-right: 0;
 }

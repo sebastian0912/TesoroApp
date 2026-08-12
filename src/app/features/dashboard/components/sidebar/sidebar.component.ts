@@ -8,8 +8,11 @@ import { UtilityServiceService } from '../../../../shared/services/utilityServic
 import { ConsoleLoggerService } from '../../../../shared/services/console-logger/console-logger.service';
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
-import { firstValueFrom, Subscription } from 'rxjs';
+import { NotificationCenterService, NotificationItem } from '../../services/notification-center.service';
+import { firstValueFrom, Subscription, timer, of } from 'rxjs';
+import { switchMap, catchError } from 'rxjs/operators';
 import { getLocalStorageItem, setLocalStorageItem } from '../../../../core/utils/safe-storage';
+import { BugReportService } from '../../../../shared/services/bug-report/bug-report.service';
 
 const SEDES_CACHE_KEY = 'sidebar.sedes.cache.v1';
 
@@ -38,6 +41,11 @@ export class SidebarComponent implements OnDestroy {
   pendingCount = 0;
   syncProgress: { current: number; total: number; phase: string } | null = null;
 
+  /** Centro de notificaciones (campana del top bar). */
+  notifications: NotificationItem[] = [];
+  unreadCount = 0;
+  loadingNotifs = false;
+
   private netSubs: Subscription[] = [];
 
   constructor(
@@ -48,7 +56,9 @@ export class SidebarComponent implements OnDestroy {
     private consoleLogger: ConsoleLoggerService,
     private networkStatus: NetworkStatusService,
     private offlineSync: OfflineSyncService,
+    private notifCenter: NotificationCenterService,
     private cdr: ChangeDetectorRef,
+    private bugReportService: BugReportService,
   ) {
     if (isPlatformBrowser(this.platformId)) {
       this.consoleLogger.init();
@@ -72,8 +82,75 @@ export class SidebarComponent implements OnDestroy {
           this.syncProgress = progress;
           this.cdr.markForCheck();
         }),
+        // Campana: polling del contador de no-leídas cada 45s. Tolerante a fallos
+        // (un error de red conserva el último valor y no detiene el timer).
+        timer(0, 45000).pipe(
+          switchMap(() => this.notifCenter.unreadCount().pipe(
+            catchError(() => of({ count: this.unreadCount })))),
+        ).subscribe(r => { this.unreadCount = r?.count ?? 0; this.cdr.markForCheck(); }),
       );
     }
+  }
+
+  // ===== Notificaciones (campana) =====
+  /** Carga las notificaciones recientes al abrir el desplegable. */
+  loadNotifs(): void {
+    this.loadingNotifs = true;
+    this.cdr.markForCheck();
+    this.notifCenter.list().pipe(catchError(() => of([] as NotificationItem[]))).subscribe(list => {
+      this.notifications = (list || []).slice(0, 12);
+      this.loadingNotifs = false;
+      this.cdr.markForCheck();
+    });
+  }
+
+  /** Clic en una notificación: marca leída y navega a la tarea/espacio. */
+  onNotifClick(n: NotificationItem): void {
+    if (!n.read) {
+      this.notifCenter.markRead(n.id).subscribe({ next: () => {}, error: () => {} });
+      n.read = true;
+      this.unreadCount = Math.max(0, this.unreadCount - 1);
+    }
+    if (n.link) this.router.navigate([`/dashboard/matder/${n.link}`]);
+    this.cdr.markForCheck();
+  }
+
+  markAllNotifs(ev: Event): void {
+    ev.stopPropagation();
+    this.notifCenter.markAllRead().subscribe({ next: () => {}, error: () => {} });
+    this.notifications = this.notifications.map(n => ({ ...n, read: true }));
+    this.unreadCount = 0;
+    this.cdr.markForCheck();
+  }
+
+  goToNotifications(): void { this.router.navigate(['/dashboard/matder/notifications']); }
+
+  notifIcon(t: string): string {
+    return ({
+      ASSIGNMENT: 'assignment_ind', ASSIGNMENT_CONFIRM: 'assignment_turned_in',
+      COMMENT: 'comment', WORKSPACE: 'group_add',
+      DUE_SOON: 'event_busy', MENTION: 'alternate_email', STATUS_CHANGE: 'swap_horiz',
+    } as Record<string, string>)[t] ?? 'notifications';
+  }
+
+  notifColor(t: string): string {
+    return ({
+      ASSIGNMENT: '#2563eb', ASSIGNMENT_CONFIRM: '#0d9488',
+      COMMENT: '#16a34a', WORKSPACE: '#0ea5e9',
+      DUE_SOON: '#dc2626', MENTION: '#7c3aed', STATUS_CHANGE: '#d97706',
+    } as Record<string, string>)[t] ?? '#64748b';
+  }
+
+  notifTimeAgo(iso: string): string {
+    if (!iso) return '';
+    const then = new Date(iso).getTime();
+    if (isNaN(then)) return '';
+    const s = Math.floor((Date.now() - then) / 1000);
+    if (s < 60) return 'hace un momento';
+    const m = Math.floor(s / 60); if (m < 60) return `hace ${m} min`;
+    const h = Math.floor(m / 60); if (h < 24) return `hace ${h} h`;
+    const d = Math.floor(h / 24); if (d < 7) return `hace ${d} d`;
+    return new Date(iso).toLocaleDateString();
   }
 
   ngOnDestroy(): void {
@@ -252,15 +329,30 @@ export class SidebarComponent implements OnDestroy {
   }
 
   abrirReporteBug(): void {
-    import('../../../../shared/components/bug-report-dialog/bug-report-dialog.component').then(
-      (m) => {
-        this.dialog.open(m.BugReportDialogComponent, {
-          width: '600px',
-          maxHeight: '90vh',
-          disableClose: true,
-        });
-      }
-    );
+    // Capturar pantalla ANTES de abrir el dialog para no capturar el overlay
+    this.bugReportService.captureScreenshot().then(screenshot => {
+      import('../../../../shared/components/bug-report-dialog/bug-report-dialog.component').then(
+        (m) => {
+          this.dialog.open(m.BugReportDialogComponent, {
+            width: '600px',
+            maxHeight: '90vh',
+            disableClose: true,
+            data: { screenshot },
+          });
+        }
+      );
+    }).catch(() => {
+      import('../../../../shared/components/bug-report-dialog/bug-report-dialog.component').then(
+        (m) => {
+          this.dialog.open(m.BugReportDialogComponent, {
+            width: '600px',
+            maxHeight: '90vh',
+            disableClose: true,
+            data: { screenshot: null },
+          });
+        }
+      );
+    });
   }
 
   /**

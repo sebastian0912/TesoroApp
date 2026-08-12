@@ -1,13 +1,29 @@
-
+/* === LAYOUT: alto exacto, sin scroll de página ===
+   :host toma el alto que le da .dashboard-page-wrapper y ahoga su scroll.
+   La cadena flex + min-height:0 llega hasta el cuerpo de la tabla, que es el
+   único que scrollea. Si un eslabón pierde min-height:0, el scroll se escapa. */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
 
 /* === MANAGERIAL PREMIUM THEME === */
 .premium-card {
   border-radius: 16px !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid #f1f5f9;
-  background-color: #ffffff;
+  border: 1px solid var(--slate-100);
+  background-color: var(--surface);
   overflow: hidden;
-  margin-bottom: 24px;
+  margin: 0;
+  /* eslabón 1 */
+  flex: 1 1 auto;
+  display: flex !important;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .card-header-premium {
@@ -15,26 +31,15 @@
   align-items: center !important;
   padding: 24px 32px 20px 32px !important;
   border-bottom: none !important;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  background: linear-gradient(135deg, var(--slate-900) 0%, #1e293b 60%, var(--slate-700) 100%) !important;
   position: relative !important;
   overflow: hidden !important;
   border-radius: 16px !important;
-  margin-bottom: 20px !important;
+  /* la cabecera nunca cede alto: lo cede la tabla */
+  flex-shrink: 0;
 }
 
-.modal-header-premium {
-  padding: 24px 32px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  color: white;
-  border-radius: 16px 16px 0 0;
-}
-
-.card-header-premium::before, .modal-header-premium::before {
+.card-header-premium::before {
   content: '';
   position: absolute;
   top: -50%;
@@ -50,7 +55,10 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  /* sobre el ::before decorativo, por debajo del navbar (escala máx. 3) */
+  position: relative;
   z-index: 1;
+  min-width: 0;
 }
 
 .header-icon-container {
@@ -63,6 +71,7 @@
   background-color: rgba(255, 255, 255, 0.1);
   color: #ffffff;
   border-radius: 12px;
+  flex-shrink: 0;
 }
 
 .header-icon {
@@ -74,6 +83,7 @@
 .header-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .titulo {
@@ -97,9 +107,33 @@
   flex: 1 1 auto;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.btn-refresh {
+  color: #cbd5e1;
+  transition: color 0.2s ease, background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-refresh:disabled {
+  opacity: 0.45;
+}
+
 .btn-managerial {
-  background-color: #192030 !important;
-  color: #8DD603 !important;
+  background-color: var(--navy) !important;
+  color: var(--lime) !important;
   border-radius: 8px !important;
   padding: 0 20px !important;
   height: 40px !important;
@@ -107,25 +141,367 @@
   letter-spacing: 0.3px !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important;
   transition: all 0.2s ease !important;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  white-space: nowrap;
 }
 
-.btn-managerial:hover {
+.btn-managerial:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25) !important;
-  background-color: #8DD603 !important;
-  color: #192030 !important;
+  background-color: var(--lime) !important;
+  color: var(--navy) !important;
 }
 
-.btn-managerial-icon {
-  background-color: transparent !important;
-  color: #ffffff !important;
+.btn-managerial:disabled {
+  opacity: 0.5;
 }
-.btn-managerial-icon:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
+
+.card-content {
+  padding: 20px 32px 32px 32px !important;
+  position: relative;
+  /* eslabón 2 */
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* red de seguridad en pantallas muy bajas: antes scrollear la card que
+     recortar el paginador de la tabla. */
+  overflow: auto;
+}
+
+/* === SEGMENTADO PENDIENTES / REVISADOS === */
+.segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 16px;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  flex-shrink: 0;
+  /* dos pestañas largas no deben empujar la página a scroll horizontal */
+  flex-wrap: wrap;
+}
+
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 0;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--slate-500);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.seg-btn:hover:not(.is-active) {
+  background: rgba(140, 213, 10, 0.12);
+  color: var(--slate-700);
+}
+
+.seg-btn:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 1px;
+}
+
+/* Activo = relleno navy sólido con lima encima: el lima nunca va suelto
+   sobre blanco (1.80:1 no pasa AA). */
+.seg-btn.is-active {
+  background: var(--navy);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.seg-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.seg-btn.is-active .seg-icon {
+  color: var(--lime);
+}
+
+.seg-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seg-count {
+  flex-shrink: 0;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--slate-200);
+  color: var(--slate-700);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.seg-btn.is-active .seg-count {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+/* La cola pendiente es lo excepcional: solo se tiñe cuando existe. */
+.seg-count-alerta {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border: 1px solid var(--warn-border);
+}
+
+.seg-btn.is-active .seg-count-alerta {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+/* eslabón 3: la tabla compartida (:host height:100%) llena el hueco. */
+app-standard-filter-table {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* === ESTADOS VACÍOS === */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  gap: 12px;
+  flex: 1 1 auto;
+}
+
+.empty-illustration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: rgba(33, 38, 60, 0.06);
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+
+.empty-illustration mat-icon {
+  font-size: 44px;
+  width: 44px;
+  height: 44px;
+}
+
+/* El fallo de carga es una excepción, no un estado normal: ámbar */
+.empty-error .empty-illustration {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.empty-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  margin: 0;
+}
+
+.empty-text {
+  font-size: 0.88rem;
+  color: var(--slate-500);
+  margin: 0;
+  max-width: 380px;
+}
+
+.empty-state .btn-managerial {
+  margin-top: 8px;
+}
+
+/* === ACCIONES POR FILA === */
+.actions-flex {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* En reposo todo navy neutro: el color solo aparece al interactuar. */
+.action-btn {
+  color: var(--navy);
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.action-btn:hover {
+  background-color: rgba(140, 213, 10, 0.12);
+}
+
+.action-btn-delete:hover {
+  background-color: #fef3f2;
+  color: var(--danger);
+}
+
+/* === ESTADO EN TABLA (solo revisados) === */
+.estado-neutro {
+  color: var(--slate-500);
+}
+
+.estado-alerta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--warn-fg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.estado-alerta-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 1100px) {
+  .card-header-premium {
+    padding: 20px 24px 18px 24px !important;
+  }
+
+  .card-content {
+    padding: 18px 24px 24px 24px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  /* En móvil el alto fijo se suelta: la página vuelve a scrollear. */
+  :host {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .premium-card {
+    flex: 0 0 auto;
+  }
+
+  .card-content {
+    overflow: visible;
+  }
+
+  .empty-state {
+    flex: 0 0 auto;
+  }
+
+  .card-header-premium {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .titulo {
+    font-size: 1.25rem !important;
+  }
+
+  .grow {
+    display: none;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 768px) {
+  /* En táctil no hay hover: las acciones de fila deben leerse siempre. */
+  .actions-flex {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 600px) {
+  .card-header-premium {
+    padding: 16px 16px 14px 16px !important;
+    border-radius: 12px;
+  }
+
+  .header-content {
+    gap: 12px;
+  }
+
+  .header-icon-container {
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .header-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  .titulo {
+    font-size: 1.1rem !important;
+  }
+
+  .subtitulo {
+    font-size: 0.78rem !important;
+  }
+
+  .card-content {
+    padding: 16px 12px 20px 12px !important;
+  }
+
+  .header-actions .btn-managerial {
+    flex: 1 1 auto;
+  }
+
+  /* El texto de la pestaña se cae antes que el contador: el número es el dato. */
+  .seg-btn {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+
+  .empty-state {
+    padding: 32px 16px;
+  }
+
+  .empty-illustration {
+    width: 64px;
+    height: 64px;
+  }
+
+  .empty-illustration mat-icon {
+    font-size: 34px;
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .btn-managerial,
+  .btn-refresh,
+  .action-btn,
+  .seg-btn {
+    transition: none !important;
+  }
+
+  .btn-managerial:hover:not(:disabled) {
+    transform: none;
+  }
 }

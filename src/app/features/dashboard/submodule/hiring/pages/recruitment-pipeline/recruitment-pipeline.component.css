@@ -30,31 +30,12 @@ mat-tab-group {
   min-height: 0;
 }
 
-.example-full-width {
-  max-width: 22% !important;
-}
-
-/* Nudge del badge 5pt hacia la izquierda (posición por defecto: above after) */
-.badge-left-5pt.mat-badge .mat-badge-content {
-  right: 5pt;
-}
-
-/* Custom class for Medical Exam badge margin */
-.badge-medical-custom.mat-badge .mat-badge-content {
-  margin-left: -5pt;
-}
-
-
 .tab {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
-}
-
-.tab-icon {
-  margin-left: 8pt;
 }
 
 .tab-content-scrollable {
@@ -96,42 +77,6 @@ mat-tab-group {
   border-radius: 0 !important;  /* pegado al borde superior */
 }
 
-.vacantes-scroll-container {
-  overflow-x: auto;
-  padding: 10px;
-}
-
-.vacantes-container {
-  display: flex;
-  gap: 16px;
-  flex-wrap: nowrap;
-}
-
-.vacante-card {
-  min-width: 300px;
-  max-width: 350px;
-  flex-shrink: 0;
-  box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;
-}
-
-.actions-wrapper {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1;
-}
-
-.fixed-button {
-  background-color: white;
-  box-shadow: none;
-}
-
-
-.info-candidato-card {
-  margin-bottom: 16px;
-  background: #f9f9f9;
-}
-
 .info-candidato-titulo {
   display: flex;
   align-items: center;
@@ -139,16 +84,6 @@ mat-tab-group {
   font-size: 1.0rem;
   font-weight: 500;
   font-family: 'Roboto', sans-serif;
-}
-
-.info-candidato-label {
-  color: #616161;
-  margin-left: 8px;
-}
-
-.info-candidato-valor {
-  color: #1976d2;
-  font-weight: 600;
 }
 
 .header {
@@ -162,9 +97,8 @@ mat-tab-group {
   position: relative;
   flex-shrink: 0;
   background:
-    radial-gradient(900px 220px at 12% -20%, rgba(59, 130, 246, 0.22), transparent 60%),
-    radial-gradient(700px 200px at 110% 120%, rgba(99, 102, 241, 0.18), transparent 60%),
-    linear-gradient(135deg, #0b1220 0%, #111c33 55%, #1b2a47 100%) !important;
+    radial-gradient(900px 220px at 12% -20%, rgba(140, 213, 10, 0.10), transparent 60%),
+    linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%) !important;
   color: #f8fafc;
   padding: 14px 20px;
   border-radius: 14px;
@@ -189,7 +123,7 @@ mat-tab-group {
   inset: 0;
   border-radius: inherit;
   background-image:
-    radial-gradient(circle at 6% 50%, rgba(59, 130, 246, 0.18), transparent 22%);
+    radial-gradient(circle at 6% 50%, rgba(140, 213, 10, 0.08), transparent 24%);
   pointer-events: none;
 }
 
@@ -209,7 +143,7 @@ mat-tab-group {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  background: linear-gradient(135deg, #334155 0%, #21263C 100%);
   color: white;
   display: flex;
   align-items: center;
@@ -217,9 +151,9 @@ mat-tab-group {
   flex-shrink: 0;
   border: 2px solid rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 0 0 4px rgba(59, 130, 246, 0.14),
-    0 8px 24px -6px rgba(37, 99, 235, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    0 0 0 4px rgba(148, 163, 184, 0.14),
+    0 8px 24px -6px rgba(15, 23, 42, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
               box-shadow 0.25s ease,
               border-color 0.25s ease;
@@ -250,18 +184,18 @@ mat-tab-group {
 
 .avatar-placeholder.avatar-clickable:hover {
   transform: scale(1.06);
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(140, 213, 10, 0.55);
   box-shadow:
-    0 0 0 5px rgba(59, 130, 246, 0.22),
-    0 10px 28px -6px rgba(37, 99, 235, 0.7),
+    0 0 0 5px rgba(140, 213, 10, 0.28),
+    0 10px 28px -6px rgba(15, 23, 42, 0.7),
     inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .avatar-placeholder.avatar-clickable:focus-visible {
-  border-color: #93c5fd;
+  border-color: #8CD50A;
   box-shadow:
-    0 0 0 5px rgba(147, 197, 253, 0.45),
-    0 8px 24px -6px rgba(37, 99, 235, 0.55);
+    0 0 0 5px rgba(140, 213, 10, 0.45),
+    0 8px 24px -6px rgba(15, 23, 42, 0.55);
 }
 
 /* Cuando hay foto, el gradient se reemplaza por la imagen y se le da un overlay sutil
@@ -295,18 +229,19 @@ mat-tab-group {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #1e40af;
+  background: #21263C;
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #0b1220;
+  border: 2px solid #0f172a;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
 .avatar-placeholder.avatar-clickable:hover .avatar-camera-badge {
-  background: #2563eb;
+  background: #8CD50A;
+  color: #21263C;
   transform: scale(1.08);
 }
 
@@ -383,14 +318,6 @@ mat-tab-group {
   margin: 0 2px;
 }
 
-/* Compatibilidad si .candidate-meta sigue usado en otra parte */
-.candidate-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .meta-chip {
   display: inline-flex;
   align-items: center;
@@ -425,14 +352,6 @@ mat-tab-group {
   font-weight: 600;
   color: #ffffff;
   letter-spacing: 0.02em;
-}
-
-/* Pills de estado: contrato + formulario */
-.status-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 2px;
 }
 
 .pill {
@@ -507,7 +426,7 @@ mat-tab-group {
 }
 
 .pill-action:focus-visible {
-  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.45);
+  box-shadow: 0 0 0 3px rgba(140, 213, 10, 0.45);
 }
 
 /* Toolbar refinada */
@@ -533,10 +452,10 @@ mat-tab-group {
 }
 
 .premium-toolbar button:hover:not([disabled]) {
-  background: rgba(59, 130, 246, 0.18);
-  color: #93c5fd;
+  background: rgba(140, 213, 10, 0.16);
+  color: #8CD50A;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px -4px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 4px 12px -4px rgba(140, 213, 10, 0.35);
 }
 
 .premium-toolbar button[disabled] {
@@ -619,7 +538,7 @@ mat-tab-group {
 }
 
 ::ng-deep .mat-mdc-tab-indicator__inner--theme-demo {
-  border-color: #2563eb !important;
+  border-color: #8CD50A !important;
 }
 
 /* Compact Medical Exam Grid */
@@ -634,8 +553,8 @@ mat-tab-group {
   gap: 16px;
   padding: 16px 18px;
   margin-bottom: 16px;
-  background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
-  border: 1px solid #dbeafe;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e8edf3;
   border-radius: 12px;
 }
 
@@ -643,13 +562,13 @@ mat-tab-group {
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #334155 0%, #21263C 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.5);
+  box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.35);
 }
 
 .med-header-icon mat-icon {
@@ -717,7 +636,7 @@ mat-tab-group {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #1e40af;
+  background: #21263C;
   color: #ffffff;
   font-size: 0.78rem;
   font-weight: 700;
@@ -742,7 +661,7 @@ mat-tab-group {
 /* Grids */
 .med-grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -755,7 +674,7 @@ mat-tab-group {
 /* Grid de cards de exámenes */
 .med-exams-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -922,9 +841,9 @@ mat-tab-group {
 }
 
 .med-upload-zone:hover {
-  border-color: #3b82f6;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: #8CD50A;
+  background: #f6fbe9;
+  color: #21263C;
 }
 
 .med-upload-zone mat-icon {
@@ -1002,6 +921,7 @@ mat-tab-group {
   box-shadow: 0 -6px 14px -8px rgba(15, 23, 42, 0.15);
 }
 
+/* Botón primario "managerial": navy + texto lima; al hover invierte a lima + navy. */
 .med-save-button {
   display: inline-flex !important;
   align-items: center;
@@ -1012,29 +932,29 @@ mat-tab-group {
   font-size: 0.95rem !important;
   border-radius: 10px !important;
   letter-spacing: 0.01em;
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.5);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background-color: var(--navy) !important;
+  color: var(--lime) !important;
+  box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .med-save-button:not([disabled]):hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px -4px rgba(37, 99, 235, 0.65);
+  background-color: var(--lime) !important;
+  color: var(--navy) !important;
+  box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.45);
+}
+
+.med-save-button[disabled] {
+  background-color: var(--slate-200) !important;
+  color: var(--slate-400) !important;
+  box-shadow: none;
 }
 
 .med-save-button mat-icon {
   font-size: 20px;
   width: 20px;
   height: 20px;
-}
-
-/* Animación spin para hourglass mientras guarda */
-.spin {
-  animation: spin-rotate 1.2s linear infinite;
-}
-
-@keyframes spin-rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 /* Responsive */
@@ -1079,4 +999,75 @@ mat-tab-group {
   opacity: 0.55;
   user-select: none;
   filter: grayscale(0.2);
+}
+
+/* Enviado a prueba técnica / examen sin resultado: informativo, sin veredicto. */
+.pill-info {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(2, 132, 199, 0.22));
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+/* Acciones del banner: "Dar de baja" + "Modificar de todas formas". */
+.contrato-activo-banner .cab-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Botón override: secundario (contorno) frente al rojo de "Dar de baja". */
+.contrato-activo-banner .cab-action--override {
+  background: #fff;
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+}
+
+.contrato-activo-banner .cab-action--override:hover {
+  filter: none;
+  background: #fef2f2;
+}
+
+/* Sello de auditoría del override. */
+.contrato-activo-banner .cab-audit {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Banner en modo edición forzada: ámbar en vez de rojo, para que se distinga
+   de un bloqueo real de un vistazo. */
+.contrato-activo-banner.cab-override {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.10), rgba(217, 119, 6, 0.14));
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #92400e;
+}
+
+.contrato-activo-banner.cab-override > mat-icon {
+  color: #d97706;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Botón "Cerrar contratación": el único con texto en la toolbar. No hereda
+   el tamaño fijo 40x40 de los icon buttons y se distingue como LA acción de
+   cierre del día (siempre habilitado, no depende del candidato).
+   ───────────────────────────────────────────────────────────────────────── */
+.premium-toolbar button.btn-cerrar-contratacion {
+  width: auto;
+  height: 40px;
+  padding: 0 14px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+}
+
+.premium-toolbar button.btn-cerrar-contratacion:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
 }

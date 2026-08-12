@@ -1,5 +1,5 @@
-import { Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit } from '@angular/core';
-import { MatDialogRef } from '@angular/material/dialog';
+import { Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, Inject } from '@angular/core';
+import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { SharedModule } from '../../shared.module';
 import { BugReportService, BugReportPayload } from '../../services/bug-report/bug-report.service';
@@ -37,7 +37,8 @@ export class BugReportDialogComponent implements OnInit {
     private dialogRef: MatDialogRef<BugReportDialogComponent>,
     private fb: FormBuilder,
     private bugReportService: BugReportService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    @Inject(MAT_DIALOG_DATA) private data: { screenshot: string | null }
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -48,9 +49,13 @@ export class BugReportDialogComponent implements OnInit {
       prioridad: ['Media', Validators.required],
     });
 
-    // Auto-captura de datos en segundo plano
+    // Usar screenshot pre-capturado (antes de abrir el dialog) + resto de datos del sistema
     try {
-      this.autoData = await this.bugReportService.buildReportPayload();
+      const fallback = this.bugReportService.getFallbackData();
+      this.autoData = {
+        ...fallback,
+        screenshot_base64: this.data?.screenshot ?? null,
+      };
       this.screenshotPreview = this.autoData.screenshot_base64 || null;
     } catch {
       this.autoData = this.bugReportService.getFallbackData();

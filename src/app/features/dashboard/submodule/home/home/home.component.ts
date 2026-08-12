@@ -103,11 +103,13 @@ export class HomeComponent implements OnInit {
 
   // ViewChild refs for file inputs
   @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputSoloActualizar') fileInputSoloActualizarRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputResetContratado') fileInputResetRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputExcelCandidatos') fileInputCandidatosRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputCarnets') fileInputCarnetsRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputLimpiarExcel') fileInputLimpiarExcelRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputAdresCedulas') fileInputAdresCedulasRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputAdresCedulasActualizar') fileInputAdresCedulasActualizarRef!: ElementRef<HTMLInputElement>;
 
   // Progreso
   isLoadingProgresoAll = false;
@@ -143,6 +145,22 @@ export class HomeComponent implements OnInit {
     'Segundo Nombre': ['segundo nombre', 'sn'],
     'Primer Apellido': ['primer apellido', 'pa'],
     'Segundo Apellido': ['segundo apellido', 'sa'],
+    // Columna opcional de la imagen de referencia (ej. "ADRESS"). El backend la
+    // lee vía DOCS_FALTANTES_KEYS; la registramos aquí para no depender del
+    // passthrough de headers desconocidos. En modo "solo actualizar" el backend
+    // la ignora y fuerza ADRES-only de todos modos.
+    'Documentación faltante': [
+      'documentación faltante',
+      'documentacion faltante',
+      'documentación_faltante',
+      'documentacion_faltante',
+      'documentos faltantes',
+      'docs faltantes',
+      'docs_faltantes',
+      'faltantes',
+      'pendientes',
+      'pendiente',
+    ],
   };
 
   constructor(
@@ -229,7 +247,24 @@ export class HomeComponent implements OnInit {
     el.click();
   }
 
-  async descargarAdressPorCedulasDesdeExcel(evt: any): Promise<void> {
+  // Extracción "modo actualizar": el PDF del Excel apunta a la ÚLTIMA versión
+  // (la que el robot guardó como NO vigente bajo solo_actualizar).
+  triggerFileInputAdresCedulasActualizar(): void {
+    const el = this.fileInputAdresCedulasActualizarRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
+  descargarAdressPorCedulasDesdeExcel(evt: any): Promise<void> {
+    return this._descargarAdressPorCedulas(evt, false);
+  }
+
+  descargarAdressPorCedulasActualizarDesdeExcel(evt: any): Promise<void> {
+    return this._descargarAdressPorCedulas(evt, true);
+  }
+
+  private async _descargarAdressPorCedulas(evt: any, modoActualizar: boolean): Promise<void> {
     const input = evt?.target as HTMLInputElement;
     const file: File | undefined = input?.files?.[0];
 
@@ -264,7 +299,11 @@ export class HomeComponent implements OnInit {
       });
       Swal.showLoading();
 
-      const res = await firstValueFrom(this.homeService.descargarAdressPorCedulas(cedulas));
+      const res = await firstValueFrom(
+        modoActualizar
+          ? this.homeService.descargarAdressPorCedulasActualizar(cedulas)
+          : this.homeService.descargarAdressPorCedulas(cedulas),
+      );
       const total = res.headers.get('X-Total-Rows');
 
       if (!res.body || res.body.size === 0) {
@@ -279,7 +318,7 @@ export class HomeComponent implements OnInit {
 
       const filename =
         this.getFilenameFromResponse(res) ||
-        `adres_por_cedulas_${cedulas.length}.xlsx`;
+        `${modoActualizar ? 'adres_actualizar_por_cedulas' : 'adres_por_cedulas'}_${cedulas.length}.xlsx`;
       await this.saveToDownloads(res.body, filename);
 
       Swal.close();
@@ -429,7 +468,25 @@ export class HomeComponent implements OnInit {
     el.click();
   }
 
+  // Botón "solo actualizar ADRES": misma carga, pero los PDFs que produzca el
+  // robot NO se vuelven la versión vigente (las consultas siguen mostrando la
+  // anterior). El backend solo deja ADRES en SIN_CONSULTAR.
+  triggerFileInputSoloActualizar(): void {
+    const el = this.fileInputSoloActualizarRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
   cargarExcel(evt: any): void {
+    this._procesarExcelEstados(evt, false);
+  }
+
+  cargarExcelSoloActualizar(evt: any): void {
+    this._procesarExcelEstados(evt, true);
+  }
+
+  private _procesarExcelEstados(evt: any, soloActualizar: boolean): void {
     const file: File | undefined = evt?.target?.files?.[0];
     if (!file) {
       void Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
@@ -487,16 +544,23 @@ export class HomeComponent implements OnInit {
           if (!o['Tipo documento']) o['Tipo documento'] = 'CC';
         });
 
-        const payload = {
-          candidatos_scope: 'nuevos' as 'nuevos' | 'todos' | 'ninguno',
+        const payload: {
+          candidatos_scope: 'nuevos' | 'todos' | 'ninguno';
+          datos: any[];
+          solo_actualizar?: boolean;
+        } = {
+          candidatos_scope: 'nuevos',
           datos,
         };
+        if (soloActualizar) payload.solo_actualizar = true;
 
         this.homeService.enviarEstadosRobots(payload).subscribe({
           next: async (r: any) => {
             const ok = r?.message === 'success';
 
             const lines: string[] = [];
+            if (soloActualizar)
+              lines.push(`🔁 Modo: <b>solo actualizar ADRES</b> (no cambia el documento vigente)`);
             if (r?.recibidos != null)
               lines.push(`📋 Filas recibidas: <b>${r.recibidos}</b>`);
             if (r?.tasks_unicos != null)

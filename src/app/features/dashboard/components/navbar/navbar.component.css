@@ -5,12 +5,12 @@
   --app-left-w: 84px;
   --app-right-w: 260px;
 
-  --app-sidebar-left-bg: #192030;
+  --app-sidebar-left-bg: #21263C;
   --app-sidebar-left-border: transparent;
   --app-sidebar-left-icon-color: rgba(255, 255, 255, 0.65);
   --app-sidebar-left-icon-hover-color: #ffffff;
 
-  --app-sidebar-right-bg: #192030;
+  --app-sidebar-right-bg: #21263C;
   --app-sidebar-right-border: rgba(255, 255, 255, 0.1);
   --app-sidebar-right-text: rgba(255, 255, 255, 0.75);
   --app-sidebar-right-title: #ffffff;
@@ -31,7 +31,7 @@
   --app-dur: 180ms;
 
   --mobile-bottombar-h: 60px;
-  --mobile-bottombar-bg: #192030;
+  --mobile-bottombar-bg: #21263C;
 
   display: block;
 }
@@ -564,7 +564,7 @@
 
     /* Paleta mobile */
     --mobile-bottombar-bg: linear-gradient(180deg, #1d2538 0%, #161e30 100%);
-    --m-accent: #8DD603;
+    --m-accent: #8CD50A;
     --m-accent-soft: rgba(141, 214, 3, 0.14);
     --m-accent-strong: #a4ec19;
     --m-text: rgba(255, 255, 255, 0.72);

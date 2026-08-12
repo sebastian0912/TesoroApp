@@ -1,26 +1,28 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { 
   Component,
-  effect, input, computed, signal, inject, DestroyRef, LOCALE_ID,
+  effect, input, output, computed, signal, inject, DestroyRef, LOCALE_ID,
   OnInit
 , ChangeDetectionStrategy } from '@angular/core';
 import {
-  FormGroup, FormBuilder, Validators
+  FormGroup, FormBuilder
 } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule } from '@angular/material/core';
 import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, startWith } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { startWith } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
-import { GestionParametrizacionService } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { FormEntrevistaComponent } from '../form-entrevista/form-entrevista.component';
 import { ProcesoUpdateByDocumentRequest, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
+import { MatDialog } from '@angular/material/dialog';
+import { RemisionDialogComponent, RemisionDialogData } from './remision-dialog.component';
+import { TemporalRemision } from './remision-fill';
+import { procesoDelContrato } from '../../pages/recruitment-pipeline/contrato.rules';
 
 // ================== Constantes ==================
 export const MY_DATE_FORMATS = {
@@ -68,6 +70,7 @@ interface PublicacionDTO {
   imports: [SharedModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule, FormEntrevistaComponent],
   templateUrl: './help-information.component.html',
   styleUrl: './help-information.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     { provide: LOCALE_ID, useValue: 'es-CO' },
     { provide: MAT_DATE_LOCALE, useValue: 'es-CO' },
@@ -78,15 +81,33 @@ export class HelpInformationComponent implements OnInit {
 
   // ========= Inputs/Outputs basados en signals =========
   candidatoSeleccionado = input<any | null>(null);
+  /**
+   * Override "Modificar de todas formas": cuando el padre (pipeline) lo activa,
+   * los guardados de este tab se marcan como edición pura forward-only. El backend
+   * (update-by-document) NO reinicia banderas ni abre proceso nuevo, y sella la
+   * auditoría con el nombre de `modificadoPor` + la fecha/hora del servidor.
+   */
+  modificacionForzada = input<boolean>(false);
+  modificadoPor = input<string>('');
+
+  /** Reenvía el "guardado" de la entrevista (y de la remisión) al padre para que
+   *  recargue el candidato. */
+  guardado = output<void>();
+
+  /** Inyecta las banderas de override en cualquier payload de update-by-document. */
+  private withOverride(payload: ProcesoUpdateByDocumentRequest): ProcesoUpdateByDocumentRequest {
+    if (!this.modificacionForzada()) return payload;
+    return { ...payload, modificacion_forzada: true, modificado_por: this.modificadoPor() || null };
+  }
 
   // ========= Inyección =========
   private fb = inject(FormBuilder);
-  private gp = inject(GestionParametrizacionService);
   private vacantesService = inject(VacantesService);
   public utilService = inject(UtilityServiceService);
   private destroyRef = inject(DestroyRef);
   private gc = inject(RegistroProcesoContratacion);
   private seleccionEstado = inject(SeleccionEstadoService);
+  private dialog = inject(MatDialog);
 
   /**
    * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
@@ -118,6 +139,14 @@ export class HelpInformationComponent implements OnInit {
   isRemisionReadOnly = signal<boolean>(false);
   isPreloadedVacancy = signal<boolean>(false);
 
+  // ========= "No pasó la prueba técnica" =========
+  /** El candidato fue remitido a prueba técnica pero NO la pasó. */
+  noPasoPrueba = signal<boolean>(false);
+  /** Fecha (ISO) en que se marcó que no pasó la prueba técnica. */
+  noPasoPruebaAt = signal<string | null>(null);
+  /** Motivo registrado de por qué no pasó la prueba técnica. */
+  motivoNoPaso = signal<string | null>(null);
+
   // ========= "Sin vacante" (quitar asignación) =========
   /** Valor centinela del <mat-select> para la opción "Sin vacante". */
   readonly SIN_VACANTE = -1;
@@ -128,29 +157,11 @@ export class HelpInformationComponent implements OnInit {
    */
   limpiarVacante = signal<boolean>(false);
 
-  // ========= Catálogos a signals =========
-  private _estadosCiviles$ = this.gp
-    .listMetaValoresByTablaCodigo('ESTADOS_CIVILES', { activo: true })
-    .pipe(catchError(() => of([])));
-
-  private _opcionesPromo$ = this.gp
-    .listMetaValoresByTablaCodigo('CATALOGO_MARKETING', { activo: true })
-    .pipe(catchError(() => of([])));
-
-  estadosCiviles = toSignal(this._estadosCiviles$, { initialValue: [] as any[] });
-  opcionesPromocion = toSignal(this._opcionesPromo$, { initialValue: [] as any[] });
-
   // ========= Derivados (computed) =========
   private tipoCtrl = this.fb.control<string>('', { nonNullable: true });
   tipoSig = toSignal(this.tipoCtrl.valueChanges.pipe(startWith(this.tipoCtrl.value)));
   isAutorizacion = computed(() => this.tipoSig() === 'Autorización de ingreso');
   isPrueba = computed(() => this.tipoSig() === 'Prueba técnica');
-
-  totalRequerida = computed(() => {
-    const v = this.vacanteSeleccionada();
-    const ofs = Array.isArray(v?.oficinasQueContratan) ? v!.oficinasQueContratan : [];
-    return ofs.reduce((acc, o) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
-  });
 
   // ── Árbol de vacantes agrupadas (Empresa → Finca → Vacantes) ──
   vacantesAgrupadas = computed(() => {
@@ -219,39 +230,6 @@ export class HelpInformationComponent implements OnInit {
     }
 
     return result.sort((a, b) => a.empresa.localeCompare(b.empresa, 'es', { sensitivity: 'base' }));
-  });
-
-  // ── Turno en cola de antecedentes ──
-  turnoEnCola = computed(() => {
-    const cand = this.candidatoSeleccionado();
-    const cola = cand?.cola_antecedentes ?? cand?.colaAntecedentes;
-    if (!cola) return null;
-
-    // Ignoramos: 'medidas_correctivas' y 'fondo_pension' (AFP)
-    const activeKeys = ['adress', 'policivo', 'ofac', 'contraloria', 'sisben', 'procuraduria'];
-    let faltanMaxima = 0;
-    let hayEnProgreso = false;
-    let allFinished = true;
-
-    for (const key of activeKeys) {
-      const info = cola[key];
-      if (info) {
-        const est = (info.estado || '').toUpperCase();
-        if (est !== 'FINALIZADO' && est !== 'DESCARGADO ROBOT') {
-          allFinished = false;
-          if (est === 'EN_PROGRESO') hayEnProgreso = true;
-
-          if (typeof info.faltan_antes === 'number' && info.faltan_antes > faltanMaxima) {
-            faltanMaxima = info.faltan_antes;
-          }
-        }
-      } else {
-        allFinished = false;
-      }
-    }
-
-    if (allFinished) return { finalizado: true, faltan: 0 };
-    return { finalizado: false, faltan: faltanMaxima, enProgreso: hayEnProgreso };
   });
 
   // ========= Constructor =========
@@ -345,6 +323,12 @@ export class HelpInformationComponent implements OnInit {
   private onInputsChanged(candidato: any | null) {
     // Al cambiar de candidato, descartamos cualquier intención previa de limpiar.
     this.limpiarVacante.set(false);
+
+    // Reseteamos el estado de "no pasó la prueba técnica"; se rehidrata desde el proceso.
+    this.noPasoPrueba.set(false);
+    this.noPasoPruebaAt.set(null);
+    this.motivoNoPaso.set(null);
+
     if (candidato && candidato?.id) {
       // Intenta cargar el proceso del candidato
       const proceso = candidato.entrevistas?.[0]?.proceso;
@@ -389,6 +373,12 @@ export class HelpInformationComponent implements OnInit {
     this.vacanteSeleccionada.set(null);
     this.isPreloadedVacancy.set(false);
     this.limpiarVacante.set(true);
+
+    // Quitar la vacante también descarta el resultado de prueba técnica en la UI.
+    this.noPasoPrueba.set(false);
+    this.noPasoPruebaAt.set(null);
+    this.motivoNoPaso.set(null);
+
     this.vacantesForm.reset(
       {
         tipo: '',
@@ -406,10 +396,6 @@ export class HelpInformationComponent implements OnInit {
   }
 
 
-
-  async guardarInfoPersonal(): Promise<void> {
-    console.log('Guardando info personal...');
-  }
 
   private norm(s: any): string {
     return this.utilService.normalizeText(s).toLowerCase();
@@ -455,6 +441,11 @@ export class HelpInformationComponent implements OnInit {
       fechaIngreso: toDate(p?.fechaIngreso),
       salario: p?.salario ? Number(p.salario) : null
     }, { emitEvent: true });
+
+    // Estado de "no pasó la prueba técnica" (resultado registrado en el proceso).
+    this.noPasoPrueba.set(!!p?.no_paso_prueba_tecnica);
+    this.noPasoPruebaAt.set(p?.no_paso_prueba_tecnica_at ?? null);
+    this.motivoNoPaso.set(p?.motivo_no_paso_prueba_tecnica ?? null);
 
     // Si el proceso trae id de vacante, sincroniza selección
     if (p?.publicacion != null) {
@@ -550,16 +541,10 @@ export class HelpInformationComponent implements OnInit {
     const salarioVac = v.salario;
     const vacante_salario = (salarioForm ?? salarioVac) ?? null;
 
-    // === MAPEO solicitado para el select "tipo" ===
-    const tipoValue = v.pruebaOContratacion ?? '';
-    const vacante_tipo =
-      tipoValue === 'Prueba'
-        ? 'Prueba técnica'
-        : tipoValue === 'Contratación'
-          ? 'Autorización de ingreso'
-          : null;
-
-
+    // El tipo enviado al backend debe ser el que eligió el operador ('tipo'), no
+    // el valor por defecto de la vacante: así queda coherente con las banderas
+    // prueba_tecnica / autorizado que se calculan abajo con ese mismo 'tipo'.
+    const vacante_tipo = tipo; // 'Prueba técnica' | 'Autorización de ingreso'
 
     // 3) Payload para /procesos/update-by-document
     const fechaPruebaControl = this.vacantesForm.get('fechaPruebaEntrevista')?.value;
@@ -568,7 +553,7 @@ export class HelpInformationComponent implements OnInit {
     const payload: ProcesoUpdateByDocumentRequest = {
       numero_documento: numeroDocumento,
       publicacion: v.id,
-      vacante_tipo, // ya mapeado
+      vacante_tipo,
       vacante_fecha_prueba: vacanteFechaPrueba, // <-- YA en YYYY-MM-DD o null
       vacante_salario,
       ...(tipo === 'Prueba técnica' ? { prueba_tecnica: true } : {}),
@@ -584,7 +569,11 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      const res = await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+      const res = await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
+
+      // El pipeline debe recargar: la vacante recién asignada alimenta el
+      // prellenado de "Datos de obra" en Contratación y las píldoras del header.
+      this.guardado.emit();
 
       await Swal.fire({
         title: 'Proceso actualizado correctamente.',
@@ -658,9 +647,10 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+      await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
 
       this.limpiarVacante.set(false);
+      this.guardado.emit();
 
       await Swal.fire({
         title: 'Vacante quitada correctamente.',
@@ -685,9 +675,16 @@ export class HelpInformationComponent implements OnInit {
     }
   }
 
-  // ── Wrapper para usar en el template con argumento ──
+  // ── Total de personas requeridas por la vacante ──
+  // Este endpoint (vacantes-por-nombre-oficina) entrega el requerimiento dentro
+  // de oficinasQueContratan[].numeroDeGenteRequerida. Si el backend además manda
+  // un total plano (personasSolicitadas) lo respetamos; si no, sumamos las
+  // oficinas. Es clave: falt() depende de esto y filtra el desplegable completo.
   totalRequeridaOf(v: any): number {
-    return Number(v?.personasSolicitadas) || 0;
+    const directo = Number(v?.personasSolicitadas);
+    if (Number.isFinite(directo) && directo > 0) return directo;
+    const ofs = Array.isArray(v?.oficinasQueContratan) ? v.oficinasQueContratan : [];
+    return ofs.reduce((acc: number, o: any) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
   }
 
   // ── KPIs granulares ──
@@ -745,4 +742,234 @@ export class HelpInformationComponent implements OnInit {
     if (typeof v === 'string') { const m = v.match(/-?\d+/); return m ? parseInt(m[0], 10) : 0; }
     return 0;
   }
+
+  /**
+   * Marca que el candidato NO pasó la prueba técnica: pide el motivo y persiste
+   * el resultado (con fecha sellada por el backend). Si ya estaba marcado,
+   * permite editar el motivo.
+   */
+  async marcarNoPasoPrueba(): Promise<void> {
+    if (this.bloqueado()) {
+      await Swal.fire({
+        title: `Candidato ${this.motivoBloqueo()}`,
+        text: 'No se puede registrar el resultado de la prueba técnica con la observación actual.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
+    if (!numeroDocumento) {
+      await Swal.fire({
+        title: 'No hay número de documento del candidato.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    const { value: motivo, isConfirmed } = await Swal.fire({
+      title: 'No pasó la prueba técnica',
+      input: 'textarea',
+      inputLabel: 'Motivo por el que no pasó la prueba técnica',
+      inputValue: this.motivoNoPaso() ?? '',
+      inputPlaceholder: 'Describe el motivo…',
+      inputAttributes: { maxlength: '500', 'aria-label': 'Motivo no pasó prueba técnica' },
+      inputValidator: (val: any) => {
+        const t = String(val ?? '').trim();
+        if (!t) return 'El motivo es obligatorio.';
+        if (t.length < 5) return 'Amplía un poco más el motivo (mínimo 5 caracteres).';
+        return null;
+      },
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      allowOutsideClick: () => !Swal.isLoading(),
+    });
+
+    if (!isConfirmed) return;
+    const motivoText = String(motivo ?? '').trim();
+
+    const payload: ProcesoUpdateByDocumentRequest = {
+      numero_documento: numeroDocumento,
+      no_paso_prueba_tecnica: true,
+      motivo_no_paso_prueba_tecnica: motivoText,
+    };
+
+    try {
+      Swal.fire({
+        title: 'Guardando...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      const res = await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+      const proc: any = res?.proceso;
+
+      this.noPasoPrueba.set(true);
+      this.noPasoPruebaAt.set(proc?.no_paso_prueba_tecnica_at ?? new Date().toISOString());
+      this.motivoNoPaso.set(proc?.motivo_no_paso_prueba_tecnica ?? motivoText);
+
+      await Swal.fire({
+        title: 'Resultado registrado: no pasó la prueba técnica.',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      const msg = err?.error?.detail || 'No se pudo registrar el resultado.';
+      await Swal.fire({ title: 'Error', text: msg, icon: 'error', confirmButtonText: 'OK' });
+      console.error(err);
+    } finally {
+      Swal.close();
+    }
+  }
+
+  /** Quita la marca de "no pasó la prueba técnica" (limpia fecha y motivo). */
+  async quitarNoPasoPrueba(): Promise<void> {
+    if (this.bloqueado()) return;
+
+    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
+    if (!numeroDocumento) return;
+
+    const confirm = await Swal.fire({
+      title: '¿Quitar la marca de "no pasó"?',
+      text: 'Se eliminará el resultado y el motivo registrados para la prueba técnica.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!confirm.isConfirmed) return;
+
+    const payload: ProcesoUpdateByDocumentRequest = {
+      numero_documento: numeroDocumento,
+      no_paso_prueba_tecnica: false,
+    };
+
+    try {
+      Swal.fire({
+        title: 'Quitando...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+
+      this.noPasoPrueba.set(false);
+      this.noPasoPruebaAt.set(null);
+      this.motivoNoPaso.set(null);
+
+      await Swal.fire({
+        title: 'Marca quitada.',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2200,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      const msg = err?.error?.detail || 'No se pudo quitar la marca.';
+      await Swal.fire({ title: 'Error', text: msg, icon: 'error', confirmButtonText: 'OK' });
+      console.error(err);
+    } finally {
+      Swal.close();
+    }
+  }
+
+  /**
+   * Abre el formato de remisión con todo lo que ya se sabe de la vacante y del
+   * candidato. Lo que el sistema no guarda (a quién preguntar en la empresa, el
+   * consecutivo del formato) se completa en el diálogo.
+   */
+  generarRemision(): void {
+    const cand: any = this.candidatoSeleccionado() ?? {};
+    const v: any = this.vacanteSeleccionada() ?? {};
+    const f = this.vacantesForm.value as any;
+
+    const exp = cand?.experiencia_resumen ?? {};
+    const anios = exp?.anios_experiencia;
+
+    const data: RemisionDialogData = {
+      temporal: this.temporalDeVacante(v),
+      fecha: this.hoyDDMMAAAA(),
+      empresaUsuaria: f.empresaUsuaria || v.empresaUsuariaSolicita || '',
+      cargo: f.cargo || v.cargo || '',
+      experienciaSector: exp?.tiene_experiencia === true ? 'SI'
+        : exp?.tiene_experiencia === false ? 'NO' : '',
+      tiempoExperiencia: anios != null ? anios + ' año(s)' : (exp?.area_experiencia || ''),
+      nombreCandidato: [cand.primer_nombre, cand.segundo_nombre, cand.primer_apellido, cand.segundo_apellido]
+        .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' '),
+      cedula: String(cand.numero_documento ?? ''),
+      // Área, preguntar por y quién firma van VACÍOS a propósito: se llenan a
+      // mano sobre el formato impreso.
+      area: '',
+      dia: this.aDDMMAAAA(f.fechaPruebaEntrevista) || this.aDDMMAAAA(v.fechadePruebatecnica),
+      hora: f.horaPruebaEntrevista || v.horadePruebatecnica || '',
+      preguntarPor: '',
+      direccionEmpresa: f.direccionEmpresa || v.direccion || '',
+      gestionHumana: '',
+      consecutivo: this.codigoContratoDe(cand),
+    };
+
+    this.dialog.open<RemisionDialogComponent, RemisionDialogData, boolean>(
+      RemisionDialogComponent, { data, autoFocus: 'dialog' },
+    );
+  }
+
+  /**
+   * Apoyo / Tu Alianza. Manda `Publicacion.temporal`, que en prod solo toma dos
+   * valores ('TU ALIANZA SAS' / 'APOYO LABORAL SAS'); la empresa usuaria queda
+   * de respaldo por si la vacante vieja no lo trae.
+   */
+  private temporalDeVacante(v: any): TemporalRemision {
+    const temporal = String(v?.temporal ?? '').toUpperCase();
+    if (temporal.includes('ALIANZA')) return 'alianza';
+    if (temporal.includes('APOYO')) return 'apoyo';
+    return String(v?.empresaUsuariaSolicita ?? '').toUpperCase().includes('ALIANZA') ? 'alianza' : 'apoyo';
+  }
+
+  private hoyDDMMAAAA(): string {
+    const d = new Date();
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    return p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear();
+  }
+
+  /** Acepta ISO (yyyy-mm-dd) o Date y devuelve dd/mm/aaaa. */
+  private aDDMMAAAA(v: any): string {
+    if (!v) return '';
+    let iso: string;
+    try {
+      iso = typeof v === 'string' ? v : new Date(v).toISOString();
+    } catch {
+      return '';
+    }
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : String(v);
+  }
+
+  /**
+   * El número del recuadro del formato es el código de contrato. Se busca en el
+   * proceso que TIENE el contrato, no en la primera entrevista: si la persona
+   * volvió y se le abrió un turno nuevo, el contrato vive en la anterior.
+   */
+  private codigoContratoDe(cand: any): string {
+    const proc = procesoDelContrato(cand);
+    return String(proc?.contrato?.codigo_contrato ?? proc?.contrato_codigo ?? '').trim();
+  }
+
 }

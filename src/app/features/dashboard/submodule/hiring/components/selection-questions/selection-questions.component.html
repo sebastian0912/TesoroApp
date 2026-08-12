@@ -54,7 +54,7 @@
           <!-- ===== NÚMERO ===== -->
           @case ('number') {
             <ng-container>
-              <input matInput type="number" [formControlName]="controlName(fld)" min="1" step="1" inputmode="numeric"
+              <input matInput type="number" [formControlName]="controlName(fld)" min="0" step="1" inputmode="numeric"
                 pattern="[0-9]*" (keydown)="onlyInteger($event)" />
                 <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
                   <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
@@ -119,15 +119,50 @@
               </div>
             }
           </div>
+          <!-- Procedencia: lo que devolvió el robot para este campo -->
+          @if (crudoRobot(fld); as crudo) {
+            <div class="robot-origen" [class.aplicado]="vieneDelRobot(fld)">
+              <mat-icon class="robot-icon">smart_toy</mat-icon>
+              <span>
+                Robot: <b>{{ crudo }}</b>
+                @if (vieneDelRobot(fld)) {
+                  <span class="robot-tag">— autocompletado</span>
+                }
+                @if (!vieneDelRobot(fld)) {
+                  <span class="robot-tag">— requiere revisión</span>
+                }
+              </span>
+            </div>
+          }
           <!-- Alerta documento antiguo -->
           @if (isOlderThan(fld.key, 15)) {
             <div class="doc-warning">
               <mat-icon class="warn-icon" color="warn">warning</mat-icon>
               <span>El documento tiene más de 15 días.</span>
+              <!-- Re-consulta SOLO esta fuente (el botón del pipeline re-abre las 8). -->
+              @if (puedeForzarFuente(fld.key)) {
+                <button mat-stroked-button class="btn-forzar-fuente"
+                  [disabled]="forzandoFuente !== null"
+                  matTooltip="Volver a consultar solo este documento con el robot"
+                  (click)="forzarConsultaDeFuente(fld.key, fld.label)">
+                  <mat-icon>autorenew</mat-icon>
+                  {{ forzandoFuente === fld.key ? 'Enviando…' : 'Forzar consultar' }}
+                </button>
+              }
             </div>
           }
         </div>
       }
+
+      <!-- Barrio de residencia: se consulta y edita aquí; se guarda con el
+           mismo botón, por su propio endpoint. -->
+      <div class="input-container">
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Barrio de residencia</mat-label>
+          <input matInput [formControl]="$any(antecedentes.get('barrio'))"
+                 placeholder="Barrio del candidato">
+        </mat-form-field>
+      </div>
 
       <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">
         Cargar

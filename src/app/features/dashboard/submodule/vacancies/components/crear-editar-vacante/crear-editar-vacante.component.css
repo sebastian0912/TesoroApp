@@ -1,9 +1,15 @@
 /* ================== BASE ================== */
 .mat-mdc-dialog-content {
   max-height: 75vh !important;
-  overflow: auto !important;
-  padding: 8px 16px 88px !important;
-  /* espacio para footer sticky */
+  overflow-y: auto !important;
+  /* overflow-x hidden: red de seguridad para que NADA (header, grids) provoque
+     scroll horizontal en el diálogo. */
+  overflow-x: hidden !important;
+  /* Padding generoso y simétrico (antes 8/16 y el header sangraba -24 contra
+     16 -> desbordaba 8px por lado -> scroll horizontal). El 88px inferior deja
+     hueco para el footer sticky. */
+  padding: 20px 24px 88px !important;
+  box-sizing: border-box !important;
 }
 
 /* Grid del formulario (4–5 campos por fila según ancho) */
@@ -55,11 +61,37 @@ mat-form-field,
 }
 
 /* Títulos/bloques que deben ocupar todo el ancho del formulario */
-h3.titulo,
+h3.section-title,
 [formArrayName="municipiosDistribucion"],
 [formArrayName="oficinasQueContratan"],
 .resumen-muni {
   grid-column: 1 / -1 !important;
+}
+
+/* Encabezados de sección DENTRO del formulario (fondo blanco). Antes reusaban
+   .titulo, que es texto BLANCO pensado para la cabecera navy -> quedaban
+   invisibles (blanco sobre blanco). Ahora navy, con filo lima y una hairline
+   que separa la sección. */
+h3.section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 8px 0 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e8edf3;
+  font-size: 15px;
+  font-weight: 700;
+  color: #21263C;
+  letter-spacing: -0.01em;
+}
+
+h3.section-title::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: #21263C;
+  flex-shrink: 0;
 }
 
 /* ================== 3 POR FILA: DISTRIBUCIÓN POR MUNICIPIO ================== */
@@ -200,7 +232,7 @@ h3.titulo,
   left: 0;
   width: 2pt;
   height: calc(100% - 15pt);
-  background: red;
+  background: #b42318;
   z-index: 2;
   border-radius: 2px;
   pointer-events: none;
@@ -230,7 +262,7 @@ h3.titulo,
 }
 
 .modal-header-premium {
-  padding: 24px 32px;
+  padding: 22px 24px;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
   position: relative;
   overflow: hidden;
@@ -238,7 +270,9 @@ h3.titulo,
   justify-content: space-between;
   align-items: flex-start;
   color: white;
-  border-radius: 16px 16px 0 0;
+  /* 4 esquinas: el header va contenido dentro del padding, no sangrado a los bordes */
+  border-radius: 14px;
+  margin: 0 0 20px 0;
 }
 
 .card-header-premium::before, .modal-header-premium::before {
@@ -305,8 +339,8 @@ h3.titulo,
 }
 
 .btn-managerial {
-  background-color: #192030 !important;
-  color: #8DD603 !important;
+  background-color: #21263C !important;
+  color: #8CD50A !important;
   border-radius: 8px !important;
   padding: 0 20px !important;
   height: 40px !important;
@@ -325,8 +359,8 @@ h3.titulo,
 .btn-managerial:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25) !important;
-  background-color: #8DD603 !important;
-  color: #192030 !important;
+  background-color: #8CD50A !important;
+  color: #21263C !important;
 }
 
 .btn-managerial-icon {
@@ -335,4 +369,69 @@ h3.titulo,
 }
 .btn-managerial-icon:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Destructivo: neutro en reposo, rojo sólo al hover/foco. Sustituye a
+   color="warn" de Material, que trae su propio rojo fuera de la paleta y lo
+   pinta permanentemente encendido en el formulario. */
+.btn-eliminar-oficina {
+  color: var(--slate-500);
+  transition: color .15s ease, background-color .15s ease;
+}
+
+.btn-eliminar-oficina:hover,
+.btn-eliminar-oficina:focus-visible {
+  color: #b42318;
+  background-color: #fef3f2;
+}
+
+/* =========================================================================
+   Footer y botones (2026-07-14)
+   Antes los botones tenían color inline: Cancelar #e53935 (rojo Material) y
+   Guardar #003e7f (azul). Ninguno de la paleta. Ahora Guardar es la acción de
+   marca (navy+lima) y Cancelar es secundario neutro.
+   ========================================================================= */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 4px 0 0;
+}
+
+.dialog-footer .btn-cancel {
+  height: 42px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.dialog-footer .btn-cancel:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.dialog-footer .btn-managerial {
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background-color: #21263C !important;
+  color: #8CD50A !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform .15s ease, background-color .15s ease, color .15s ease;
+}
+
+.dialog-footer .btn-managerial:hover {
+  transform: translateY(-1px);
+  background-color: #8CD50A !important;
+  color: #21263C !important;
+}
+
+.dialog-footer .btn-managerial mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
 }

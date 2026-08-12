@@ -24,7 +24,7 @@
           <mat-form-field appearance="outline" class="full-width" style="margin-top: 16px;">
             <mat-label>Concepto</mat-label>
             <mat-icon matPrefix>category</mat-icon>
-            <mat-select formControlName="concepto" (selectionChange)="updateOtroConceptoValidator($event.value)">
+            <mat-select formControlName="concepto">
               @for (concepto of conceptos; track concepto) {
                 <mat-option [value]="concepto.valor">
                   {{ concepto.valor }}
@@ -64,7 +64,7 @@
       <!-- DATOS DEL ENVÍO -->
       <mat-card class="premium-card">
         <mat-card-header>
-          <div mat-card-avatar class="card-avatar" style="background-color: #ccfbf1; color: #0d9488;">
+          <div mat-card-avatar class="card-avatar">
             <mat-icon>local_shipping</mat-icon>
           </div>
           <mat-card-title>Datos del Envío</mat-card-title>
@@ -96,10 +96,10 @@
             <textarea matInput formControlName="comentarioEnvio" rows="3" placeholder="Notas adicionales..."></textarea>
           </mat-form-field>
         </mat-card-content>
-        <mat-card-actions align="end" style="padding: 16px;">
-          <button mat-flat-button type="submit" class="btn-large" [disabled]="myForm.invalid"
-            style="background: #0d9488; color: white;">
-            <mat-icon>send</mat-icon> ENVIAR MERCANCÍA
+        <mat-card-actions class="acciones-pie">
+          <button mat-flat-button type="submit" class="btn-managerial" [disabled]="myForm.invalid || enviando">
+            <mat-icon>send</mat-icon>
+            {{ enviando ? 'Enviando...' : 'Enviar mercancía' }}
           </button>
         </mat-card-actions>
       </mat-card>

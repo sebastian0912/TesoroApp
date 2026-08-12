@@ -5,7 +5,7 @@
       <mat-icon>photo_camera</mat-icon>
       <span>{{ isUploadMode ? 'Adjuntar imagen' : 'Tomar foto' }}</span>
     </div>
-    <button mat-icon-button (click)="cancel()" class="close-btn">
+    <button mat-icon-button (click)="cancel()" class="close-btn" aria-label="Cerrar" matTooltip="Cerrar">
       <mat-icon>close</mat-icon>
     </button>
   </div>
@@ -46,7 +46,9 @@
           <div class="camera-error">
             <mat-icon>error_outline</mat-icon>
             <p>{{ cameraError }}</p>
-            <button mat-stroked-button (click)="toggleUploadMode()">Usar adjunto</button>
+            <button type="button" class="action-btn action-secondary" (click)="toggleUploadMode()">
+              <mat-icon>perm_media</mat-icon> Usar adjunto
+            </button>
           </div>
         }
         <canvas #canvasEl class="hidden-canvas"></canvas>
@@ -61,10 +63,16 @@
       <!-- STATE: PREVIEW (Captured or Uploaded) -->
       @if (previewUrl) {
         <div class="controls-row">
-          <button mat-flat-button color="warn" (click)="clearSelection()">
+          <button type="button" class="action-btn action-secondary" (click)="clearSelection()">
             <mat-icon>refresh</mat-icon> {{ isUploadMode ? 'Otra' : 'Repetir' }}
           </button>
-          <button mat-flat-button color="primary" (click)="confirm()">
+          <!-- El diálogo abre en previsualización cuando ya hay foto, y antes
+               esta era la única barra visible: no había forma de llegar a
+               "Adjuntar" sin pulsar Repetir primero. -->
+          <button type="button" class="action-btn action-secondary" (click)="adjuntarDesdePreview()">
+            <mat-icon>attach_file</mat-icon> Adjuntar
+          </button>
+          <button type="button" class="action-btn action-primary" (click)="confirm()">
             <mat-icon>check</mat-icon> Confirmar
           </button>
         </div>
@@ -74,13 +82,13 @@
       @if (!previewUrl && !isUploadMode) {
         <div class="controls-row camera-controls">
           <!-- Left: Upload Toggle -->
-          <button mat-icon-button class="secondary-btn" (click)="toggleUploadMode()" matTooltip="Adjuntar archivo">
+          <button mat-icon-button class="secondary-btn" (click)="toggleUploadMode()" aria-label="Adjuntar archivo" matTooltip="Adjuntar archivo">
             <mat-icon>perm_media</mat-icon>
           </button>
           <!-- Center: Shutter -->
-          <button class="shutter-btn" (click)="capture()" [disabled]="loadingCamera || !!cameraError"></button>
+          <button type="button" class="shutter-btn" (click)="capture()" [disabled]="loadingCamera || !!cameraError" aria-label="Tomar foto"></button>
           <!-- Right: Facing/Mirror -->
-          <button mat-icon-button class="secondary-btn" (click)="toggleFacing()" matTooltip="Cambiar cámara">
+          <button mat-icon-button class="secondary-btn" (click)="toggleFacing()" aria-label="Cambiar cámara" matTooltip="Cambiar cámara">
             <mat-icon>cameraswitch</mat-icon>
           </button>
         </div>
@@ -89,7 +97,7 @@
       <!-- STATE: UPLOAD ACTIVE (No preview) -->
       @if (!previewUrl && isUploadMode) {
         <div class="controls-row">
-          <button mat-stroked-button (click)="toggleUploadMode()">
+          <button type="button" class="action-btn action-secondary" (click)="toggleUploadMode()">
             <mat-icon>camera_alt</mat-icon> Usar Cámara
           </button>
         </div>

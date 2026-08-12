@@ -1,4 +1,4 @@
-import { APP_INITIALIZER, ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { APP_INITIALIZER, ApplicationConfig, provideZoneChangeDetection, LOCALE_ID, DEFAULT_CURRENCY_CODE } from '@angular/core';
 import { provideRouter, withHashLocation } from '@angular/router';
 import { routes } from './app.routes';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
@@ -15,6 +15,11 @@ import { PipelinePreloadService } from './core/services/pipeline-preload.service
  */
 export const appConfig: ApplicationConfig = {
   providers: [
+    // Este config NO hereda de app.config.ts (a diferencia del de servidor, que
+    // sí hace mergeApplicationConfig). Sin repetirlo aquí, la app de escritorio
+    // seguiría pintando los pesos en formato gringo.
+    { provide: LOCALE_ID, useValue: 'es-CO' },
+    { provide: DEFAULT_CURRENCY_CODE, useValue: 'COP' },
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes, withHashLocation()),
     provideHttpClient(

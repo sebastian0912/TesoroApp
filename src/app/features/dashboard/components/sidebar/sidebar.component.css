@@ -1,5 +1,13 @@
 :host {
   display: block;
+
+  /* El submenú no tenía z-index (auto), y en CSS cualquier elemento con z-index
+     positivo se pinta POR ENCIMA de todo lo que tiene z-index auto, sin importar
+     el orden del DOM. Por eso las cabeceras `sticky` de las tablas (z-index: 3)
+     se montaban sobre el menú.
+     Escala de la app:  navbar 60  >  submenú 50  >  contenido de página. */
+  position: relative;
+  z-index: 50;
 }
 
 /* === TOP HEADER CONTAINER === */
@@ -209,6 +217,53 @@
   to { transform: rotate(360deg); }
 }
 
+/* === BOTÓN REPORTAR BUG === */
+.botonBug {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.botonBug button.mat-icon-button {
+  color: #ef4444;
+}
+
+.botonBug button.mat-icon-button:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* === CAMPANA DE NOTIFICACIONES === */
+.botonNotif {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.notif-bell {
+  position: relative;
+  overflow: visible;
+}
+/* Bolita roja con el contador (estilo Facebook). */
+.notif-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+  pointer-events: none;
+}
+
 /* === BOTÓN DE CONFIGURACIÓN === */
 .botonConfig {
   display: flex;
@@ -264,8 +319,11 @@ button.mat-icon-button:hover {
   color: #334155;
 }
 
-/* === RESPONSIVE === */
-@media (max-width: 768px) {
+/* === RESPONSIVE ===
+   900px, no 768: es el punto donde el shell quita el margin-left y el navbar
+   pasa a barra inferior. Con 768 quedaba una franja de 768-900 en la que el
+   submenú seguía en modo escritorio mientras el resto ya era móvil. */
+@media (max-width: 900px) {
   :host {
     margin-bottom: 16px;
   }

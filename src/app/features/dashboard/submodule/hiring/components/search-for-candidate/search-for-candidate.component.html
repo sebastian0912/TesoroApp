@@ -5,7 +5,7 @@
       <div class="recientes-toolbar-left">
         <!-- Cluster de búsqueda inline: el input + Consultar se deslizan al pulsar el botón -->
         <div class="busqueda-cluster" [class.abierto]="busquedaAbierta">
-          <button mat-stroked-button color="primary" type="button"
+          <button mat-stroked-button type="button"
             class="btn-buscar"
             (click)="toggleBusqueda()"
             [matTooltip]="busquedaAbierta ? 'Ocultar búsqueda' : 'Buscar por cédula'"
@@ -43,23 +43,41 @@
 
             <mat-slide-toggle class="toggle-encolar"
               [(ngModel)]="encolarEnTabla"
-              color="primary"
               [matTooltip]="encolarEnTabla
                 ? 'La persona se agregará a la cola de la tabla'
                 : 'Sólo se buscará, no se agrega a la cola'"
               matTooltipPosition="above">
-              Agregar a la cola
+              Cola
             </mat-slide-toggle>
 
-            <button mat-flat-button color="primary" type="button"
-              class="btn-consultar-inline"
+            <button mat-flat-button type="button"
+              class="btn-consultar-inline btn-managerial"
               (click)="buscarCandidato()" [disabled]="!cedula">
               <mat-icon>arrow_forward</mat-icon>
-              <span>Consultar</span>
+            </button>
+
+            <!-- Generación masiva de carnets: la revisa el pipeline, que es
+                 quien abre el diálogo con las cédulas de la cola. -->
+            <button mat-stroked-button type="button"
+              class="btn-carnet-masivo-inline btn-solo-icono"
+              (click)="pedirCarnetMasivo()"
+              matTooltip="Generar carnets en masa (9 por hoja)" matTooltipPosition="above"
+              aria-label="Carnets masivos">
+              <mat-icon>badge</mat-icon>
+            </button>
+
+            <!-- Generación masiva de carnets: la revisa el pipeline, que es
+                 quien abre el diálogo con las cédulas de la cola. -->
+            <button mat-stroked-button type="button"
+              class="btn-carnet-masivo-inline btn-solo-icono"
+              (click)="pedirCarnetMasivo()"
+              matTooltip="Generar carnets en masa (9 por hoja)" matTooltipPosition="above"
+              aria-label="Carnets masivos">
+              <mat-icon>badge</mat-icon>
             </button>
 
             @if (procesoValido && !mostrarObservacion) {
-              <button mat-stroked-button color="warn" type="button"
+              <button mat-stroked-button type="button"
                 class="btn-reportar-inline"
                 (click)="mostrarCampoObservacion()"
                 matTooltip="Reportar un problema con esta cédula" matTooltipPosition="above">
@@ -99,7 +117,7 @@
             placeholder="Describa el problema observado..."></textarea>
         </mat-form-field>
         <div class="observacion-inline-actions">
-          <button mat-flat-button color="primary" (click)="enviarObservacion()" [disabled]="!observacion.trim()">
+          <button mat-flat-button class="btn-managerial" (click)="enviarObservacion()" [disabled]="!observacion.trim()">
             <mat-icon>send</mat-icon>
             <span>Enviar reporte</span>
           </button>
@@ -128,6 +146,7 @@
               <th>Experiencia</th>
               <th>Antecedentes</th>
               <th>Formulario</th>
+              <th>Carnet</th>
               <th></th>
             </tr>
           </thead>
@@ -195,13 +214,26 @@
                     </span>
                   }
                 </td>
+                <!-- Carnet: lo consume también la generación masiva, que por
+                     defecto solo toma a los pendientes. -->
+                <td>
+                  @if (item.carnet_generado) {
+                    <span class="badge-formulario badge-completo" matTooltip="El carnet ya se generó">
+                      <mat-icon>badge</mat-icon> Generado
+                    </span>
+                  } @else {
+                    <span class="badge-formulario badge-sin-iniciar" matTooltip="Todavía no se le genera el carnet">
+                      <mat-icon>badge</mat-icon> Pendiente
+                    </span>
+                  }
+                </td>
                 <td>
                   @if (item.atendido_hoy) {
                     <span class="badge-formulario badge-atendido" matTooltip="Ya fue atendido hoy">
                       <mat-icon>task_alt</mat-icon> Atendido
                     </span>
                   } @else {
-                    <button mat-flat-button color="primary" class="btn-atender"
+                    <button mat-flat-button class="btn-atender btn-managerial"
                       (click)="seleccionarReciente(item)">
                       <mat-icon>arrow_forward</mat-icon>
                       Atender

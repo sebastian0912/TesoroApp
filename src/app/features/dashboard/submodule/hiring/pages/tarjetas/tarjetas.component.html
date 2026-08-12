@@ -1,102 +1,152 @@
-<div class="tarjetas-container">
-  <div class="card-header-premium">
+<div class="tarjetas-page">
+
+  <header class="card-header-premium">
     <div class="header-content">
       <div class="header-icon-container">
         <mat-icon class="header-icon">credit_card</mat-icon>
       </div>
       <div class="header-text">
-        <h1 class="titulo" style="margin: 0 !important;">Tarjetas</h1>
-        <p class="subtitulo" style="margin: 0 !important;">Gestión y carga masiva de tarjetas.</p>
+        <h1 class="titulo">Tarjetas</h1>
+        <p class="subtitulo">Gestión y carga masiva de tarjetas.</p>
       </div>
     </div>
     <span class="grow"></span>
-    <button mat-raised-button class="btn-managerial" style="z-index: 1;" (click)="onCreate()">
-      <mat-icon>add</mat-icon> Crear Tarjeta
-    </button>
-  </div>
+    <div class="header-actions">
+      <button mat-raised-button class="btn-managerial" (click)="onCreate()">
+        <mat-icon>add</mat-icon> Crear tarjeta
+      </button>
+    </div>
+  </header>
 
-  <!-- Section A: Bulk Upload -->
-  <mat-card class="upload-section">
-    <mat-card-header>
-      <mat-card-title class="titulo" style="color: #192030 !important;">Carga Masiva</mat-card-title>
-    </mat-card-header>
-    <mat-card-content>
-      <div class="upload-controls">
-        <input type="file" #fileInput (change)="onFileSelected($event)" accept=".xls,.xlsx"
-          style="display: none;">
-          <div class="drop-zone" (click)="fileInput.click()" (drop)="onFileSelected($event)"
-            (dragover)="$event.preventDefault()">
-            <mat-icon class="upload-icon">cloud_upload</mat-icon>
-            @if (!selectedFile) {
-              <p>Arrastra un archivo aquí o haz clic para seleccionar (.xls, .xlsx)</p>
-            }
-            @if (selectedFile) {
-              <p class="selected-file-name">{{ selectedFile.name }}</p>
-            }
-          </div>
-          <button mat-raised-button color="accent" [disabled]="!selectedFile || isUploading" (click)="onImport()">
-            Importar
-          </button>
+  <!-- Carga masiva: herramienta secundaria, franja compacta para que el
+       listado (lo que se viene a consultar) se lleve el alto disponible. -->
+  <section class="upload-panel">
+    <input type="file" #fileInput hidden accept=".xls,.xlsx" (change)="onFileSelected($event)">
+
+    <div class="upload-controls">
+      <div class="drop-zone"
+           role="button"
+           tabindex="0"
+           [class.is-dragging]="isDragging()"
+           [class.has-file]="selectedFile()"
+           (click)="fileInput.click()"
+           (keydown.enter)="fileInput.click()"
+           (dragover)="onDragOver($event)"
+           (dragleave)="onDragLeave($event)"
+           (drop)="onDrop($event)">
+        <mat-icon class="drop-icon">{{ selectedFile() ? 'description' : 'cloud_upload' }}</mat-icon>
+
+        <div class="drop-text">
+          @if (selectedFile(); as file) {
+            <p class="drop-title">{{ file.name }}</p>
+            <p class="drop-hint">{{ selectedFileSize() }} · listo para importar</p>
+          } @else {
+            <p class="drop-title">Arrastra el archivo o haz clic para seleccionarlo</p>
+            <p class="drop-hint">Formatos admitidos: .xls y .xlsx</p>
+          }
         </div>
 
-        @if (isUploading) {
-          <mat-progress-bar mode="indeterminate" class="mt-2"></mat-progress-bar>
+        @if (selectedFile()) {
+          <button mat-icon-button
+                  class="btn-quiet-danger"
+                  matTooltip="Quitar archivo"
+                  aria-label="Quitar archivo"
+                  (click)="$event.stopPropagation(); clearFile(fileInput)">
+            <mat-icon>close</mat-icon>
+          </button>
         }
+      </div>
 
-        <!-- Results Summary -->
-        @if (importResult) {
-          <div class="import-summary mt-3">
-            <mat-chip-listbox>
-              <mat-chip-option color="primary" selected>Creadas: {{ importResult.created }}</mat-chip-option>
-              <mat-chip-option color="accent" selected>Actualizadas: {{ importResult.updated }}</mat-chip-option>
-              @if (importResult.skipped > 0) {
-                <mat-chip-option color="warn" selected>Omitidas/Errores: {{
-                importResult.skipped }}</mat-chip-option>
-              }
-            </mat-chip-listbox>
-            @if (importResult.errors && importResult.errors.length > 0) {
-              <div class="error-list mt-2">
-                <h3>Errores Detallados:</h3>
-                <div class="error-table-container">
-                  <table class="error-table">
-                    <thead>
-                      <tr>
-                        <th>Fila</th>
-                        <th>Error</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (err of importResult.errors; track err) {
-                        <tr>
-                          <td>{{ err.row }}</td>
-                          <td>{{ err.error }}</td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
+      <button mat-raised-button
+              class="btn-managerial btn-import"
+              [disabled]="!selectedFile() || isUploading()"
+              (click)="onImport(fileInput)">
+        <mat-icon>upload_file</mat-icon>
+        {{ isUploading() ? 'Importando…' : 'Importar' }}
+      </button>
+    </div>
+
+    @if (isUploading()) {
+      <mat-progress-bar mode="indeterminate" class="upload-progress"></mat-progress-bar>
+    }
+
+    @if (importResult(); as res) {
+      <div class="import-result">
+        <div class="result-head">
+          <div class="result-stats">
+            <div class="stat">
+              <span class="stat-value">{{ res.created | number }}</span>
+              <span class="stat-label">Creadas</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ res.updated | number }}</span>
+              <span class="stat-label">Actualizadas</span>
+            </div>
+            <!-- Estado por excepción: las omitidas solo aparecen (y solo se
+                 pintan de ámbar) si realmente hubo alguna. -->
+            @if (res.skipped > 0) {
+              <div class="stat stat--warn">
+                <span class="stat-value">{{ res.skipped | number }}</span>
+                <span class="stat-label">Omitidas</span>
               </div>
             }
           </div>
-        }
-      </mat-card-content>
-    </mat-card>
 
-    <!-- Section B: List -->
-    <app-standard-filter-table [data]="data" [columnDefinitions]="columns" [isLoading]="isLoading"
-      tableTitle="Listado de Tarjetas" [defaultPageSize]="10">
-
-      <!-- Custom Templates -->
-      <ng-template columnCellTemplate="actions" let-row>
-        <div class="actions-cell">
-          <button mat-icon-button color="primary" (click)="onEdit(row)" matTooltip="Editar">
-            <mat-icon>edit</mat-icon>
-          </button>
-          <button mat-icon-button color="warn" (click)="onDelete(row)" matTooltip="Eliminar">
-            <mat-icon>delete</mat-icon>
+          <button mat-icon-button class="btn-quiet" matTooltip="Ocultar resumen"
+                  aria-label="Ocultar resumen" (click)="dismissResult()">
+            <mat-icon>close</mat-icon>
           </button>
         </div>
-      </ng-template>
 
-    </app-standard-filter-table>
-  </div>
+        @if (importErrors().length > 0) {
+          <div class="error-block">
+            <h3 class="error-title">
+              <mat-icon>error_outline</mat-icon>
+              Filas con error ({{ importErrors().length | number }})
+            </h3>
+            <div class="error-table-container">
+              <table class="error-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Fila</th>
+                    <th scope="col">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (err of importErrors(); track $index) {
+                    <tr>
+                      <td class="error-row-num">{{ err.row }}</td>
+                      <td>{{ err.error }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <app-standard-filter-table
+    [data]="data()"
+    [columnDefinitions]="columns"
+    [isLoading]="isLoading()"
+    tableTitle="Listado de tarjetas"
+    [defaultPageSize]="10">
+
+    <ng-template appCellTemplate="actions" let-row>
+      <div class="actions-cell">
+        <button mat-icon-button class="btn-row" matTooltip="Editar"
+                aria-label="Editar tarjeta" (click)="onEdit(row)">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button class="btn-row btn-row-danger" matTooltip="Eliminar"
+                aria-label="Eliminar tarjeta" (click)="onDelete(row)">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+    </ng-template>
+
+  </app-standard-filter-table>
+</div>

@@ -2,26 +2,16 @@
   <header class="viewer-header">
     <div class="title-block">
       <h2>{{ data.title }}</h2>
-
       @if (hasDocuments) {
         <p class="subtitle">
-          {{ data.documents.length }}
-          documento{{ data.documents.length === 1 ? '' : 's' }}
+          {{ data.documents.length }} documento{{ data.documents.length === 1 ? '' : 's' }}
         </p>
-      }
-
-      @if (!hasDocuments) {
-        <p class="subtitle">
-          No hay documentos para mostrar.
-        </p>
+      } @else {
+        <p class="subtitle">No hay documentos para mostrar.</p>
       }
     </div>
 
-    <button
-      mat-icon-button
-      type="button"
-      matTooltip="Cerrar"
-      (click)="close()">
+    <button mat-icon-button type="button" matTooltip="Cerrar" (click)="close()">
       <mat-icon>close</mat-icon>
     </button>
   </header>
@@ -30,29 +20,22 @@
 
   @if (hasDocuments) {
     <div class="viewer-body">
+
       <!-- Lista de documentos (izquierda) -->
       <aside class="doc-list">
         <mat-nav-list dense>
           @for (doc of data.documents; track doc; let i = $index) {
-            <a
-              mat-list-item
-              (click)="selectDoc(i)"
-              [class.active]="i === selectedIndex">
-              <mat-icon matListItemIcon>
-                {{ getIcon(doc) }}
-              </mat-icon>
-              <div matListItemTitle>
-                {{ doc.title }}
-              </div>
+            <a mat-list-item (click)="selectDoc(i)" [class.active]="i === selectedIndex">
+              <mat-icon matListItemIcon>{{ getIcon(doc) }}</mat-icon>
+              <div matListItemTitle>{{ doc.title }}</div>
               <div matListItemLine class="doc-meta">
-                <span class="chip">
-                  {{ getChipLabel(doc) }}
-                </span>
+                <span class="chip">{{ getChipLabel(doc) }}</span>
               </div>
             </a>
           }
         </mat-nav-list>
       </aside>
+
       <!-- Preview (derecha) -->
       <section class="preview">
         @if (selectedDoc; as doc) {
@@ -62,8 +45,7 @@
               <span class="doc-chip">{{ getChipLabel(doc) }}</span>
             </div>
             <div class="preview-actions">
-              <!-- Solo mostrar "Abrir" en pestaña nueva si NO es PDF -->
-              @if (!isPdf(doc)) {
+              @if (previewType !== 'pdf') {
                 <button
                   mat-stroked-button
                   color="primary"
@@ -84,8 +66,10 @@
               </button>
             </div>
           </header>
+
           <div class="preview-content">
-            <!-- Loader mientras se carga -->
+
+            <!-- Loader -->
             @if (loading) {
               <div class="loading-state">
                 <span class="loader"></span><br />
@@ -98,85 +82,108 @@
                 </p>
               </div>
             }
+
             <!-- PDF -->
-            @if (isPdf(doc)) {
-              <!-- Error específico de carga -->
-              @if (loadError) {
+            @if (previewType === 'pdf') {
+              @if (pdfSafeUrl) {
+                <iframe
+                  class="pdf-frame"
+                  [src]="pdfSafeUrl"
+                  title="Vista previa PDF"
+                  (load)="onIframeLoaded()">
+                </iframe>
+              } @else if (!loading) {
                 <div class="generic-preview">
-                  <mat-icon class="big-icon">error_outline</mat-icon>
-                  <p class="info-text">
-                    {{ loadError }}
-                  </p>
-                  <button
-                    mat-raised-button
-                    color="primary"
-                    type="button"
-                    (click)="download(doc)">
+                  <mat-icon class="big-icon">picture_as_pdf</mat-icon>
+                  <p class="info-text">No fue posible cargar la vista previa del PDF.</p>
+                  <button mat-raised-button color="primary" type="button" (click)="download(doc)">
                     Descargar PDF
                   </button>
                 </div>
-              } @else {
-                @if (currentSafeUrl) {
-                  <iframe
-                    class="pdf-frame"
-                    [src]="currentSafeUrl"
-                    title="Vista previa PDF"
-                    (load)="onIframeLoaded()">
-                  </iframe>
-                } @else {
-                  <div class="generic-preview">
-                    <mat-icon class="big-icon">picture_as_pdf</mat-icon>
-                    <p class="info-text">
-                      No fue posible cargar la vista previa del PDF.
-                    </p>
-                    <button
-                      mat-raised-button
-                      color="primary"
-                      type="button"
-                      (click)="download(doc)">
-                      Descargar PDF
-                    </button>
-                  </div>
-                }
-                <!-- No se pudo construir la URL -->
               }
-              <!-- PDF sin error -->
-            } @else {
-              <!-- Imagen -->
-              @if (isImage(doc)) {
-                <img
-                  class="image-preview"
-                  [src]="doc.file_url"
-                  [alt]="doc.title" />
-                } @else {
-                  <div class="generic-preview">
-                    <mat-icon class="big-icon">
-                      {{ getIcon(doc) }}
-                    </mat-icon>
-                    <p class="info-text">
-                      Vista previa no disponible para este tipo de archivo.
-                    </p>
-                    <button
-                      mat-raised-button
-                      color="primary"
-                      type="button"
-                      (click)="openInNewTab(doc)">
-                      Abrir en nueva pestaña
-                    </button>
-                  </div>
-                }
-                <!-- Excel / otros -->
-              }
-              <!-- NO PDF -->
-            </div>
-          }
-        </section>
-      </div>
-    } @else {
-      <div class="empty-state">
-        <mat-icon class="empty-icon">folder_off</mat-icon>
-        <p>No hay documentos para visualizar.</p>
-      </div>
-    }
 
-  </div>
+            <!-- Imagen -->
+            } @else if (previewType === 'image') {
+              @if (imageSafeUrl) {
+                <img class="image-preview" [src]="imageSafeUrl" [alt]="doc.title" />
+              }
+
+            <!-- Excel / CSV -->
+            } @else if (previewType === 'spreadsheet') {
+              @if (excelSheets.length > 0) {
+                <div class="sheet-tabs">
+                  <span class="sheet-tabs__label">Hojas:</span>
+                  @for (sheet of excelSheets; track sheet; let i = $index) {
+                    <button
+                      class="sheet-tab"
+                      [class.active]="i === excelActiveSheet"
+                      type="button"
+                      (click)="switchSheet(i)">
+                      <span class="sheet-tab__num">{{ i + 1 }}</span>
+                      {{ sheet }}
+                    </button>
+                  }
+                </div>
+              }
+              @if (excelRows.length > 0) {
+                <div class="excel-table-wrapper">
+                  <table class="excel-table">
+                    <thead>
+                      <tr>
+                        <th class="row-num">#</th>
+                        @for (cell of excelRows[0]; track $index) {
+                          <th>{{ cell }}</th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of excelRows.slice(1); track $index; let ri = $index) {
+                        <tr>
+                          <td class="row-num">{{ ri + 1 }}</td>
+                          @for (cell of row; track $index) {
+                            <td>{{ cell }}</td>
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                @if (excelRows.length >= maxPreviewRows) {
+                  <div class="excel-limit-notice">
+                    Mostrando las primeras {{ maxPreviewRows }} filas.
+                    Descarga el archivo para ver el resto.
+                  </div>
+                }
+              } @else {
+                <div class="generic-preview">
+                  <mat-icon class="big-icon">table_chart</mat-icon>
+                  <p class="info-text">No se pudo leer el contenido del archivo.</p>
+                  <button mat-raised-button color="primary" type="button" (click)="openInNewTab(doc)">
+                    Abrir en nueva pestaña
+                  </button>
+                </div>
+              }
+
+            <!-- Tipo desconocido (solo si ya terminó de cargar) -->
+            } @else if (!loading) {
+              <div class="generic-preview">
+                <mat-icon class="big-icon">{{ getIcon(doc) }}</mat-icon>
+                <p class="info-text">Vista previa no disponible para este tipo de archivo.</p>
+                <button mat-raised-button color="primary" type="button" (click)="openInNewTab(doc)">
+                  Abrir en nueva pestaña
+                </button>
+              </div>
+            }
+
+          </div>
+        }
+      </section>
+
+    </div>
+  } @else {
+    <div class="empty-state">
+      <mat-icon class="empty-icon">folder_off</mat-icon>
+      <p>No hay documentos para visualizar.</p>
+    </div>
+  }
+</div>

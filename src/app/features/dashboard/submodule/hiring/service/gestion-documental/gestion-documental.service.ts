@@ -1,7 +1,7 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
-import { catchError, timeout } from 'rxjs/operators';
+import { Observable, of, throwError } from 'rxjs';
+import { catchError, map, shareReplay, tap, timeout } from 'rxjs/operators';
 import { isPlatformBrowser } from '@angular/common';
 import { environment } from '@/environments/environment';
 
@@ -45,8 +45,81 @@ export class GestionDocumentalService {
     return this.http.post(
       `${this.apiUrl}/gestion_documental/documentos/`,
       formData
+    ).pipe(
+      // El expediente de esa cédula cambió: la próxima lectura debe ir al servidor.
+      tap(() => this.invalidarDocumentos(owner_id)),
     );
   }
+
+  /* ============ Expediente completo por cédula (UNA petición) ============ */
+
+  /**
+   * Todos los documentos de una cédula en UNA sola petición, compartida.
+   *
+   * Al abrir un candidato en el pipeline, tres componentes pedían el mismo
+   * endpoint OCHO veces variando solo `type` (32, 30, 89, 16, 17, 18, 86 y una
+   * sin tipo). El backend aplica la misma regla con y sin tipo —el documento
+   * vigente de cada tipo, dos para referencias personales/familiares— y ninguno
+   * de esos tipos tiene subtipos, así que la respuesta sin `type` contiene TODO
+   * lo que las otras siete buscaban. Cada consumidor filtra por `type` en local.
+   *
+   * La respuesta queda cacheada unos segundos por cédula: las llamadas del
+   * mismo "estallido" (pipeline + selección + contratación abriendo a la vez)
+   * comparten una única petición en vuelo. Un 404 significa "sin documentos" y
+   * se entrega como lista vacía; un error real no se cachea para que el
+   * siguiente intento vuelva a preguntar.
+   *
+   * `force` salta el caché (polling que espera documentos nuevos del robot).
+   * Toda subida por `guardarDocumento` invalida la cédula automáticamente;
+   * subidas por OTROS servicios (p. ej. la foto) deben llamar
+   * `invalidarDocumentos(cedula)`.
+   */
+  getDocumentosDeCandidato(cedula: string | number, opts?: { force?: boolean }): Observable<any[]> {
+    const clave = String(cedula ?? '').trim();
+    if (!clave) return of([]);
+
+    const hit = this.docsPorCedula.get(clave);
+    if (hit && !opts?.force && Date.now() - hit.creadoEn < GestionDocumentalService.DOCS_TTL_MS) {
+      return hit.obs;
+    }
+
+    const obs = this.http
+      .get(`${this.apiUrl}/gestion_documental/documentos/`, {
+        params: new HttpParams().set('cedula', clave),
+      })
+      .pipe(
+        map((r) => (Array.isArray(r) ? r : [])),
+        catchError((err: HttpErrorResponse) => {
+          // "No hay documentos" no es un error: es un expediente vacío.
+          if (err.status === 404) return of([] as any[]);
+          return throwError(() => err);
+        }),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
+
+    this.docsPorCedula.set(clave, { obs, creadoEn: Date.now() });
+    // Un error real no debe quedar cacheado como si fuera la respuesta.
+    obs.subscribe({ error: () => this.docsPorCedula.delete(clave) });
+    return obs;
+  }
+
+  /** Olvida el expediente cacheado de una cédula (o todos, sin argumento). */
+  invalidarDocumentos(cedula?: string | number): void {
+    if (cedula == null || cedula === '') {
+      this.docsPorCedula.clear();
+      return;
+    }
+    this.docsPorCedula.delete(String(cedula).trim());
+  }
+
+  /** Expedientes ya pedidos, por cédula. Ver `getDocumentosDeCandidato`. */
+  private readonly docsPorCedula = new Map<string, { obs: Observable<any[]>; creadoEn: number }>();
+
+  /**
+   * Cubre el estallido de apertura de un candidato (todas las llamadas caen en
+   * segundos) sin arriesgar datos viejos si lo vuelven a consultar más tarde.
+   */
+  private static readonly DOCS_TTL_MS = 30_000;
 
   /**
    * Obtiene documentos filtrados por cédula (obligatoria) y opcionalmente tipo o contrato.

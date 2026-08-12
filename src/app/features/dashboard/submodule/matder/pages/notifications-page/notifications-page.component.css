@@ -27,3 +27,24 @@
 .notif-meta { display: flex; align-items: center; gap: 8px; }
 .type-chip { font-size: .65rem !important; }
 .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #2563eb; }
+.notif-go {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: .72rem; font-weight: 600; color: #2563eb;
+  opacity: 0; transition: opacity .15s; margin-left: auto;
+}
+.notif-go mat-icon { width: 15px; height: 15px; font-size: 15px; }
+.notif-card.clickable:hover .notif-go { opacity: 1; }
+/* ===== Marca: héroe corporativo (override para consistencia) ===== */
+.hero { position: relative; overflow: hidden; background: var(--mt-hero) !important; color: #fff !important; border: none !important; border-radius: var(--mt-r) !important; box-shadow: var(--mt-shadow-hover) !important; padding: 26px 28px !important; }
+.hero::before { content: ''; position: absolute; inset: 0; background: var(--mt-hero-ring); pointer-events: none; }
+.hero > * { position: relative; z-index: 1; }
+.hero .eyebrow { color: var(--mt-accent) !important; }
+.hero-copy h1 { color: #fff !important; font-weight: 700; letter-spacing: -.02em; }
+.hero-text { color: rgba(255,255,255,.78) !important; }
+.hero-actions { gap: 10px; flex-wrap: wrap; }
+.hero-actions button { border-radius: 12px !important; font-weight: 600; }
+.hero-actions .mat-mdc-outlined-button { color: #fff !important; border-color: rgba(255,255,255,.35) !important; background: rgba(255,255,255,.07); }
+.hero-actions .mat-mdc-outlined-button:hover { background: rgba(255,255,255,.14); }
+.hero-actions .mat-mdc-raised-button { background: var(--mt-accent) !important; color: #17300a !important; box-shadow: 0 10px 22px rgba(140,213,10,.34) !important; }
+
+@media (max-width: 768px) { :host { display: block; padding-bottom: 80px; } .hero { padding: 18px 14px; } .hero-copy h1 { font-size: 1.4rem; } .hero-actions { flex-wrap: wrap; gap: 8px; } }

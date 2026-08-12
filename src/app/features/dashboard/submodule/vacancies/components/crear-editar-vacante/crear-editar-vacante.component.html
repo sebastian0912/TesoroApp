@@ -1,4 +1,4 @@
-<div class="modal-header-premium" style="margin: -24px -24px 24px -24px; padding: 24px;">
+<div class="modal-header-premium">
   <div class="header-content">
     <div class="header-icon-container">
       <mat-icon class="header-icon">add_task</mat-icon>
@@ -133,21 +133,11 @@
         }
       </mat-form-field>
 
-      <!-- ===================== Fecha de ingreso (condicional) ===================== -->
-      <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tieneFechaIngreso')}">
-        <mat-label>Tiene Fecha de Ingreso</mat-label>
-        <mat-select formControlName="tieneFechaIngreso">
-          <mat-option value="Si">Sí</mat-option>
-          <mat-option value="No">No</mat-option>
-        </mat-select>
-        @if (vacanteForm.get('tieneFechaIngreso')?.hasError('required')) {
-          <mat-error>
-            Indique si tiene fecha de ingreso.
-          </mat-error>
-        }
-      </mat-form-field>
-
-      @if (vacanteForm.get('tieneFechaIngreso')?.value === 'Si') {
+      <!-- ===================== Fecha de ingreso (solo Contratación inmediata) =====================
+           El toggle "Tiene Fecha de Ingreso" se maneja automáticamente y NO se muestra:
+           la fecha de ingreso aparece y es obligatoria solo cuando la vacante es de
+           Contratación inmediata; al cambiar de opción el dato se borra. -->
+      @if (vacanteForm.get('pruebaOContratacion')?.value === 'Contratación') {
         <mat-form-field
           [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
           <mat-label>Fecha de Ingreso</mat-label>
@@ -327,7 +317,7 @@
           </mat-form-field>
 
           <!-- ===================== Distribución por municipio ===================== -->
-          <h3 class="titulo">Distribución por municipio</h3>
+          <h3 class="section-title">Distribución por municipio</h3>
 
           <div formArrayName="municipiosDistribucion">
             @for (fg of municipiosDistribucion.controls; track fg; let i = $index) {
@@ -392,7 +382,7 @@
             }
           </mat-form-field>
 
-          <h3 class="titulo">Oficinas Que Contratan</h3>
+          <h3 class="section-title">Oficinas Que Contratan</h3>
           <div formArrayName="oficinasQueContratan">
             @for (oficinaCtrl of oficinasQueContratan.controls; track oficinaCtrl; let i = $index) {
               <div [formGroupName]="i">
@@ -408,10 +398,11 @@
                 <mat-checkbox formControlName="ruta">¿Tiene Ruta?</mat-checkbox>
                 <button
                   mat-icon-button
-                  color="warn"
+                  class="btn-eliminar-oficina"
                   type="button"
                   (click)="eliminarOficina(i)"
-                  matTooltip="Eliminar oficina">
+                  matTooltip="Eliminar oficina"
+                  aria-label="Eliminar oficina">
                   <mat-icon>delete</mat-icon>
                 </button>
               </div>
@@ -421,20 +412,12 @@
         </form>
       </div>
 
-      <div mat-dialog-actions>
-        <button
-          mat-button
-          type="button"
-          (click)="cancelar()"
-          style="background-color:#e53935; color:#fff; border-radius:5pt;">
+      <div mat-dialog-actions class="dialog-footer">
+        <button mat-button type="button" class="btn-cancel" (click)="cancelar()">
           Cancelar
         </button>
 
-        <button
-          mat-button
-          type="button"
-          (click)="guardar()"
-          style="background-color:#003e7f; color:#fff; border-radius:5pt;">
-          Guardar
+        <button mat-flat-button type="button" class="btn-managerial" (click)="guardar()">
+          <mat-icon>save</mat-icon> Guardar
         </button>
       </div>

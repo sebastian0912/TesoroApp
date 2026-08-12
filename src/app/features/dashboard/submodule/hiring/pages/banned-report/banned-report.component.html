@@ -1,67 +1,168 @@
-<mat-card class="premium-card">
-  <mat-card-header class="card-header-premium">
-    <div class="header-content">
-      <div class="header-icon-container">
-        <mat-icon class="header-icon">report_problem</mat-icon>
-      </div>
-      <div class="header-text">
-        <mat-card-title class="titulo">Reportar 901</mat-card-title>
-        <mat-card-subtitle class="subtitulo">Generar un nuevo reporte de vetado 901.</mat-card-subtitle>
-      </div>
+<header class="page-head">
+  <div class="head-icon">
+    <mat-icon>report_problem</mat-icon>
+  </div>
+  <div class="head-text">
+    <h1 class="head-title">Reportar 901</h1>
+    <p class="head-sub">Registra un nuevo reporte de vetado sobre un candidato.</p>
+  </div>
+  @if (reportadoPor()) {
+    <div class="head-meta">
+      <span class="meta-label">Reportado por</span>
+      <span class="meta-value">{{ reportadoPor() }}</span>
     </div>
-  </mat-card-header>
-  <mat-card-content class="card-content">
-    <form [formGroup]="reporteForm" (ngSubmit)="enviarReporte()">
-      <!-- Campo de cédula -->
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Ingrese la cédula</mat-label>
-        <input matInput formControlName="cedula" required>
-      </mat-form-field>
+  }
+</header>
 
-      <!-- Campo de nombre (solo lectura) -->
-      <mat-form-field appearance="fill" class="example-full-width" style="font-size: 8.5pt;">
-        <mat-label>Nombre completo</mat-label>
-        <input matInput formControlName="nombre" readonly>
-      </mat-form-field>
+<form class="form-shell" [formGroup]="reporteForm" (ngSubmit)="enviarReporte()">
+  <div class="form-body">
+    <div class="layout">
 
-      <!-- centro_costo_carnet -->
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Centro de costo</mat-label>
-        <input matInput formControlName="centro_costo_carnet" required>
-      </mat-form-field>
+      <!-- ── 1. Identificación ─────────────────────────────── -->
+      <section class="panel">
+        <h2 class="panel-title"><span class="step">1</span> Identificar candidato</h2>
 
-      <!-- fecha_contratacion -->
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Fecha de contratación</mat-label>
-        <input matInput formControlName="fecha_contratacion" readonly>
-      </mat-form-field>
-
-      <!-- Campo de sede (select) -->
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Seleccione la sede</mat-label>
-        <mat-select formControlName="sede" required>
-          @for (sede of sedes; track sede) {
-            <mat-option [value]="sede.nombre">
-              {{ sede.nombre }}
-            </mat-option>
+        <mat-form-field appearance="outline" class="field">
+          <mat-label>Cédula del candidato</mat-label>
+          <input matInput formControlName="cedula" inputmode="numeric" autocomplete="off" required>
+          @if (estadoBusqueda() === 'buscando') {
+            <mat-spinner matSuffix [diameter]="18" class="field-spinner"></mat-spinner>
+          } @else if (estadoBusqueda() === 'encontrado') {
+            <mat-icon matSuffix class="field-ok">check_circle</mat-icon>
           }
-        </mat-select>
-      </mat-form-field>
+          <mat-hint>La búsqueda es automática al terminar de escribir.</mat-hint>
+        </mat-form-field>
 
-      <!-- Campo de observación -->
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Observación</mat-label>
-        <input matInput formControlName="observacion">
-      </mat-form-field>
+        @switch (estadoBusqueda()) {
+          @case ('buscando') {
+            <div class="slot slot-loading">
+              <mat-spinner [diameter]="22"></mat-spinner>
+              <p>Buscando candidato…</p>
+            </div>
+          }
 
-      <!-- Campo de reportado por (automático, deshabilitado) -->
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Reportado por</mat-label>
-        <input matInput formControlName="reportadoPor" readonly>
-      </mat-form-field>
+          @case ('encontrado') {
+            @if (candidato(); as cand) {
+              <div class="slot slot-found">
+                <div class="cand-head">
+                  <div class="cand-avatar"><mat-icon>person</mat-icon></div>
+                  <div class="cand-id">
+                    <p class="cand-nombre">{{ cand.nombre }}</p>
+                    <p class="cand-cedula">C.C. {{ cand.cedula }}</p>
+                  </div>
+                </div>
+                <dl class="cand-datos">
+                  <div class="dato">
+                    <dt>Centro de costo</dt>
+                    <dd>{{ cand.centroCosto || 'Sin registrar' }}</dd>
+                  </div>
+                  <div class="dato">
+                    <dt>Fecha de contratación</dt>
+                    <dd>{{ cand.fechaContratacion || 'Sin registrar' }}</dd>
+                  </div>
+                </dl>
+              </div>
+            }
+          }
 
-      <!-- Botón de envío -->
-      <button mat-flat-button class="btn-managerial" type="submit" [disabled]="reporteForm.invalid">Enviar reporte</button>
-    </form>
-  </mat-card-content>
-</mat-card>
+          @case ('no-encontrado') {
+            <div class="callout callout-warn">
+              <mat-icon>person_off</mat-icon>
+              <div>
+                <p class="callout-title">No encontramos esa cédula</p>
+                <p class="callout-text">
+                  Verifica que esté bien escrita. Si el candidato existe, habla con contratación
+                  para más información.
+                </p>
+              </div>
+            </div>
+          }
+
+          @case ('error') {
+            <div class="callout callout-danger">
+              <mat-icon>cloud_off</mat-icon>
+              <div>
+                <p class="callout-title">No se pudo verificar la cédula</p>
+                <p class="callout-text">Hubo un problema de conexión. Corrige la cédula o vuelve a intentarlo.</p>
+              </div>
+            </div>
+          }
+
+          @default {
+            <div class="slot slot-empty">
+              <mat-icon>badge</mat-icon>
+              <p>Escribe la cédula y aquí aparecerán los datos del candidato.</p>
+            </div>
+          }
+        }
+      </section>
+
+      <!-- ── 2. Datos del reporte ──────────────────────────── -->
+      <section class="panel">
+        <h2 class="panel-title"><span class="step">2</span> Datos del reporte</h2>
+
+        <div class="callout callout-warn aviso">
+          <mat-icon>gpp_maybe</mat-icon>
+          <div>
+            <p class="callout-text">
+              El reporte 901 queda registrado a tu nombre y pasa a revisión de contratación.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid-campos">
+          <mat-form-field appearance="outline" class="field">
+            <mat-label>Sede</mat-label>
+            <mat-select formControlName="sede" required>
+              @for (sede of sedes(); track sede) {
+                <mat-option [value]="sede.nombre">{{ sede.nombre }}</mat-option>
+              }
+            </mat-select>
+            @if (cargandoSedes()) {
+              <mat-hint>Cargando sedes…</mat-hint>
+            } @else if (sedesFallaron()) {
+              <mat-hint class="hint-error">No se pudieron cargar las sedes.</mat-hint>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="field">
+            <mat-label>Centro de costo</mat-label>
+            <input matInput formControlName="centro_costo_carnet" autocomplete="off" required>
+            <mat-hint>Se completa solo; puedes corregirlo.</mat-hint>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline" class="field">
+          <mat-label>Observación</mat-label>
+          <textarea matInput formControlName="observacion" rows="4" required></textarea>
+          <mat-hint>Explica el motivo del reporte.</mat-hint>
+        </mat-form-field>
+      </section>
+
+    </div>
+  </div>
+
+  <footer class="action-bar">
+    @if (motivoBloqueo(); as motivo) {
+      <p class="motivo">
+        <mat-icon>info</mat-icon>
+        <span>{{ motivo }}</span>
+      </p>
+    } @else {
+      <p class="motivo motivo-listo">
+        <mat-icon>task_alt</mat-icon>
+        <span>Todo listo para enviar.</span>
+      </p>
+    }
+
+    <button mat-flat-button class="btn-managerial" type="submit" [disabled]="!puedeEnviar()">
+      @if (enviando()) {
+        <mat-spinner [diameter]="18" class="btn-spinner"></mat-spinner>
+        <span>Enviando…</span>
+      } @else {
+        <mat-icon>send</mat-icon>
+        <span>Enviar reporte</span>
+      }
+    </button>
+  </footer>
+</form>

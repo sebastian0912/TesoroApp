@@ -1,4 +1,4 @@
-import {  Component, OnInit, input, effect, inject, DestroyRef , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin, of, throwError, Observable } from 'rxjs';
@@ -10,7 +10,9 @@ import Swal from 'sweetalert2';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import type jsPDF from 'jspdf';
 import type { RowInput } from 'jspdf-autotable';
+import { resolverDescripcionObra, LABOR_POR_MES_AREA } from './labores-por-mes.data';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+import { FarmsService } from '../../../farms/services/farms/farms.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import {
   ProcesoUpdateByDocumentRequest,
@@ -44,6 +46,27 @@ type ServerDocInfo = {
 export class HiringQuestionsComponent implements OnInit {
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
+  /**
+   * Avisa al pipeline que algo del contrato/proceso cambió, para que recargue el
+   * candidato. Sin esto el padre se queda con el objeto viejo y los `computed`
+   * que dependen de él (p. ej. el botón "Generar documentación", que exige
+   * "Pago y Transporte" completo) no se habilitan hasta volver a buscar a la persona.
+   */
+  guardado = output<void>();
+  /**
+   * Override "Modificar de todas formas" (pipeline con contrato activo): los
+   * guardados de este tab se marcan como edición pura sobre el proceso EXISTENTE.
+   * El backend (update-by-document) NO reinicia banderas ni abre proceso nuevo y
+   * sella la auditoría con el nombre + fecha/hora del servidor.
+   */
+  modificacionForzada = input<boolean>(false);
+  modificadoPor = input<string>('');
+
+  /** Inyecta las banderas de override en cualquier payload de update-by-document. */
+  private withOverride(payload: ProcesoUpdateByDocumentRequest): ProcesoUpdateByDocumentRequest {
+    if (!this.modificacionForzada()) return payload;
+    return { ...payload, modificacion_forzada: true, modificado_por: this.modificadoPor() || null };
+  }
 
   // ───────── UI ─────────
   descripcionVacante = '';
@@ -54,7 +77,7 @@ export class HiringQuestionsComponent implements OnInit {
   referenciasForm!: FormGroup;
   trasladosForm!: FormGroup;
   huellaForm!: FormGroup;
-  /** Datos de obra/empresa para documentos (prellenados desde la vacante, editables). */
+  /** Datos de obra/empresa para documentos (siempre desde la vacante, solo lectura). */
   datosObraForm!: FormGroup;
 
   // ───────── Archivos / tipos ─────────
@@ -121,6 +144,7 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly docSvc = inject(GestionDocumentalService);
   private readonly docViewer = inject(DocViewerService);
   private readonly vacantesService = inject(VacantesService);
+  private readonly farmsService = inject(FarmsService);
   private readonly procesosService = inject(RegistroProcesoContratacion);
   private readonly tarjetasService = inject(TarjetasService);
   private readonly positionsService = inject(PositionsService);
@@ -128,6 +152,9 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly seleccionEstado = inject(SeleccionEstadoService);
   private readonly cdr = inject(ChangeDetectorRef);
+
+  /** Cargo de la vacante cargada; lo usa la sugerencia de descripción de obra. */
+  private cargoVacante = '';
 
   /**
    * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
@@ -151,6 +178,12 @@ export class HiringQuestionsComponent implements OnInit {
     this.setupFormaPagoValidation(); // ← aplica validación dinámica CO
     // Consentimiento: autocompletar UserAgent
     this.huellaForm.patchValue({ userAgent: navigator.userAgent });
+
+    // La labor de la base cambia con el MES de ingreso, así que si se corrige
+    // la fecha hay que reproponerla.
+    this.pagoTransporteForm.get('fechaIngreso')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.sugerirDescripcionObra());
 
     // Autocomplete de tarjetas: búsqueda SERVER-SIDE (antes bajaba las ~55k tarjetas
     // al cliente y filtraba local). Filtra desde el primer carácter que se escribe;
@@ -215,6 +248,11 @@ export class HiringQuestionsComponent implements OnInit {
         contraseniaAsignada: ['', []],
         seguroFunerario: [false, Validators.required],
         Ccostos: ['', Validators.required],
+        // Centro de costo que se IMPRIME en el carnet. Puede diferir del
+        // Ccostos de nómina (p. ej. la finca donde va a estar la persona),
+        // por eso es un campo propio y no obligatorio: si va vacío, el carnet
+        // cae al Ccostos.
+        carnetCentroCosto: [null],
         salario: [{ value: null, disabled: true }, Validators.required],
         auxilioTransporte: [{ value: null, disabled: true }, Validators.required],
         // Editable: se autocompleta desde el cargo de la vacante como sugerencia,
@@ -222,6 +260,13 @@ export class HiringQuestionsComponent implements OnInit {
         porcentajeARL: [null, Validators.required],
         cesantias: [null, Validators.required],
         subCentroCostos: [null, Validators.required],
+        // Datos de nómina. Se prellenan desde el centro de costo pero quedan
+        // editables; no son obligatorios para no bloquear contrataciones viejas.
+        empresaGrupoElite: [null],
+        codigoCompania: [null],
+        sucursal: [null],
+        ciudadLabor: [null],
+        sublabor: [null],
         grupo: [null, Validators.required],
         categoria: [null, Validators.required],
         operacion: [null, Validators.required],
@@ -445,6 +490,12 @@ export class HiringQuestionsComponent implements OnInit {
         porcentaje_arl?: number | null;
         cesantias?: string | null;
         subcentro_de_costos?: string | null;
+        carnet_centro_costo?: string | null;
+        empresa_grupo_elite?: string | null;
+        codigo_compania?: string | null;
+        sucursal?: string | null;
+        ciudad_labor?: string | null;
+        sublabor?: string | null;
         grupo?: string | null;
         categoria?: string | null;
         operacion?: string | null;
@@ -469,6 +520,12 @@ export class HiringQuestionsComponent implements OnInit {
         porcentaje_arl: toNum(v.porcentajeARL),
         cesantias: v.cesantias ?? null,
         subcentro_de_costos: v.subCentroCostos ?? null,
+        carnet_centro_costo: v.carnetCentroCosto ?? null,
+        empresa_grupo_elite: v.empresaGrupoElite ?? null,
+        codigo_compania: v.codigoCompania ?? null,
+        sucursal: v.sucursal ?? null,
+        ciudad_labor: v.ciudadLabor ?? null,
+        sublabor: v.sublabor ?? null,
         grupo: v.grupo ?? null,
         categoria: v.categoria ?? null,
         operacion: v.operacion ?? null,
@@ -480,7 +537,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     try {
       const resp = await firstValueFrom(
-        this.procesosService.updateProcesoByDocumento(payload, 'PATCH'),
+        this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
       );
       this.alert(
         'success',
@@ -643,7 +700,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     this.loading('Guardando datos de obra…');
     try {
-      await firstValueFrom(this.procesosService.updateProcesoByDocumento(payload, 'PATCH'));
+      await firstValueFrom(this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
       Swal.close();
       this.alert('success', 'Guardado', 'Los datos de obra se guardaron en el contrato.');
     } catch (e: any) {
@@ -744,7 +801,7 @@ export class HiringQuestionsComponent implements OnInit {
       }
 
       await firstValueFrom(
-        this.procesosService.updateProcesoByDocumento(payload, 'PATCH'),
+        this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
       );
 
       Swal.close();
@@ -1063,6 +1120,14 @@ export class HiringQuestionsComponent implements OnInit {
       porcentajeARL: contr?.porcentaje_arl != null ? toNum(contr.porcentaje_arl) : null,
       cesantias: contr?.cesantias ?? null,
       subCentroCostos: contr?.subcentro_de_costos ?? null,
+      // El adaptador `snakeDeep` del servicio baja el camelCase del backend a
+      // snake_case, por eso se leen así.
+      carnetCentroCosto: contr?.carnet_centro_costo ?? null,
+      empresaGrupoElite: contr?.empresa_grupo_elite ?? null,
+      codigoCompania: contr?.codigo_compania ?? null,
+      sucursal: contr?.sucursal ?? null,
+      ciudadLabor: contr?.ciudad_labor ?? null,
+      sublabor: contr?.sublabor ?? null,
       grupo: contr?.grupo ?? null,
       categoria: contr?.categoria ?? null,
       operacion: contr?.operacion ?? null,
@@ -1101,23 +1166,29 @@ export class HiringQuestionsComponent implements OnInit {
           auxilioTransporte: auxFromVac,
         });
 
-        // Datos de obra/empresa: si el contrato no los tenía, usar los de la vacante.
+        // Datos de obra/empresa: manda SIEMPRE la vacante (los campos son de
+        // solo lectura en la pestaña); lo guardado en el contrato queda solo
+        // de respaldo para cuando la vacante no trae el dato.
         const obraActual = this.datosObraForm.value;
         const orStr = (x: any) => (x == null ? '' : String(x));
         this.datosObraForm.patchValue({
-          empresaUsuaria: obraActual.empresaUsuaria || orStr(vac?.empresaUsuariaSolicita),
-          centroCosto: obraActual.centroCosto || orStr(vac?.finca),
-          direccion: obraActual.direccion || orStr(vac?.direccion),
-          descripcionObra: obraActual.descripcionObra || orStr(vac?.descripcion),
+          empresaUsuaria: orStr(vac?.empresaUsuariaSolicita) || obraActual.empresaUsuaria,
+          centroCosto: orStr(vac?.finca) || obraActual.centroCosto,
+          direccion: orStr(vac?.direccion) || obraActual.direccion,
+          descripcionObra: orStr(vac?.descripcion) || obraActual.descripcionObra,
         });
 
         // Autocompletar Porcentaje ARL desde el cargo de la vacante.
         // Si el contrato YA tenía un porcentaje_arl explícito, lo respetamos
         // y no lo pisamos (hay casos donde nómina ajustó manualmente).
         const cargoNombre = (vac?.cargo ?? '').toString().trim();
+        this.cargoVacante = cargoNombre;
         if (cargoNombre) {
           await this.autollenarPorcentajeArlDesdeCargo(cargoNombre, contr?.porcentaje_arl);
         }
+        // La labor de la base depende del cargo y del mes de ingreso; con la
+        // vacante ya cargada se puede proponer.
+        this.sugerirDescripcionObra();
 
         if (contratoVacio) {
           // Completar otros defaults desde la vacante si aplica
@@ -1624,4 +1695,134 @@ export class HiringQuestionsComponent implements OnInit {
 
     return doc.output('arraybuffer');
   }
+
+  /**
+   * Genera el formato de verificación de referencias para un slot
+   * ('familiar1' | 'familiar2' | 'personal1' | 'personal2').
+   *
+   * Queda en `uploadedFiles`, así que se ve con "Ver" y sube con "Cargar",
+   * igual que un PDF adjuntado a mano. Solo aplica a referencias personales y
+   * familiares; las laborales llevan otro formato.
+   */
+  async generarReferencia(campo: string): Promise<void> {
+    const m = /^(familiar|personal)([12])$/.exec(campo);
+    if (!m) return;
+    const tipo = m[1].toUpperCase();      // FAMILIAR | PERSONAL
+    const slot = Number(m[2]);
+
+    const cand: any = this.candidatoSeleccionado();
+    if (!cand?.numero_documento) {
+      return this.alert('info', 'Sin candidato', 'Selecciona un candidato primero.');
+    }
+
+    // La tabla guarda el tipo con y sin sufijo ('PERSONAL' y 'PERSONAL1'); se
+    // aceptan ambos y, cuando hay varias del mismo tipo, se ordenan por id.
+    const todas: any[] = Array.isArray(cand?.referencias) ? [...cand.referencias] : [];
+    const delTipo = todas
+      .filter(r => String(r?.tipo ?? '').toUpperCase().startsWith(tipo))
+      .sort((a, b) => (Number(a?.id) || 0) - (Number(b?.id) || 0));
+    const exacta = delTipo.find(r => String(r?.tipo ?? '').toUpperCase() === `${tipo}${slot}`);
+    const ref = exacta ?? delTipo[slot - 1];
+
+    if (!ref) {
+      return this.alert(
+        'info', 'Sin datos de la referencia',
+        `El candidato no tiene registrada la referencia ${tipo.toLowerCase()} ${slot}.`,
+      );
+    }
+
+    const nombreCand = [cand.primer_nombre, cand.segundo_nombre, cand.primer_apellido, cand.segundo_apellido]
+      .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
+    const hoy = new Date();
+    const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
+
+    const { buildCartaReferenciaPdf } = await import('./referencias-fill');
+    const blob = buildCartaReferenciaPdf({
+      candidatoNombre: nombreCand,
+      ciudad: String(cand?.municipio ?? ''),
+      fecha,
+      referencia: {
+        tipo,
+        slot,
+        nombre: String(ref.nombre ?? ''),
+        parentesco: String(ref.parentesco ?? ''),
+        telefono: String(ref.telefono ?? ''),
+        ocupacion: String(ref.ocupacion ?? ''),
+      },
+    });
+
+    const fileName = `Referencia-${tipo}${slot}-${cand.numero_documento}.pdf`;
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+    this.uploadedFiles[campo] = { file, fileName };
+    this.referenciasForm.get(campo)?.setValue(fileName);
+    // No se abre solo: queda listo y se ve desde el menú de los 3 puntos.
+    this.alert('success', 'Generado', `${fileName} quedó listo. Ábrelo con "Ver" cuando quieras.`);
+  }
+
+  /**
+   * Prellena los datos de nómina desde el centro de costo digitado.
+   *
+   * `CentroCosto` ya guarda empresa, ciudad y sublabor; se copian solo a los
+   * campos vacíos para no pisar un ajuste manual. Código de compañía y sucursal
+   * no existen en esa tabla, así que quedan a mano.
+   */
+  async autollenarDesdeCentroCosto(): Promise<void> {
+    const cc = String(this.pagoTransporteForm.get('Ccostos')?.value ?? '').trim();
+    if (!cc) return;
+
+    try {
+      const filas = await firstValueFrom(this.farmsService.list(cc));
+      // Coincidencia exacta por Ccostos; si no, la primera del resultado.
+      const norm = (v: any) => String(v ?? '').trim().toUpperCase();
+      const fila = (filas || []).find(f => norm(f['ccostos']) === norm(cc)) ?? (filas || [])[0];
+      if (!fila) return;
+
+      const ponerSiVacio = (control: string, valor: any) => {
+        const c = this.pagoTransporteForm.get(control);
+        const actual = String(c?.value ?? '').trim();
+        const nuevo = String(valor ?? '').trim();
+        if (c && !actual && nuevo) c.setValue(nuevo);
+      };
+
+      ponerSiVacio('empresaGrupoElite', fila['empresa']);
+      ponerSiVacio('ciudadLabor', fila['ciudad']);
+      ponerSiVacio('sublabor', fila['sublabor']);
+      ponerSiVacio('subCentroCostos', fila['subcentro']);
+      ponerSiVacio('grupo', fila['grupo']);
+      ponerSiVacio('categoria', fila['categoria']);
+      ponerSiVacio('operacion', fila['operacion']);
+    } catch (e) {
+      // Es una ayuda de digitación: si falla, los campos se llenan a mano.
+      console.warn('[centro de costo] no se pudo autocompletar', e);
+    }
+  }
+
+  /**
+   * Propone la "Descripción de la obra" con la misma regla de la base de
+   * contratación (columna J): la labor depende del MES de ingreso y del área,
+   * y el área sale del cargo. Ver `labores-por-mes.data.ts`.
+   *
+   * Solo escribe si el campo está vacío o si lo que hay es una labor generada
+   * antes: si el usuario redactó algo propio, no se le pisa.
+   */
+  private sugerirDescripcionObra(): void {
+    const ctrl = this.datosObraForm.get('descripcionObra');
+    if (!ctrl) return;
+
+    const actual = String(ctrl.value ?? '').trim();
+    const esGenerada = actual !== '' &&
+      Object.values(LABOR_POR_MES_AREA).some(v => v === actual);
+    if (actual !== '' && !esGenerada) return;
+
+    const v = this.datosObraForm.value;
+    const sugerida = resolverDescripcionObra(
+      this.cargoVacante,
+      this.pagoTransporteForm.get('fechaIngreso')?.value,
+      `${v.empresaUsuaria ?? ''} ${v.centroCosto ?? ''}`,
+    );
+    if (sugerida && sugerida !== actual) {
+      ctrl.setValue(sugerida, { emitEvent: false });
+    }
+  }
+
 }

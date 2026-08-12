@@ -1,4 +1,4 @@
-import {  Component, effect, input , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
+import {  Component, effect, input, output , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -13,6 +13,8 @@ import { GestionDocumentalService } from '../../service/gestion-documental/gesti
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import type { AntecedentesPayload } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { RobotsService } from '../../service/robots/robots.service';
+import type { ResultadosAntecedentes } from '../../service/robots/robots.service';
 
 /* ===================== Tipos ===================== */
 type UploadedFileInfo = {
@@ -107,6 +109,15 @@ const MAP_NOMBRE_TO_KEY: Record<string, FormPatchKeys> = {
 export class SelectionQuestionsComponent implements OnDestroy {
   /* -------- Input (signal) -------- */
   candidatoSeleccionado = input<any | null>(null);
+  /** Avisa al pipeline que se guardaron antecedentes, para que recargue el candidato. */
+  guardado = output<void>();
+  /**
+   * Override "Modificar de todas formas" (pipeline con contrato activo): al guardar,
+   * marca la edición como pura sobre el proceso EXISTENTE y sella la auditoría
+   * (nombre + fecha/hora del servidor). No abre proceso/entrevista nuevos.
+   */
+  modificacionForzada = input<boolean>(false);
+  modificadoPor = input<string>('');
 
   /* -------- Form -------- */
   antecedentes: FormGroup;
@@ -133,7 +144,10 @@ export class SelectionQuestionsComponent implements OnDestroy {
     'A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',
     'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18',
     'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D18', 'D19', 'D20', 'D21',
-    'NO APLICA', 'SIN BUSCAR'
+    // 'NO TIENE' = la persona no está sisbenizada (el robot lo devuelve como
+    // "Sin Sisben"). Distinto de 'NO APLICA' (no corresponde consultarlo) y de
+    // 'SIN BUSCAR' (todavía nadie lo revisó).
+    'NO TIENE', 'NO APLICA', 'SIN BUSCAR'
   ] as const;
   readonly medidasCorrectivasOpts = [...Array.from({ length: 11 }, (_, i) => i), 'CUMPLE'] as const;
 
@@ -206,6 +220,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
     private docsSrv: GestionDocumentalService,
     private rpc: RegistroProcesoContratacion,
     private ui: UtilityServiceService,
+    private robots: RobotsService,
     private cdr: ChangeDetectorRef
   ) {
     // Reactive Forms
@@ -220,6 +235,9 @@ export class SelectionQuestionsComponent implements OnDestroy {
       ofac: [''],
       medidasCorrectivas: [''],
       semanasCotizadas: [null],
+      // Barrio de residencia: no es un antecedente, pero se consulta y edita
+      // acá. Viaja por su propio endpoint (ver guardar()).
+      barrio: [''],
     });
 
     // Reacciona al candidato seleccionado
@@ -235,6 +253,8 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
       this.resetUploadedFilesAsNew();
       this.patchSeleccion(proc?.antecedentes ?? null);
+      this.antecedentes.get('barrio')?.setValue(
+        String(candidato?.residencia?.barrio ?? '').trim(), { emitEvent: false });
 
       // Cancela cualquier polling del candidato anterior antes de empezar.
       this.cancelDocPolling();
@@ -245,6 +265,10 @@ export class SelectionQuestionsComponent implements OnDestroy {
         this.loadDataDocumentos(ctx)
           .then(() => this.maybeScheduleDocPolling(ctx, 0))
           .catch((err) => console.error('[selection] Error cargando documentos:', err));
+
+        // Prellenado con lo que ya consultó el robot. Va después del patch de
+        // antecedentes guardados para que estos tengan prioridad.
+        this.prellenarDesdeRobot(ctx);
       }
     });
   }
@@ -388,6 +412,100 @@ export class SelectionQuestionsComponent implements OnDestroy {
   private patchSeleccion(raw: any): void {
     const patch = buildPatchFromAntecedentes(raw, this.formPatchBase);
     this.antecedentes.patchValue(patch, { emitEvent: false });
+  }
+
+  /* ===================== Prellenado desde el robot ===================== */
+
+  /** Resultados del robot para el candidato actual (para mostrar procedencia). */
+  resultadosRobot: ResultadosAntecedentes['campos'] = {};
+
+  /** Campos que quedaron diligenciados por el robot en esta carga. */
+  camposDesdeRobot = new Set<string>();
+
+  /** Mapa: clave del endpoint -> control del formulario. */
+  private readonly robotKeyToControl: Record<string, string> = {
+    policivos: 'policivos',
+    ofac: 'ofac',
+    procuraduria: 'procuraduria',
+    contraloria: 'contraloria',
+    eps: 'eps',
+    afp: 'afp',
+    sisben: 'sisben',
+    medidas_correctivas: 'medidasCorrectivas',
+  };
+
+  /** Un control se considera vacío si no tiene valor útil todavía. */
+  private estaVacio(control: string): boolean {
+    const v = this.antecedentes.get(control)?.value;
+    if (v === null || v === undefined) return true;
+    const s = String(v).trim();
+    // 'SIN BUSCAR' es el placeholder de "todavía nadie lo revisó".
+    return s === '' || s.toUpperCase() === 'SIN BUSCAR';
+  }
+
+  /**
+   * Trae lo que ya consultó el robot y llena SOLO los campos vacíos.
+   *
+   * No pisa nada diligenciado: si el analista ya eligió un valor, o si venían
+   * antecedentes guardados en el proceso, se respetan. Tampoco autocompleta
+   * cuando el robot no dejó un veredicto interpretable (`valor === null`),
+   * que es el caso de procuraduría/contraloría en estado "Consultado".
+   *
+   * Los valores de texto se suben a MAYÚSCULAS antes de aplicarlos: los
+   * catálogos de este formulario están en mayúscula (todo se uppercasea al
+   * guardar) y el backend normaliza algunos a otra caja ('No Tiene'), que el
+   * mat-select —que compara con ===— no reencontraría y dejaría el campo vacío.
+   */
+  private async prellenarDesdeRobot(ctx: number): Promise<void> {
+    if (!this.cedula) return;
+
+    try {
+      const res = await firstValueFrom(
+        this.robots.getResultadosAntecedentes(this.cedula, this.tipoDocumento)
+      );
+      // El candidato pudo cambiar mientras respondía el backend.
+      if (ctx !== this._ctx) return;
+
+      this.resultadosRobot = res?.campos ?? {};
+      this.camposDesdeRobot.clear();
+      if (!res?.encontrado) {
+        this.cdr.markForCheck();
+        return;
+      }
+
+      const patch: Record<string, string | number> = {};
+      for (const [robotKey, control] of Object.entries(this.robotKeyToControl)) {
+        const campo = (this.resultadosRobot as any)[robotKey];
+        const valor = campo?.valor;
+        if (valor === null || valor === undefined || valor === '') continue;
+        if (!this.estaVacio(control)) continue;
+        // Los numéricos (medidas correctivas 0..10) se dejan tal cual.
+        patch[control] = typeof valor === 'string' ? up(valor) : valor;
+        this.camposDesdeRobot.add(control);
+      }
+
+      if (Object.keys(patch).length) {
+        this.antecedentes.patchValue(patch, { emitEvent: false });
+        this.antecedentes.markAsDirty();
+      }
+      this.cdr.markForCheck();
+    } catch (err) {
+      // Es una ayuda, no un requisito: si falla, el formulario sigue usable.
+      console.warn('[selection] No se pudieron cargar los resultados del robot:', err);
+    }
+  }
+
+  /** Texto crudo que devolvió el robot para un campo, para mostrarlo en la UI. */
+  crudoRobot(fld: FieldDef): string | null {
+    const control = fld.control ?? fld.key;
+    const entry = Object.entries(this.robotKeyToControl).find(([, c]) => c === control);
+    if (!entry) return null;
+    return (this.resultadosRobot as any)[entry[0]]?.crudo ?? null;
+  }
+
+  /** ¿Este campo lo llenó el robot en esta carga? */
+  vieneDelRobot(fld: FieldDef): boolean {
+    return this.camposDesdeRobot.has(fld.control ?? fld.key);
   }
 
   /* ===================== Documentos (estado/descarga/subida) ===================== */
@@ -560,6 +678,78 @@ export class SelectionQuestionsComponent implements OnDestroy {
     return (Date.now() - ts) > (days * 24 * 60 * 60 * 1000);
   }
 
+  /* ===================== Forzar re-consulta de UNA fuente ===================== */
+
+  /** Documento cuyo botón "Forzar consultar" está en vuelo. */
+  forzandoFuente: DocKey | null = null;
+
+  /**
+   * Solo tienen robot los documentos con fuente en la cola; `figuraHumana` y
+   * `pensionSemanas` se suben a mano, así que ahí no hay nada que forzar.
+   */
+  puedeForzarFuente(key: DocKey): boolean {
+    return !!this.colaKeyMap[key];
+  }
+
+  /**
+   * Re-abre SOLO la fuente de este documento para que el robot la vuelva a
+   * consultar. A diferencia del botón del pipeline (que re-abre las 8), esto
+   * cuesta una sola consulta.
+   *
+   * Ojo: Policivos y Rama Judicial comparten la fuente `policivo`, así que
+   * forzar cualquiera de los dos re-consulta ambos: es una sola consulta del
+   * robot que produce los dos PDF.
+   */
+  async forzarConsultaDeFuente(key: DocKey, label: string): Promise<void> {
+    const fuente = this.colaKeyMap[key];
+    const doc = (this.cedula || '').trim();
+    if (!fuente || !doc || this.forzandoFuente) return;
+
+    const compartida = fuente === 'policivo'
+      ? '<br><br>Policivos y Rama Judicial son la misma consulta del robot: se actualizan los dos.'
+      : '';
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'question',
+      title: 'Forzar consultar',
+      html: `Se volverá a consultar <b>${label}</b> de la cédula <b>${doc}</b>.<br><br>`
+        + 'El estado queda en <b>SIN_CONSULTAR</b> y el robot sube el PDF nuevo '
+        + 'en los próximos minutos. Las demás fuentes no se tocan.' + compartida,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, volver a consultar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#111827',
+    });
+    if (!isConfirmed) return;
+
+    this.forzandoFuente = key;
+    this.cdr.markForCheck();
+    try {
+      const resp = await firstValueFrom(this.rpc.forzarConsultaFuente({
+        numero_documento: doc,
+        tipo_doc: this.tipoDocumento,
+        fuente,
+      }));
+      await Swal.fire({
+        icon: resp?.reabierto ? 'success' : 'info',
+        title: resp?.reabierto ? 'Re-consulta pedida' : 'Sin cambios',
+        text: resp?.mensaje || 'Listo.',
+        confirmButtonColor: '#111827',
+      });
+    } catch (err: any) {
+      console.error('[antecedentes] forzar fuente falló', err);
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo',
+        text: err?.error?.detail || err?.message || 'No se pudo re-abrir la consulta.',
+        confirmButtonColor: '#111827',
+      });
+    } finally {
+      this.forzandoFuente = null;
+      this.cdr.markForCheck();
+    }
+  }
+
   private formatFecha(iso?: string): string | undefined {
     if (!iso) return undefined;
     const d = new Date(iso);
@@ -628,7 +818,30 @@ export class SelectionQuestionsComponent implements OnDestroy {
     };
 
     try {
-      await firstValueFrom(this.rpc.upsertSeleccionByDocumento(numero, payload));
+      await firstValueFrom(this.rpc.upsertSeleccionByDocumento(numero, payload, undefined, {
+        modificacionForzada: this.modificacionForzada(),
+        modificadoPor: this.modificadoPor(),
+      }));
+
+      // El barrio vive en ResidenciaCandidato, no en los antecedentes, así que
+      // va por su propio endpoint. Se manda solo si cambió, para no crear una
+      // fila de residencia vacía en candidatos que no la tienen.
+      const barrio = String(v['barrio'] ?? '').trim();
+      const barrioOriginal = String(
+        this.candidatoSeleccionado()?.residencia?.barrio ?? ''
+      ).trim();
+      if (barrio !== barrioOriginal) {
+        try {
+          await firstValueFrom(this.rpc.upsertCandidatoByDocumento({
+            numero_documento: numero,
+            residencia: { barrio },
+          }));
+        } catch (e) {
+          // No se tumba el guardado de antecedentes por esto.
+          console.warn('[barrio] no se pudo guardar', e);
+        }
+      }
+      this.guardado.emit();
       // Antes salían DOS modales seguidos (guardar antecedentes + subir docs) para
       // una sola acción del usuario. El primero pasa a toast no bloqueante y el
       // modal final resume todo.

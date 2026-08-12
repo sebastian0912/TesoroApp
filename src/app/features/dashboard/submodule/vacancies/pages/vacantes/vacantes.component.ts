@@ -1,5 +1,5 @@
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
-import {  Component, OnInit, AfterViewInit, OnDestroy, ChangeDetectionStrategy, ViewChild, ChangeDetectorRef } from '@angular/core';
+import {  Component, OnInit, OnDestroy, ChangeDetectionStrategy, ViewChild, ChangeDetectorRef } from '@angular/core';
 import { forkJoin, of, Subscription } from 'rxjs';
 import { map, catchError, take } from 'rxjs/operators';
 
@@ -46,6 +46,22 @@ interface DistPayload {
   cantidad: number;
 }
 
+/** Lo que devuelve el diálogo, ya validado y normalizado. */
+interface VacanteNormalizada {
+  total: number;
+  aux: AuxilioTransporte;
+  municipios: string[];
+  isPrueba: boolean;
+  tieneIngreso: string;
+  oficinasLimpias: OficinaPayload[];
+  distClean: DistPayload[];
+}
+
+/** Colores de los diálogos de confirmación (la paleta no tiene azul). */
+const SWAL_DANGER = '#b42318';
+const SWAL_PRIMARY = '#21263C';
+const SWAL_NEUTRAL = '#64748b';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-vacantes',
@@ -66,15 +82,34 @@ interface DistPayload {
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css',
 } )
-export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
+export class VacantesComponent implements OnInit, OnDestroy {
   // Data
   private allRows: any[] = [];
   visibleRows: any[] = [];
 
   // Selección masiva (checkbox de la tabla compartida)
-  @ViewChild(StandardFilterTable) private tabla?: StandardFilterTable;
+  private tabla?: StandardFilterTable;
   seleccionCount = 0;
   private selSub?: Subscription;
+
+  /**
+   * Setter en vez de campo: la tabla vive dentro de un @if (se desmonta cuando
+   * la pestaña queda vacía), así que un ViewChild resuelto una única vez en
+   * ngAfterViewInit se quedaría con una referencia muerta y la selección
+   * dejaría de reportar. El setter re-engancha cada vez que reaparece.
+   */
+  @ViewChild(StandardFilterTable)
+  private set tablaRef(t: StandardFilterTable | undefined) {
+    this.tabla = t;
+    this.selSub?.unsubscribe();
+    this.selSub = undefined;
+    if (!t) return;
+
+    this.selSub = t.selection.changed.subscribe(() => {
+      this.seleccionCount = t.selection.selected.length;
+      this.cdr.markForCheck();
+    });
+  }
 
   // Tabla
   pageSizeOptions: number[] = [10, 25, 50];
@@ -107,15 +142,19 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     // ahorrar espacio; el detalle completo de ambas sale en el tooltip.
     { name: 'perfil', header: 'Obs. / Descripción', type: 'custom', filterable: false, sortable: false, width: '110px' },
 
-    { name: 'salario', header: 'Salario', type: 'custom', filterable: false, sortable: true, width: '140px' },
+    // `type:'number'` + `format:'currency'` lo delega a la tabla compartida, que
+    // lo pinta como $1.750.905 (es-CO) y alinea a la derecha. Antes era 'custom'
+    // con `| currency` a secas: en es-CO/COP eso salía "COP 1.750.905,00", con
+    // dos decimales que en un salario sobran.
+    { name: 'salario', header: 'Salario', type: 'number', format: 'currency', align: 'right', filterable: false, sortable: true, width: '140px' },
     { name: 'auxilioTransporte', header: 'Auxilio', type: 'text', filterable: true, sortable: true, width: '120px' },
     { name: 'tipoContratacion', header: 'Tipo de Contrato', type: 'text', filterable: true, sortable: true, width: '160px' },
   ];
 
-  displayedColumns: string[] = this.columnDefinitions.map(c => c.name);
-
   viewMode: 'table' | 'faltantes' | 'completados' | 'inactivas' = 'table';
   loading = false;
+  /** La última carga falló: "no hay vacantes" y "no pude preguntar" no son lo mismo. */
+  cargaFallida = false;
   /** Qué conjunto está cargado en `allRows` para no refetch innecesario. */
   private cargadoComo: 'activas' | 'inactivas' = 'activas';
 
@@ -155,6 +194,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       this.loadData();
     } else {
       this.applyViewMode();
+      this.cdr.markForCheck();
     }
   }
 
@@ -163,26 +203,27 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
 
     if (this.viewMode === 'inactivas') {
       this.visibleRows = rows.filter(r => r.activo === false);
-      return;
+    } else {
+      const activas = rows.filter(r => r.activo !== false);
+
+      if (this.viewMode === 'faltantes') {
+        this.visibleRows = activas.filter(r => (Number(r?.falt) || 0) > 0);
+      } else if (this.viewMode === 'completados') {
+        this.visibleRows = activas.filter(r => (Number(r?.req) || 0) > 0 && (Number(r?.falt) || 0) === 0);
+      } else {
+        this.visibleRows = activas;
+      }
     }
 
-    const activas = rows.filter(r => r.activo !== false);
-
-    if (this.viewMode === 'faltantes') {
-      this.visibleRows = activas.filter(r => (Number(r?.falt) || 0) > 0);
-      return;
-    }
-
-    if (this.viewMode === 'completados') {
-      this.visibleRows = activas.filter(r => (Number(r?.req) || 0) > 0 && (Number(r?.falt) || 0) === 0);
-      return;
-    }
-
-    this.visibleRows = activas;
+    // Sin filas la tabla se desmonta y su SelectionModel se va con ella: el
+    // contador tiene que bajar o la barra masiva quedaría colgada sin dueño.
+    if (!this.visibleRows.length) this.seleccionCount = 0;
   }
 
   loadData(): void {
     this.loading = true;
+    this.cargaFallida = false;
+    this.cdr.markForCheck();
 
     // En la pestaña "Inactivas" pedimos sólo inactivas; en el resto, activas.
     const soloInactivas = this.viewMode === 'inactivas';
@@ -195,25 +236,20 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
 
         this.allRows = filtered;
         this.applyViewMode();
+        this.cdr.markForCheck();
       },
-      error: () => { },
-      complete: () => (this.loading = false),
+      error: () => {
+        this.loading = false;
+        this.cargaFallida = true;
+        this.allRows = [];
+        this.applyViewMode();
+        this.cdr.markForCheck();
+      },
+      complete: () => { this.loading = false; this.cdr.markForCheck(); },
     });
   }
 
   // ================== Selección masiva ==================
-  ngAfterViewInit(): void {
-    // La selección vive en la tabla compartida; nos suscribimos a sus cambios
-    // para reflejar el contador y mostrar/ocultar la barra de acciones masivas.
-    const sel = this.tabla?.selection;
-    if (sel) {
-      this.selSub = sel.changed.subscribe(() => {
-        this.seleccionCount = sel.selected.length;
-        this.cdr.markForCheck();
-      });
-    }
-  }
-
   ngOnDestroy(): void {
     this.selSub?.unsubscribe();
   }
@@ -225,6 +261,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
   private limpiarSeleccion(): void {
     this.tabla?.selection?.clear();
     this.seleccionCount = 0;
+    this.cdr.markForCheck();
   }
 
   /** Eliminar en bloque las vacantes seleccionadas. */
@@ -239,9 +276,10 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       text: 'No podrás revertir esto.',
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
+      confirmButtonColor: SWAL_DANGER,
+      cancelButtonColor: SWAL_NEUTRAL,
       confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
     }).then(res => {
       if (!res.isConfirmed) return;
       Swal.fire({ title: 'Eliminando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -288,6 +326,8 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       showCancelButton: true,
       confirmButtonText: 'Inactivar',
       cancelButtonText: 'Cancelar',
+      confirmButtonColor: SWAL_PRIMARY,
+      cancelButtonColor: SWAL_NEUTRAL,
       allowOutsideClick: () => !Swal.isLoading(),
     }).then(res => {
       if (!res.isConfirmed) return;
@@ -347,6 +387,11 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!wanted) return true;
 
     const arr = Array.isArray(vac?.oficinasQueContratan) ? vac.oficinasQueContratan : [];
+    // El endpoint de LISTA no incluye oficinasQueContratan (solo el detalle lo trae),
+    // así que TODAS las vacantes llegaban con este campo vacío y quedaban ocultas
+    // para cualquier usuario con sede. Sin dato de oficina no se puede afirmar que
+    // la vacante NO sea de tu sede -> se muestra, en vez de esconderla.
+    if (arr.length === 0) return true;
     return arr.some((o: any) => {
       const name = typeof o === 'string' ? o : o?.nombre;
       return this.norm(name) === wanted;
@@ -393,6 +438,105 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   // ================== Acciones ==================
+  /**
+   * Valida y normaliza lo que devuelve el diálogo. Crear y editar aplican
+   * exactamente las mismas reglas: estaban duplicadas línea por línea, que es
+   * la vía rápida a que se despeguen. Devuelve null si algo falta (y ya avisó).
+   */
+  private validarYNormalizar(result: any): VacanteNormalizada | null {
+    const t = (v: unknown): string => (v ?? '').toString().trim();
+    const n = (v: unknown): number => Number(v);
+
+    const missing: string[] = [];
+
+    // Requeridos
+    if (!t(result.cargo)) missing.push('Cargo');
+    if (!t(result.finca)) missing.push('Centro de costo');
+    if (!t(result.direccion)) missing.push('Dirección');
+    if (!t(result.empresaUsuariaSolicita)) missing.push('Empresa usuaria');
+    if (!t(result.temporal)) missing.push('Temporal');
+    if (!t(result.area)) missing.push('Área');
+    if (!t(result.experiencia)) missing.push('Experiencia');
+    if (!t(result.descripcion)) missing.push('Descripción');
+    if (!t(result.tipoContratacion)) missing.push('Tipo de contratación');
+    if (!t(result.pruebaOContratacion)) missing.push('Prueba o Contratación');
+
+    const total: number = Math.trunc(n(result.personasSolicitadas));
+    if (!(total >= 1)) missing.push('Personas solicitadas (mínimo 1)');
+
+    const aux: AuxilioTransporte | '' = (t(result.auxilioTransporte) as AuxilioTransporte | '');
+    if (!(aux === 'Si' || aux === 'No')) missing.push('Auxilio Transporte (Si/No)');
+
+    const municipios: string[] = Array.isArray(result.municipio)
+      ? (result.municipio as unknown[]).map((m: unknown) => t(m)).filter((s: string) => !!s)
+      : [];
+    if (!municipios.length) missing.push('Municipio(s)');
+
+    // Condicionales
+    const isPrueba: boolean = t(result.pruebaOContratacion) === 'Prueba';
+    if (isPrueba) {
+      if (!result.fechadePruebatecnica) missing.push('Fecha de Prueba Técnica');
+      if (!t(result.horadePruebatecnica)) missing.push('Hora de Prueba Técnica');
+    }
+
+    const tieneIngreso: string = t(result.tieneFechaIngreso);
+    if (tieneIngreso === 'Si') {
+      if (!result.fechadeIngreso) missing.push('Fecha de Ingreso');
+    }
+
+    // Oficinas
+    const oficinasRaw: unknown[] = Array.isArray(result.oficinasQueContratan) ? (result.oficinasQueContratan as unknown[]) : [];
+    if (!oficinasRaw.length) missing.push('Oficinas que contratan');
+
+    const oficinasLimpias: OficinaPayload[] = oficinasRaw
+      .map((o: any): OficinaPayload => ({ nombre: t(o?.nombre), ruta: !!o?.ruta }))
+      .filter((o: OficinaPayload) => !!o.nombre);
+
+    if (!oficinasLimpias.length) missing.push('Nombre de oficina (vacío)');
+
+    // Distribución
+    const distRaw: unknown[] = Array.isArray(result.municipiosDistribucion) ? (result.municipiosDistribucion as unknown[]) : [];
+
+    const distClean: DistPayload[] = distRaw
+      .map((d: any): DistPayload => ({
+        municipio: t(d?.municipio),
+        cantidad: Math.trunc(n(d?.cantidad)),
+      }))
+      .filter((d: DistPayload) => !!d.municipio && Number.isFinite(d.cantidad) && d.cantidad >= 0);
+
+    const sumaDist: number = distClean.reduce((acc: number, d: DistPayload) => acc + (d.cantidad || 0), 0);
+    if (sumaDist > total) missing.push(`Distribución: suma ${sumaDist} supera total ${total}`);
+
+    const distSet = new Set(distClean.map((d: DistPayload) => d.municipio));
+    const faltanFilas: string[] = municipios.filter((m: string) => !distSet.has(m));
+    if (faltanFilas.length) {
+      missing.push(
+        `Distribución: faltan municipios (${faltanFilas.slice(0, 6).join(', ')}${faltanFilas.length > 6 ? '...' : ''})`
+      );
+    }
+
+    if (missing.length) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Faltan campos / hay inconsistencias',
+        html: `<ul style="text-align:left; margin:0; padding-left:18px;">
+                ${Array.from(new Set(missing)).map((m: string) => `<li>${m}</li>`).join('')}
+              </ul>`,
+      });
+      return null;
+    }
+
+    return {
+      total,
+      aux: aux as AuxilioTransporte,
+      municipios,
+      isPrueba,
+      tieneIngreso,
+      oficinasLimpias,
+      distClean,
+    };
+  }
+
   openModalEdit(vacante?: any): void {
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
       width: '95vw',
@@ -404,7 +548,6 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!result) return;
 
       const t = (v: unknown): string => (v ?? '').toString().trim();
-      const n = (v: unknown): number => Number(v);
 
       const id: number | string | null = vacante?.id ?? null;
       if (!id) {
@@ -412,84 +555,9 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
         return;
       }
 
-      const missing: string[] = [];
-
-      // Requeridos
-      if (!t(result.cargo)) missing.push('Cargo');
-      if (!t(result.finca)) missing.push('Centro de costo');
-      if (!t(result.direccion)) missing.push('Dirección');
-      if (!t(result.empresaUsuariaSolicita)) missing.push('Empresa usuaria');
-      if (!t(result.temporal)) missing.push('Temporal');
-      if (!t(result.area)) missing.push('Área');
-      if (!t(result.experiencia)) missing.push('Experiencia');
-      if (!t(result.descripcion)) missing.push('Descripción');
-      if (!t(result.tipoContratacion)) missing.push('Tipo de contratación');
-      if (!t(result.pruebaOContratacion)) missing.push('Prueba o Contratación');
-
-      const total: number = Math.trunc(n(result.personasSolicitadas));
-      if (!(total >= 1)) missing.push('Personas solicitadas (mínimo 1)');
-
-      const aux: AuxilioTransporte | '' = (t(result.auxilioTransporte) as AuxilioTransporte | '');
-      if (!(aux === 'Si' || aux === 'No')) missing.push('Auxilio Transporte (Si/No)');
-
-      const municipios: string[] = Array.isArray(result.municipio)
-        ? (result.municipio as unknown[]).map((m: unknown) => t(m)).filter((s: string) => !!s)
-        : [];
-      if (!municipios.length) missing.push('Municipio(s)');
-
-      // Condicionales
-      const isPrueba: boolean = t(result.pruebaOContratacion) === 'Prueba';
-      if (isPrueba) {
-        if (!result.fechadePruebatecnica) missing.push('Fecha de Prueba Técnica');
-        if (!t(result.horadePruebatecnica)) missing.push('Hora de Prueba Técnica');
-      }
-
-      const tieneIngreso: string = t(result.tieneFechaIngreso);
-      if (tieneIngreso === 'Si') {
-        if (!result.fechadeIngreso) missing.push('Fecha de Ingreso');
-      }
-
-      // Oficinas
-      const oficinasRaw: unknown[] = Array.isArray(result.oficinasQueContratan) ? (result.oficinasQueContratan as unknown[]) : [];
-      if (!oficinasRaw.length) missing.push('Oficinas que contratan');
-
-      const oficinasLimpias: OficinaPayload[] = oficinasRaw
-        .map((o: any): OficinaPayload => ({ nombre: t(o?.nombre), ruta: !!o?.ruta }))
-        .filter((o: OficinaPayload) => !!o.nombre);
-
-      if (!oficinasLimpias.length) missing.push('Nombre de oficina (vacío)');
-
-      // Distribución
-      const distRaw: unknown[] = Array.isArray(result.municipiosDistribucion) ? (result.municipiosDistribucion as unknown[]) : [];
-
-      const distClean: DistPayload[] = distRaw
-        .map((d: any): DistPayload => ({
-          municipio: t(d?.municipio),
-          cantidad: Math.trunc(n(d?.cantidad)),
-        }))
-        .filter((d: DistPayload) => !!d.municipio && Number.isFinite(d.cantidad) && d.cantidad >= 0);
-
-      const sumaDist: number = distClean.reduce((acc: number, d: DistPayload) => acc + (d.cantidad || 0), 0);
-      if (sumaDist > total) missing.push(`Distribución: suma ${sumaDist} supera total ${total}`);
-
-      const distSet = new Set(distClean.map((d: DistPayload) => d.municipio));
-      const faltanFilas: string[] = municipios.filter((m: string) => !distSet.has(m));
-      if (faltanFilas.length) {
-        missing.push(
-          `Distribución: faltan municipios (${faltanFilas.slice(0, 6).join(', ')}${faltanFilas.length > 6 ? '...' : ''})`
-        );
-      }
-
-      if (missing.length) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Faltan campos / hay inconsistencias',
-          html: `<ul style="text-align:left; margin:0; padding-left:18px;">
-                ${Array.from(new Set(missing)).map((m: string) => `<li>${m}</li>`).join('')}
-              </ul>`,
-        });
-        return;
-      }
+      const norm = this.validarYNormalizar(result);
+      if (!norm) return;
+      const { total, aux, municipios, isPrueba, tieneIngreso, oficinasLimpias, distClean } = norm;
 
       const payload = {
         cargo: t(result.cargo) || null,
@@ -532,6 +600,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
         error: (error: any) => {
           const msg = this.getErrorMessage(error);
           Swal.fire('Error al guardar', msg, 'error');
+          this.cdr.markForCheck();
         },
       });
     });
@@ -541,13 +610,16 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
 
   eliminarVacante(vacante: any): void {
     Swal.fire({
-      title: '¿Estás seguro?',
-      text: 'No podrás revertir esto',
+      title: '¿Eliminar esta vacante?',
+      // Los colores estaban invertidos: el botón de confirmar borrado salía azul
+      // y el de cancelar, rojo.
+      text: `${vacante?.cargo ?? 'La vacante'} · ${vacante?.finca ?? ''}. No podrás revertir esto.`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
+      confirmButtonColor: SWAL_DANGER,
+      cancelButtonColor: SWAL_NEUTRAL,
       confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
     }).then(result => {
       if (!result.isConfirmed) return;
 
@@ -559,6 +631,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
         error: (err: any) => {
           const msg = this.getErrorMessage(err);
           Swal.fire('Error', msg, 'error');
+          this.cdr.markForCheck();
         },
       });
     });
@@ -575,86 +648,10 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!result) return;
 
       const t = (v: unknown): string => (v ?? '').toString().trim();
-      const n = (v: unknown): number => Number(v);
 
-      const missing: string[] = [];
-
-      // Requeridos
-      if (!t(result.cargo)) missing.push('Cargo');
-      if (!t(result.finca)) missing.push('Centro de costo');
-      if (!t(result.direccion)) missing.push('Dirección');
-      if (!t(result.empresaUsuariaSolicita)) missing.push('Empresa usuaria');
-      if (!t(result.temporal)) missing.push('Temporal');
-      if (!t(result.area)) missing.push('Área');
-      if (!t(result.experiencia)) missing.push('Experiencia');
-      if (!t(result.descripcion)) missing.push('Descripción');
-      if (!t(result.tipoContratacion)) missing.push('Tipo de contratación');
-      if (!t(result.pruebaOContratacion)) missing.push('Prueba o Contratación');
-
-      const total: number = Math.trunc(n(result.personasSolicitadas));
-      if (!(total >= 1)) missing.push('Personas solicitadas (mínimo 1)');
-
-      const aux: AuxilioTransporte | '' = (t(result.auxilioTransporte) as AuxilioTransporte | '');
-      if (!(aux === 'Si' || aux === 'No')) missing.push('Auxilio Transporte (Si/No)');
-
-      const municipios: string[] = Array.isArray(result.municipio)
-        ? (result.municipio as unknown[]).map((m: unknown) => t(m)).filter((s: string) => !!s)
-        : [];
-      if (!municipios.length) missing.push('Municipio(s)');
-
-      // Condicionales
-      const isPrueba: boolean = t(result.pruebaOContratacion) === 'Prueba';
-      if (isPrueba) {
-        if (!result.fechadePruebatecnica) missing.push('Fecha de Prueba Técnica');
-        if (!t(result.horadePruebatecnica)) missing.push('Hora de Prueba Técnica');
-      }
-
-      const tieneIngreso: string = t(result.tieneFechaIngreso);
-      if (tieneIngreso === 'Si') {
-        if (!result.fechadeIngreso) missing.push('Fecha de Ingreso');
-      }
-
-      // Oficinas
-      const oficinasRaw: unknown[] = Array.isArray(result.oficinasQueContratan) ? (result.oficinasQueContratan as unknown[]) : [];
-      if (!oficinasRaw.length) missing.push('Oficinas que contratan');
-
-      const oficinasLimpias: OficinaPayload[] = oficinasRaw
-        .map((o: any): OficinaPayload => ({ nombre: t(o?.nombre), ruta: !!o?.ruta }))
-        .filter((o: OficinaPayload) => !!o.nombre);
-
-      if (!oficinasLimpias.length) missing.push('Nombre de oficina (vacío)');
-
-      // Distribución
-      const distRaw: unknown[] = Array.isArray(result.municipiosDistribucion) ? (result.municipiosDistribucion as unknown[]) : [];
-
-      const distClean: DistPayload[] = distRaw
-        .map((d: any): DistPayload => ({
-          municipio: t(d?.municipio),
-          cantidad: Math.trunc(n(d?.cantidad)),
-        }))
-        .filter((d: DistPayload) => !!d.municipio && Number.isFinite(d.cantidad) && d.cantidad >= 0);
-
-      const sumaDist: number = distClean.reduce((acc: number, d: DistPayload) => acc + (d.cantidad || 0), 0);
-      if (sumaDist > total) missing.push(`Distribución: suma ${sumaDist} supera total ${total}`);
-
-      const distSet = new Set(distClean.map((d: DistPayload) => d.municipio));
-      const faltanFilas: string[] = municipios.filter((m: string) => !distSet.has(m));
-      if (faltanFilas.length) {
-        missing.push(
-          `Distribución: faltan municipios (${faltanFilas.slice(0, 6).join(', ')}${faltanFilas.length > 6 ? '...' : ''})`
-        );
-      }
-
-      if (missing.length) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Faltan campos / hay inconsistencias',
-          html: `<ul style="text-align:left; margin:0; padding-left:18px;">
-                ${Array.from(new Set(missing)).map((m: string) => `<li>${m}</li>`).join('')}
-              </ul>`,
-        });
-        return;
-      }
+      const norm = this.validarYNormalizar(result);
+      if (!norm) return;
+      const { total, aux, municipios, isPrueba, tieneIngreso, oficinasLimpias, distClean } = norm;
 
       const payload = {
         cargo: t(result.cargo) || null,
@@ -697,6 +694,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
         error: (error: any) => {
           const msg = this.getErrorMessage(error);
           Swal.fire('Error al crear', msg, 'error');
+          this.cdr.markForCheck();
         },
       });
     });
@@ -711,16 +709,6 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     const month = (d.getMonth() + 1).toString().padStart(2, '0');
     const year = d.getFullYear();
     return `${year}-${month}-${day}`;
-  }
-
-  private mapMunicipiosDistribucion(arr: any[]): Array<{ municipio: string; cantidad: number }> {
-    const src = Array.isArray(arr) ? arr : [];
-    return src
-      .map(d => ({
-        municipio: String(d?.municipio ?? '').trim(),
-        cantidad: Number(d?.cantidad) || 0,
-      }))
-      .filter(d => !!d.municipio);
   }
 
   // ================== Activo ==================
@@ -746,11 +734,17 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
         showCancelButton: true,
         confirmButtonText: 'Guardar',
         cancelButtonText: 'Cancelar',
+        confirmButtonColor: SWAL_PRIMARY,
+        cancelButtonColor: SWAL_NEUTRAL,
         allowOutsideClick: () => !Swal.isLoading(),
       });
 
       if (!res.isConfirmed) {
         row.activo = anterior;
+        // Sin esto el slide-toggle se queda en la posición nueva aunque el
+        // usuario haya cancelado: el `await` rompe el ciclo del evento y
+        // [checked] no se vuelve a evaluar.
+        this.cdr.markForCheck();
         return;
       }
       motivo = String(res.value ?? '').trim();
@@ -758,6 +752,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.busyActivoIds.add(row.id);
     row.activo = nuevoActivo;
+    this.cdr.markForCheck();
 
     this.vacantesService.cambiarEstadoActivo(row.id, nuevoActivo, motivo ?? undefined).subscribe({
       next: () => {
@@ -770,13 +765,19 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
           this.applyViewMode();
           Swal.fire('Activada', 'La publicación fue activada.', 'success');
         }
+        this.cdr.markForCheck();
       },
       error: (err: any) => {
         row.activo = anterior;
         const msg = this.getErrorMessage(err);
         Swal.fire('Error', msg, 'error');
+        this.cdr.markForCheck();
       },
-      complete: () => this.busyActivoIds.delete(row.id),
+      complete: () => {
+        this.busyActivoIds.delete(row.id);
+        // Reactiva el toggle ([disabled] depende de este Set).
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -870,6 +871,61 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
+   * Los 8 chips del embudo pintados igual son 8 números idénticos en cada fila:
+   * el ojo no encuentra nada. Los ceros se apagan (no hay dato que leer) y los
+   * faltantes > 0 se marcan, que es la anomalía que se busca en esta pantalla.
+   */
+  embudoChipClass(valor: any, etapa?: 'falt'): string {
+    const n = Number(valor) || 0;
+    if (!n) return 'embudo-chip embudo-cero';
+    if (etapa === 'falt') return 'embudo-chip embudo-falt';
+    return 'embudo-chip';
+  }
+
+  // ================== Estado vacío ==================
+  /** La tabla sólo se monta si hay filas; si no, damos un vacío con contexto. */
+  get vacio(): boolean {
+    return !this.loading && this.visibleRows.length === 0;
+  }
+
+  emptyIcon(): string {
+    if (this.cargaFallida) return 'cloud_off';
+    switch (this.viewMode) {
+      case 'faltantes': return 'task_alt';
+      case 'completados': return 'hourglass_empty';
+      case 'inactivas': return 'inventory_2';
+      default: return 'work_outline';
+    }
+  }
+
+  emptyTitle(): string {
+    if (this.cargaFallida) return 'No se pudieron cargar las vacantes';
+    switch (this.viewMode) {
+      case 'faltantes': return 'No hay vacantes con personal faltante';
+      case 'completados': return 'Todavía no hay vacantes completadas';
+      case 'inactivas': return 'No hay vacantes inactivas';
+      default: return 'Aún no hay vacantes publicadas';
+    }
+  }
+
+  emptyHint(): string {
+    if (this.cargaFallida) {
+      return 'No hubo respuesta del servidor. Esto no significa que no haya vacantes: vuelve a intentarlo.';
+    }
+    const enSede = this.sede ? ` en ${this.sede}` : '';
+    switch (this.viewMode) {
+      case 'faltantes':
+        return `Todas las vacantes activas${enSede} tienen cubierto el personal solicitado.`;
+      case 'completados':
+        return `Ninguna vacante activa${enSede} ha llegado al 100 % de firmados.`;
+      case 'inactivas':
+        return `Las vacantes que se inactiven${enSede} aparecerán aquí con su motivo.`;
+      default:
+        return `Publica la primera vacante${enSede} para empezar a recibir candidatos.`;
+    }
+  }
+
+  /**
    * Abre el detalle de cumplimiento de la vacante: candidatos asignados, con
    * opción de quitarles la vacante y de descargar la base / formato BMC.
    */
@@ -886,6 +942,11 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
         cargo: row?.cargo,
         finca: row?.finca,
         empresa: row?.empresaUsuariaSolicita,
+        area: row?.area,
+        auxilioTransporte: row?.auxilioTransporte,
+        // Nota: en la lista `oficinasQueContratan` puede no venir (solo en el detalle),
+        // en cuyo caso `ruta` queda 'No'. Los formatos por finca lo usan como texto.
+        ruta: (Array.isArray(row?.oficinasQueContratan) && row.oficinasQueContratan.some((o: any) => o?.ruta)) ? 'Si' : 'No',
         req: row?.req,
         firm: row?.firm,
         cumpl: this.cumplimientoPct(row),
@@ -951,13 +1012,25 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!result) return;
       const { start, end } = result;
 
-      this.vacantesService.getVacantesExcel(start, end, this.sede).subscribe(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `vacantes_${start || 'inicio'}_${end || 'hoy'}.xlsx`;
-        a.click();
-        URL.revokeObjectURL(url);
+      Swal.fire({ title: 'Generando Excel…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      this.vacantesService.getVacantesExcel(start, end, this.sede).subscribe({
+        next: blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `vacantes_${start || 'inicio'}_${end || 'hoy'}.xlsx`;
+          a.click();
+          // Revocar en el mismo tick cancelaba la descarga en Firefox/Safari:
+          // el navegador aún no ha leído el blob cuando el click retorna.
+          setTimeout(() => URL.revokeObjectURL(url), 0);
+          Swal.close();
+        },
+        // Antes no había rama de error: si el backend fallaba, no pasaba
+        // absolutamente nada y el usuario se quedaba esperando el archivo.
+        error: (err: any) => {
+          Swal.fire('Error al descargar', this.getErrorMessage(err), 'error');
+        },
       });
     });
   }

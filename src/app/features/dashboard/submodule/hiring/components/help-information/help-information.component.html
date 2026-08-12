@@ -8,7 +8,10 @@
     </ng-template>
 
     <!-- HelpInformationComponent.html -->
-    <app-form-entrevista [candidatoSeleccionado]="candidatoSeleccionado()"></app-form-entrevista>
+    <app-form-entrevista [candidatoSeleccionado]="candidatoSeleccionado()"
+      [modificacionForzada]="modificacionForzada()"
+      [modificadoPor]="modificadoPor()"
+      (guardado)="guardado.emit()"></app-form-entrevista>
 
   </mat-tab>
 
@@ -35,8 +38,8 @@
 
 
       <!-- ═══ Selector Único: Empresa → Finca → Cargo ═══ -->
-      <div class="unified-selector" style="margin-bottom: 20px;">
-        <mat-form-field class="example-full-width" appearance="outline" style="width: 100%;">
+      <div class="unified-selector">
+        <mat-form-field class="example-full-width" appearance="outline">
           <mat-label>Vacante (Empresa - Finca - Cargo)</mat-label>
           <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
             [disabled]="(isRemisionReadOnly() && isPreloadedVacancy()) || bloqueado()" [disableOptionCentering]="true"
@@ -66,10 +69,10 @@
             </mat-select-trigger>
 
             <!-- Buscador interno con FormControl -->
-            <div style="padding: 10px 16px; position: sticky; top: 0; background: white; z-index: 10; border-bottom: 1px solid #eee;"
+            <div class="panel-search"
               (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-              <mat-form-field appearance="outline" style="width: 100%; margin-bottom: -1.25em;">
-                <mat-icon matPrefix style="color: #666;">search</mat-icon>
+              <mat-form-field appearance="outline" class="panel-search-field">
+                <mat-icon matPrefix class="panel-search-icon">search</mat-icon>
                 <input matInput [formControl]="searchVacanteCtrl" placeholder="Buscar empresa, finca o cargo...">
                 @if (searchVacanteCtrl.value) {
                   <button matSuffix mat-icon-button aria-label="Limpiar"
@@ -81,31 +84,27 @@
             </div>
 
             <!-- Opción para quitar la asignación de vacante (limpiar) -->
-            <mat-option [value]="SIN_VACANTE" class="opcion-sin-vacante"
-              style="min-height: 48px; color: #b71c1c; font-weight: 600; border-bottom: 1px solid #eee;">
-              <mat-icon style="vertical-align: baseline; margin-right: 6px; color: #b71c1c;">block</mat-icon>
+            <mat-option [value]="SIN_VACANTE" class="opcion-sin-vacante">
+              <mat-icon>block</mat-icon>
               Sin vacante (quitar asignación)
             </mat-option>
 
-            @for (emp of vacantesAgrupadas(); track emp) {
+            @for (emp of vacantesAgrupadas(); track emp.empresa) {
               <!-- 1er Nivel: Empresa -->
-              <mat-optgroup [label]="emp.empresa" style="font-weight: bold; color: #1976d2; font-size: 15px;">
+              <mat-optgroup [label]="emp.empresa">
                 <ng-container>
-                  @for (f of emp.fincas; track f) {
+                  @for (f of emp.fincas; track f.finca) {
                   <!-- 2do Nivel: Finca (simulada como label deshabilitada) -->
-                  <mat-option disabled
-                    style="opacity: 1 !important; color: #555; font-weight: 600; padding-left: 24px; min-height: 48px; padding-top: 12px; padding-bottom: 12px;">
-                    <mat-icon
-                    style="vertical-align: baseline; margin-right: 4px; font-size: 18px; width: 18px; height: 18px;">business</mat-icon>
+                  <mat-option disabled class="finca-option">
+                    <mat-icon>business</mat-icon>
                     Finca: {{ f.finca }}
                   </mat-option>
                   <!-- 3er Nivel: Cargo / Vacante -->
-                  @for (v of f.vacantes; track v) {
-                    <mat-option [value]="v.id" style="padding-left: 48px; min-height: auto; padding-top: 24px; padding-bottom: 24px; line-height: normal;">
-                      <div class="vacante-option" style="width: 100%; display: flex; flex-direction: column;">
-                        <div class="row-1" style="display: flex; align-items: center; width: 100%;">
-                          <mat-icon
-                          style="margin-right: 8px; font-size: 16px; width: 16px; height: 16px; color: #888;">work_outline</mat-icon>
+                  @for (v of f.vacantes; track v.id) {
+                    <mat-option [value]="v.id" class="vacante-mat-option">
+                      <div class="vacante-option">
+                        <div class="row-1">
+                          <mat-icon class="row-1-icon">work_outline</mat-icon>
                           <span class="cargo"><strong>{{ v.cargo || 'Sin cargo' }}</strong></span>
                           <span class="spacer"></span>
                           <div class="badges-row">
@@ -118,7 +117,7 @@
                             <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                           </div>
                         </div>
-                        <div class="row-2" style="font-size: 12px; color: gray; margin-left: 24px; margin-top: 4px;">
+                        <div class="row-2">
                           {{ oficinasResumen(v.oficinasQueContratan) }} · {{ formatShortDate(v.fechaPublicado) }} · Cod:
                           {{ v.codigoElite || 'N/A' }}
                         </div>
@@ -205,11 +204,61 @@
             }
           </div>
 
+          <!-- ═══ Resultado de la prueba técnica: "No pasó" ═══ -->
+          @if (isPrueba()) {
+            <div class="no-paso-block">
+              @if (noPasoPrueba()) {
+                <div class="no-paso-banner">
+                  <mat-icon>cancel</mat-icon>
+                  <div class="no-paso-info">
+                    <strong>No pasó la prueba técnica.</strong>
+                    @if (noPasoPruebaAt()) {
+                      <span class="no-paso-fecha">Fecha: {{ formatShortDate(noPasoPruebaAt()) }}</span>
+                    }
+                    @if (motivoNoPaso()) {
+                      <div class="no-paso-motivo">Motivo: {{ motivoNoPaso() }}</div>
+                    }
+                  </div>
+                </div>
+              }
+
+              <div class="no-paso-actions">
+                <button mat-stroked-button color="warn" type="button"
+                  [disabled]="vacantesForm.disabled || bloqueado()"
+                  (click)="marcarNoPasoPrueba()">
+                  <mat-icon>thumb_down</mat-icon>
+                  {{ noPasoPrueba() ? 'Editar motivo (no pasó)' : 'No pasó la prueba técnica' }}
+                </button>
+                @if (noPasoPrueba()) {
+                  <button mat-button type="button" [disabled]="bloqueado()" (click)="quitarNoPasoPrueba()">
+                    Quitar marca
+                  </button>
+                }
+              </div>
+            </div>
+          }
+
+          <div class="actions">
+            <!-- Formato de calidad para llevar a la empresa. No guarda nada: solo
+                 arma el PDF con lo que ya está en pantalla, así que se ofrece
+                 también a quien tiene la remisión en solo lectura. -->
+            <button mat-stroked-button type="button"
+              [disabled]="bloqueado() || !candidatoSeleccionado()?.numero_documento"
+              matTooltip="Genera el formato de remisión (Apoyo o Tu Alianza) para imprimir"
+              (click)="generarRemision()">
+              <mat-icon>assignment</mat-icon>
+              Remisión
+            </button>
+          </div>
+
           @if (!(isRemisionReadOnly() && isPreloadedVacancy())) {
             <div class="actions">
-              <button mat-flat-button [color]="limpiarVacante() ? 'warn' : 'primary'"
-                [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
+              <button type="button"
+                [class.btn-managerial]="!limpiarVacante()"
+                [class.btn-quitar]="limpiarVacante()"
+                [disabled]="vacantesForm.disabled || bloqueado()"
                 (click)="guardarVacantes()">
+                <mat-icon>{{ limpiarVacante() ? 'delete_outline' : 'save' }}</mat-icon>
                 {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}
               </button>
             </div>

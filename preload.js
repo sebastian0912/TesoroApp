@@ -30,6 +30,7 @@ const INVOKE_CHANNELS = new Set([
   'db:cache-save',
   'db:cache-get',
   'db:cache-get-all-urls',
+  'db:cache-get-all-entries',
   'db:cache-invalidate-prefix',
   'db:mark-request-status',
   'db:clear-cache',
@@ -117,6 +118,7 @@ contextBridge.exposeInMainWorld('electron', {
     cacheSave: (cacheData) => ipcRenderer.invoke('db:cache-save', cacheData),
     cacheGet: (url) => ipcRenderer.invoke('db:cache-get', url),
     cacheGetAllUrls: () => ipcRenderer.invoke('db:cache-get-all-urls'),
+    cacheGetAllEntries: () => ipcRenderer.invoke('db:cache-get-all-entries'),
     cacheInvalidatePrefix: (prefix) => ipcRenderer.invoke('db:cache-invalidate-prefix', prefix),
 
     // Limpieza.

@@ -1,6 +1,6 @@
 import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, NgZone, ApplicationRef, DestroyRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import * as XLSX from 'xlsx';
@@ -26,6 +26,10 @@ import {
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { isOfflineQueued } from '@/app/core/utils/offline-response';
 import { HiringService } from '../../service/hiring.service';
+import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+import { TrasladosService } from '../../../eps-transfers/service/traslados.service';
+import { DocViewerService } from '@/app/shared/services/doc-viewer/doc-viewer.service';
 import { CruceValidationHelper, CruceRow } from './cruce-validation.helper';
 import { ReportesService } from '../../service/reportes/reportes.service';
 
@@ -59,6 +63,30 @@ interface DocConfig {
   directory: boolean;
   hint: string;
   previewType?: 'cedulas' | 'traslados';
+}
+
+/**
+ * Lo que devuelve bajar el cruce a la base, sumado a lo largo de todos los lotes.
+ *
+ * Los nombres son los del contrato de `POST /contratacion/subidadeusuariosarchivoexcel`
+ * (CruceContratacionController en ms-hr); no los cambies sin cambiarlos allá.
+ * `creados + actualizados` es lo que de verdad quedó guardado; el resto de listas es lo que
+ * el operador tiene que revisar.
+ */
+interface CruceGuardadoResumen {
+  recibidos: number;
+  creados: number;
+  actualizados: number;
+  /** Filas que no se intentaron guardar: sin cédula o sin código de contrato. */
+  omitidos: { fila?: number; cedula?: string; motivo?: string }[];
+  /** Filas que reventaron al guardar, más los lotes que no llegaron al servidor. */
+  errores: { fila?: number | null; cedula?: string; error?: string }[];
+  /** Código de contrato ya usado por otra cédula. Se guardan igual: es aviso, no rechazo. */
+  conflictos: { fila?: number; cedula?: string; codigo_contrato?: string; ya_usado_por?: string[] }[];
+  lotes: number;
+  lotesFallidos: number;
+  /** true si el envío quedó en la cola offline en lugar de llegar al servidor. */
+  encolado: boolean;
 }
 
 @Component({
@@ -114,6 +142,15 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   ];
 
   private readonly BLOCKED_FILES = new Set<string>(['thumbs.db', 'desktop.ini', '.ds_store']);
+
+  /**
+   * Filas por petición al bajar el cruce a la base.
+   *
+   * Más chico que el lote de validación (1.500) a propósito: validar son dos consultas de
+   * lectura para todo el lote, mientras que guardar abre una transacción POR FILA y escribe
+   * en ~20 tablas. Con 1.500 la petición se acerca al timeout del gateway.
+   */
+  private readonly BATCH_GUARDADO = 500;
   private readonly destroyRef = inject(DestroyRef);
 
   // Worker para ARL
@@ -123,9 +160,14 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     private readonly fb: FormBuilder,
     private readonly utilityService: UtilityServiceService,
     private readonly hiringService: HiringService,
+    private readonly registroProcesoService: RegistroProcesoContratacion,
+    private readonly gestionDocumentalService: GestionDocumentalService,
+    private readonly trasladosService: TrasladosService,
+    private readonly docViewer: DocViewerService,
     private readonly reportesService: ReportesService, // Inyectado
     private readonly dialog: MatDialog,
     private readonly router: Router,
+    private readonly route: ActivatedRoute,
     private readonly cdr: ChangeDetectorRef,
     private readonly zone: NgZone,
     private readonly appRef: ApplicationRef
@@ -133,13 +175,194 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.initWorker();
   }
 
+  /** Promesa de `loadSedes()`: la precarga automática necesita las sedes listas. */
+  private sedesReady: Promise<void> = Promise.resolve();
+
   ngOnInit(): void {
     this.initForm();
     this.loadUser();
-    this.loadSedes();
+    this.sedesReady = this.loadSedes();
+
+    // Llegada desde el botón "Cerrar contratación" del pipeline: se precarga
+    // el cierre del día automáticamente (base de contratados de HOY).
+    if (this.route.snapshot.queryParamMap.get('auto') === 'hoy') {
+      void this.precargarCierreDeHoy();
+    }
   }
 
-  ngOnDestroy(): void {    this.terminateWorker();
+  /**
+   * Carga automática del cierre del día (botón "Cerrar contratación" del
+   * pipeline). Deja el reporte listo salvo ARL y SST, que siguen manuales:
+   *
+   *  1. Autoselecciona la SEDE del usuario logueado.
+   *  2. Pide a ms-hr las cédulas con contrato firmado HOY en ESA oficina
+   *     (`reporte/contratados-del-dia/`) y arma la base del cruce con
+   *     `reporte/candidatos-excel/` (misma lógica de "sacar la base por
+   *     cédula"); la adjunta como Cruce Diario.
+   *  3. Marca "sí hubo contratación" y "es de hoy".
+   *  4. Trae del sistema la CÉDULA escaneada (gestión documental, tipo 29) y el
+   *     TRASLADO EPS de cada persona, y los adjunta con el nombre que exige la
+   *     validación (CEDULA-Nombre.pdf / CEDULA-EPS.pdf).
+   *  5. Dispara la MISMA validación del flujo manual (frontend + backend +
+   *     diálogos de corrección).
+   */
+  private async precargarCierreDeHoy(): Promise<void> {
+    this.showLoading('Preparando cierre...', 'Descargando la contratación de HOY desde el sistema...');
+    try {
+      await this.sedesReady;
+
+      // 1) Sede del logueado (mismo catálogo gestion_admin.Sede en user.sede y
+      //    en traerSucursales(), así que el nombre empata literal).
+      const sedeNombre = String(this.utilityService.getUser()?.sede?.nombre ?? '').trim();
+      const sedeObj = this.sedes.find(s => String(s?.nombre ?? '').trim() === sedeNombre) || null;
+      if (sedeObj) this.reporteForm.patchValue({ sede: sedeObj });
+
+      // 2) Cédulas contratadas HOY según el pipeline, que es la fuente viva. La
+      //    base de contratación se llena DESPUÉS, con este mismo cierre, así que
+      //    NO sirve como origen.
+      const hoy = new Date();
+      const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+      const respDia: any = await firstValueFrom(
+        this.registroProcesoService.contratadosDelDia(fecha, sedeNombre || undefined)
+      );
+      const personas: { cedula: string; nombre: string }[] = (respDia?.contratados ?? [])
+        .map((c: any) => ({ cedula: String(c?.cedula ?? '').trim(), nombre: String(c?.nombre ?? '').trim() }))
+        .filter((p: any) => /^\d+$/.test(p.cedula));
+
+      if (!personas.length) {
+        this.closeSwal();
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin contratados hoy',
+          html:
+            (sedeNombre ? `La oficina <b>${sedeNombre}</b> no tiene` : 'El sistema aún no tiene') +
+            ' contratos firmados <b>HOY</b>.<br>' +
+            'Puedes adjuntar el Cruce Diario manualmente, o volver cuando haya contratación.',
+        });
+        return;
+      }
+
+      // Base del cruce armada desde el propio pipeline — misma lógica de "sacar
+      // la base por cédula" (reporte/candidatos-excel, POST masivo).
+      this.updateSwalProgress('Armando la base del cruce...', 0, personas.length);
+      const blob = await firstValueFrom(
+        this.registroProcesoService.exportarBaseCandidatos(personas.map(p => p.cedula), this.nombre)
+      );
+      const file = new File([blob], `cruce_diario_${fecha}.xlsx`, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      // 3) Adjuntar el cruce como si el usuario lo hubiera seleccionado a mano.
+      this.files.cruceDiario = [file];
+      this.fileNames.cruceDiario = `${file.name} (autocargado: ${personas.length} persona(s))`;
+      this.reporteForm.patchValue({ contratosHoy: 'si', esDeHoy: 'true', cruceDiario: true });
+
+      // 4) Cédulas escaneadas y traslados EPS desde el sistema, por persona.
+      const cedulaFiles: File[] = [];
+      const trasladoFiles: File[] = [];
+      const sinCedula: string[] = [];
+      const sinTraslado: string[] = [];
+      const tipoDe = (d: any): number => { const t = d?.type; return Number(t && typeof t === 'object' ? t.id : t); };
+
+      // Lotes de 5 en paralelo: cada persona son 2 consultas + 2 descargas y en
+      // secuencial el cierre de una oficina grande se hacía eterno.
+      const CONCURRENCIA = 5;
+      const procesarPersona = async (p: { cedula: string; nombre: string }): Promise<void> => {
+        // Cédula escaneada (DocumentType CEDULA = id 29 en gestión documental).
+        try {
+          const docs: any[] = await firstValueFrom(this.gestionDocumentalService.getDocumentosDeCandidato(p.cedula));
+          const docCedula = (docs || []).find(d => tipoDe(d) === 29);
+          const url = docCedula?.file_url || docCedula?.file || docCedula?.current_file?.url || '';
+          const pdf = await this.descargarArchivo(url);
+          if (pdf) {
+            const nombreArchivo = (p.nombre || 'CEDULA').replace(/[\\/:*?"<>|]/g, ' ').trim();
+            cedulaFiles.push(new File([pdf], `${p.cedula}-${nombreArchivo}.pdf`, { type: 'application/pdf' }));
+          } else {
+            sinCedula.push(`${p.cedula} ${p.nombre}`.trim());
+          }
+        } catch { sinCedula.push(`${p.cedula} ${p.nombre}`.trim()); }
+
+        // Traslado EPS (solicitud vinculada en traslados.TrasladoDocumento).
+        try {
+          const traslados: any[] = await firstValueFrom(this.trasladosService.buscarAfiliacionPorId(p.cedula));
+          const conDoc = (Array.isArray(traslados) ? traslados : []).find(t => t?.solicitud_doc?.file_url);
+          const eps = this.resolveEps(String(conDoc?.eps_a_trasladar || conDoc?.eps_trasladada || ''));
+          const pdf = conDoc && eps ? await this.descargarArchivo(conDoc.solicitud_doc.file_url) : null;
+          if (pdf && eps) {
+            trasladoFiles.push(new File([pdf], `${p.cedula}-${eps}.pdf`, { type: 'application/pdf' }));
+          } else {
+            sinTraslado.push(`${p.cedula} ${p.nombre}`.trim());
+          }
+        } catch { sinTraslado.push(`${p.cedula} ${p.nombre}`.trim()); }
+      };
+
+      for (let i = 0; i < personas.length; i += CONCURRENCIA) {
+        const lote = personas.slice(i, i + CONCURRENCIA);
+        const avance = Math.min(i + CONCURRENCIA, personas.length);
+        this.updateSwalProgress(`Trayendo cédulas y traslados... (${avance}/${personas.length})`, avance, personas.length);
+        await Promise.all(lote.map(procesarPersona));
+      }
+
+      if (cedulaFiles.length) {
+        this.files.cedulasEscaneadas = cedulaFiles;
+        this.fileNames.cedulasEscaneadas = `${cedulaFiles.length} de ${personas.length} cédula(s) autocargada(s)`;
+        this.reporteForm.patchValue({ cedulasEscaneadas: true });
+        this.generateCedulasPreview(cedulaFiles);
+      }
+      if (trasladoFiles.length) {
+        this.files.traslados = trasladoFiles;
+        this.fileNames.traslados = `${trasladoFiles.length} de ${personas.length} traslado(s) autocargado(s)`;
+        this.reporteForm.patchValue({ traslados: true });
+        this.generateTrasladosPreview(trasladoFiles);
+      }
+      this.cdr.markForCheck();
+      this.closeSwal();
+
+      // 5) Resumen de faltantes. ARL y SST siempre quedan manuales.
+      if (sinCedula.length || sinTraslado.length) {
+        const li = (arr: string[]) =>
+          arr.slice(0, 15).map(x => `<li>${x}</li>`).join('') +
+          (arr.length > 15 ? `<li>… y ${arr.length - 15} más</li>` : '');
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Precarga con pendientes',
+          html:
+            `<div style="text-align:left; max-height:320px; overflow:auto;">` +
+            (sinCedula.length ? `<b>Sin cédula escaneada (${sinCedula.length}):</b><ul>${li(sinCedula)}</ul>` : '') +
+            (sinTraslado.length ? `<b>Sin traslado EPS (${sinTraslado.length}):</b><ul>${li(sinTraslado)}</ul>` : '') +
+            `</div>Puedes adjuntarlos manualmente antes de enviar. La <b>ARL</b> y la <b>SST</b> se adjuntan manual.`,
+        });
+      }
+
+      // 6) Misma validación del flujo manual (frontend + backend + diálogos).
+      await this.validarTodo();
+    } catch (e) {
+      this.closeSwal();
+      console.error('[precargarCierreDeHoy] no se pudo precargar:', e);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo precargar el cierre',
+        text: 'No fue posible descargar la contratación de hoy desde el sistema. Adjunta los archivos manualmente.',
+      });
+    }
+  }
+
+  /**
+   * Descarga un documento como Blob a través de `DocViewerService`.
+   *
+   * NO se usa `fetch` a pelo: el interceptor de Angular solo toca `HttpClient`,
+   * así que un fetch nativo sale sin `Authorization` y el gateway lo corta con
+   * 401 (`X-Auth-Reason: missing_token`). `DocViewerService` resuelve la ruta
+   * relativa contra la API, pone el JWT cuando la URL es del gateway y deja
+   * pasar sin cabecera el media legacy (que es público). Devuelve null si falla,
+   * para que la persona se pueda contar como pendiente sin romper el lote.
+   */
+  private async descargarArchivo(url: string): Promise<Blob | null> {
+    return this.docViewer.fetchBlob(url);
+  }
+
+  ngOnDestroy(): void {
+    this.terminateWorker();
   }
 
   // ---------------------------------------------------------------------------
@@ -210,18 +433,40 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Gobierna el skeleton del panel de configuración. */
+  cargandoSedes = true;
+  /** Si las sedes no cargan, el select se quedaba vacío y en silencio para siempre. */
+  fallaronSedes = false;
+
   private async loadSedes() {
+    this.cargandoSedes = true;
+    this.fallaronSedes = false;
+    this.cdr.markForCheck();
     try {
       const data: any = await firstValueFrom(this.utilityService.traerSucursales());
       if (Array.isArray(data)) {
         this.sedes = data
           .filter(s => s.activa)
           .sort((a, b) => a.nombre.localeCompare(b.nombre));
-        this.cdr.markForCheck();
       }
     } catch (e) {
       console.error('Error cargando sedes', e);
+      // Antes solo se hacía console.error: el select se quedaba vacío sin
+      // explicación y el usuario no tenía forma de saber que había fallado.
+      this.fallaronSedes = true;
+    } finally {
+      this.cargandoSedes = false;
+      this.cdr.markForCheck();
     }
+  }
+
+  reintentarSedes() {
+    this.loadSedes();
+  }
+
+  /** Oficina seleccionada en el formulario; se guarda junto a cada error. */
+  private get oficinaSeleccionada(): string {
+    return this.reporteForm.getRawValue()?.sede?.nombre || '';
   }
 
   // ---------------------------------------------------------------------------
@@ -573,6 +818,14 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
       const resp: any = await firstValueFrom(this.reportesService.createReporte(payload, files));
 
+      // El reporte del día ya está creado; ahora se bajan a la base las filas del cruce.
+      // Va DESPUÉS a propósito: si el reporte no queda registrado, no tiene sentido colgarle
+      // contratos a un día que no existe. Y solo si hubo contratación: un "no hubo" no trae
+      // filas que guardar.
+      const guardado = (checks.contratosHoy === 'si' && this.datoscruced.length > 0)
+        ? await this.guardarCruceEnBase()
+        : null;
+
       this.closeSwal();
       // Offline: el interceptor encola el reporte y devuelve un 200 "mock". No
       // afirmamos "enviado al servidor"; quedó local y se subirá al reconectar.
@@ -582,15 +835,16 @@ export class HiringReportComponent implements OnInit, OnDestroy {
           title: 'Guardado sin conexión',
           html:
             'El reporte y sus archivos quedaron guardados en este equipo.' +
+            (guardado
+              ? `<br><br>Las <b>${this.datoscruced.length}</b> filas del cruce también quedaron en la cola.`
+              : '') +
             '<br><br>Se enviarán automáticamente cuando vuelva la conexión. ' +
             'Puedes ver el avance en el indicador de red (arriba a la derecha).',
         }).then(() => {
           this.router.navigate(['/dashboard/hiring/hiring-report']);
         });
       } else {
-        Swal.fire('Enviado', 'Reporte enviado correctamente', 'success').then(() => {
-          this.router.navigate(['/dashboard/hiring/hiring-report']);
-        });
+        this.mostrarResumenEnvio(guardado);
       }
 
     } catch (e: any) {
@@ -988,9 +1242,169 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     return errors;
   }
 
+  /**
+   * Baja a la base las filas del cruce ya validadas.
+   *
+   * Es el paso que faltaba: hasta ahora el tablero validaba el Excel contra
+   * `/contratacion/validarExcelContratacion`, archivaba el archivo con el reporte y decía
+   * "enviado" — pero las filas nunca llegaban a `tabla_contratacion_*`. El endpoint destino
+   * (`POST /contratacion/subidadeusuariosarchivoexcel`, ms-hr) ya existía y estaba esperando
+   * esta llamada.
+   *
+   * Se manda `datoscruced`, o sea las filas **corregidas en el diálogo**, no el Excel crudo:
+   * lo que se archiva como documento sigue siendo el archivo original, pero lo que entra a la
+   * base es lo que el usuario dejó bueno.
+   *
+   * Nunca lanza: el reporte ya está creado y no se puede deshacer, así que un fallo aquí se
+   * reporta en el resumen y se deja registrado en la bitácora, pero no revienta el envío.
+   */
+  private async guardarCruceEnBase(): Promise<CruceGuardadoResumen> {
+    const filas = this.datoscruced;
+    const lotes = Math.ceil(filas.length / this.BATCH_GUARDADO);
+
+    const resumen: CruceGuardadoResumen = {
+      recibidos: 0, creados: 0, actualizados: 0,
+      omitidos: [], errores: [], conflictos: [],
+      lotes, lotesFallidos: 0, encolado: false,
+    };
+
+    this.showLoading('Guardando en base...', 'Bajando el cruce a contratación...');
+
+    // EN SERIE, no en paralelo como la validación. Validar son dos consultas de lectura por
+    // lote; guardar crea fichas de personas, y dos lotes a la vez que traigan la misma cédula
+    // se pisan al decidir si la ficha ya existe.
+    for (let i = 0; i < lotes; i++) {
+      const desde = i * this.BATCH_GUARDADO;
+      const chunk = filas.slice(desde, desde + this.BATCH_GUARDADO);
+      this.updateSwalProgress(`Guardando lote ${i + 1} de ${lotes} en la base...`, i + 1, lotes);
+
+      try {
+        const res: any = await this.hiringService.subirContratacion(chunk);
+
+        // Sin conexión el interceptor encola la petición y devuelve un 200 "mock": no hay
+        // conteos que sumar, y decir "0 guardados" sería mentir.
+        if (isOfflineQueued(res)) {
+          resumen.encolado = true;
+          continue;
+        }
+
+        resumen.recibidos += Number(res?.recibidos ?? chunk.length);
+        resumen.creados += Number(res?.creados ?? 0);
+        resumen.actualizados += Number(res?.actualizados ?? 0);
+        resumen.omitidos.push(...(Array.isArray(res?.omitidos) ? res.omitidos : []));
+        resumen.errores.push(...(Array.isArray(res?.errores) ? res.errores : []));
+        resumen.conflictos.push(...(Array.isArray(res?.conflictos) ? res.conflictos : []));
+      } catch (e: any) {
+        // Un lote caído no aborta el resto: lo que ya entró, entró. El backend numera las
+        // filas dentro del lote, así que aquí se traduce a filas del archivo para que el
+        // operador sepa qué parte reintentar.
+        resumen.lotesFallidos++;
+        const detalle =
+          (e && typeof e.message === 'string' && e.message) ||
+          (typeof e === 'string' ? e : 'Sin detalle del servidor.');
+        console.error(`[guardarCruceEnBase] Lote ${i + 1}/${lotes} falló:`, e);
+        resumen.errores.push({
+          fila: null,
+          cedula: '',
+          error:
+            `El lote ${i + 1} de ${lotes} (filas ${desde + 1} a ${desde + chunk.length} del archivo) ` +
+            `no se pudo guardar en la base. Detalle: ${detalle}`,
+        });
+      }
+    }
+
+    // Mismo rastro de auditoría que el resto de la pantalla: lo que no entró a la base queda
+    // en la bitácora que lee la pestaña "Errores de validación" de view-reports.
+    const pendientes = [
+      ...resumen.omitidos.map(o => ({
+        cedula: String(o?.cedula || 'SIN_CEDULA'),
+        error: `Fila ${o?.fila ?? '?'} no guardada en base: ${o?.motivo ?? 'sin motivo'}`,
+      })),
+      ...resumen.errores.map(e => ({
+        cedula: String(e?.cedula || 'SIN_CEDULA'),
+        error: `Fila ${e?.fila ?? '?'}: ${e?.error ?? 'error desconocido al guardar'}`,
+      })),
+    ];
+    if (pendientes.length) {
+      void this.saveErrorsSilently(pendientes, 'Guardado en base - Cruce Diario');
+    }
+
+    return resumen;
+  }
+
+  /** Cierre del envío: cuenta qué quedó guardado y qué hay que revisar. */
+  private mostrarResumenEnvio(r: CruceGuardadoResumen | null) {
+    const volver = () => { this.router.navigate(['/dashboard/hiring/hiring-report']); };
+
+    // Sin contratación del día no hay cruce que bajar; el reporte por sí solo ya es el envío.
+    if (!r) {
+      Swal.fire('Enviado', 'Reporte enviado correctamente', 'success').then(volver);
+      return;
+    }
+
+    if (r.encolado) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Reporte enviado, cruce en cola',
+        html:
+          'El reporte quedó registrado, pero las filas del cruce no se pudieron bajar a la base ' +
+          'porque se perdió la conexión.<br><br>Quedaron en la cola y se subirán solas al reconectar.',
+      }).then(volver);
+      return;
+    }
+
+    const guardadas = r.creados + r.actualizados;
+    const resumenHtml = `
+      <ul style="text-align:left; margin:0; padding-left:18px;">
+        <li><b>${guardadas}</b> contrato(s) en la base — ${r.creados} nuevo(s), ${r.actualizados} actualizado(s).</li>
+        ${r.omitidos.length ? `<li><b>${r.omitidos.length}</b> fila(s) omitida(s): sin cédula o sin código de contrato.</li>` : ''}
+        ${r.errores.length ? `<li><b>${r.errores.length}</b> fila(s) con error al guardar.</li>` : ''}
+        ${r.conflictos.length ? `<li><b>${r.conflictos.length}</b> código(s) de contrato ya usado(s) por otra cédula (se guardaron igual).</li>` : ''}
+      </ul>`;
+
+    const problemas = [...r.omitidos, ...r.errores, ...r.conflictos];
+    if (problemas.length === 0) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Enviado',
+        html: `Reporte enviado y cruce guardado en la base.<br><br>${resumenHtml}`,
+      }).then(volver);
+      return;
+    }
+
+    // Solo los primeros: con un archivo entero mal formado la lista sería ilegible, y el
+    // detalle completo ya quedó en la bitácora.
+    const MUESTRA = 15;
+    const items = problemas.slice(0, MUESTRA).map((p: any) => {
+      const motivo = p.motivo
+        || p.error
+        || (p.ya_usado_por ? `código ${p.codigo_contrato} ya usado por ${p.ya_usado_por.join(', ')}` : 'sin detalle');
+      return `<li><b>${p.cedula || 'SIN CÉDULA'}</b>${p.fila ? ` (fila ${p.fila})` : ''}: ${motivo}</li>`;
+    }).join('');
+
+    Swal.fire({
+      icon: 'warning',
+      title: 'Enviado, con filas para revisar',
+      width: 720,
+      html:
+        `El reporte quedó registrado y el cruce se bajó a la base.<br><br>${resumenHtml}` +
+        `<hr><ul style="text-align:left; max-height:240px; overflow:auto; padding-left:18px;">${items}</ul>` +
+        (problemas.length > MUESTRA
+          ? `<p style="text-align:left; margin:6px 0 0 0;">…y ${problemas.length - MUESTRA} más.</p>`
+          : '') +
+        `<p style="text-align:left; margin-top:10px; font-size:0.9em; color:#475569;">` +
+        `El detalle completo quedó guardado en <b>Errores de validación</b> (tablero de reportes).</p>`,
+    }).then(volver);
+  }
+
   private async saveErrorsToBackend(errors: any[]) {
     try {
-      const payload = { errores: errors, responsable: this.nombre, tipo: 'Documento de Contratación' };
+      const payload = {
+        errores: errors,
+        responsable: this.nombre,
+        oficina: this.oficinaSeleccionada,
+        tipo: 'Documento de Contratación',
+      };
       await this.hiringService.enviarErroresValidacion(payload);
       Swal.fire({
         icon: 'warning',
@@ -1041,6 +1455,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       await this.hiringService.enviarErroresValidacion({
         errores,
         responsable: this.nombre,
+        oficina: this.oficinaSeleccionada,
         tipo,
       });
     } catch (e) {

@@ -1,5 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
-import {  Component, DestroyRef, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, DestroyRef, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs/operators';
@@ -103,6 +103,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     private readonly utilityService: UtilityServiceService,
     private readonly dialog: MatDialog,
     private readonly destroyRef: DestroyRef,
+    private readonly cdr: ChangeDetectorRef,
     @Inject(PLATFORM_ID) platformId: Object,
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
@@ -144,7 +145,9 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     this.infoVacantesService
       .getCandidatosEntrevistasHoy({ full: true, oficina })
       .pipe(
-        finalize(() => (this.isLoading = false)),
+        // finalize corre siempre (next o error); un solo markForCheck cubre
+        // la asignación de rows y el estado de carga bajo OnPush.
+        finalize(() => { this.isLoading = false; this.cdr.markForCheck(); }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({

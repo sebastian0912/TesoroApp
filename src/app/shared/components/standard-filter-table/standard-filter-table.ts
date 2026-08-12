@@ -1,6 +1,6 @@
 import { SelectionModel } from '@angular/cdk/collections';
 import { CdkTableModule } from '@angular/cdk/table';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { CommonModule, isPlatformBrowser, formatCurrency, formatNumber } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -155,6 +155,20 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   @Input() storageKey?: string;
 
   @Output() rowClicked = new EventEmitter<any>();
+
+  /**
+   * Modo servidor. Por defecto false: las 21 páginas que ya usan esta tabla
+   * siguen paginando y filtrando en cliente, exactamente igual que antes.
+   *
+   * Con serverSide=true la tabla deja de recortar y ordenar por su cuenta:
+   * asume que `data` YA es la página pedida, usa `totalCount` para el largo del
+   * paginador, y avisa al padre con (pageChange)/(searchChange) para que sea él
+   * quien pida los datos. Existe porque manage-workers tenía que descargar
+   * 50.190 filas (37 MB) para mostrar 10.
+   */
+  @Input() serverSide = false;
+  @Output() pageChange = new EventEmitter<{ page: number; size: number }>();
+  @Output() searchChange = new EventEmitter<string>();
 
   // Tabla
   displayedColumns: string[] = [];
@@ -341,11 +355,21 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
     }
 
     if (this.paginator) {
-      this.dataSource.paginator = this.paginator;
+      // En modo servidor NO se ata el paginador al dataSource: si se atara,
+      // recortaría OTRA VEZ la página que ya viene recortada del backend
+      // (mostraría 10 de las 50 que llegaron).
+      if (!this.serverSide) {
+        this.dataSource.paginator = this.paginator;
+      }
       this.paginator.pageSize = this.defaultPageSize;
 
       this.syncPaginatorLength();
-      this.uiSubs.add(this.paginator.page.subscribe(() => this.cdr.detectChanges()));
+      this.uiSubs.add(this.paginator.page.subscribe(e => {
+        if (this.serverSide) {
+          this.pageChange.emit({ page: e.pageIndex, size: e.pageSize });
+        }
+        this.cdr.detectChanges();
+      }));
     }
 
     // primer render con data actual
@@ -455,9 +479,21 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
       ...Object.values(this.filterForms).map(g => g.valueChanges.pipe(startWith(g.value)))
     ];
 
+    // En modo servidor la búsqueda global la resuelve el backend: se avisa al
+    // padre en vez de filtrar en cliente (filtrar aquí solo miraría la página
+    // actual, así que "buscar" devolvería resultados falsos: los 50 de esta
+    // página en vez de los 50.190 del universo).
+    if (this.serverSide) {
+      this.filterSubs.add(
+        this.globalSearch.valueChanges.pipe(debounceTime(400)).subscribe(v => {
+          this.searchChange.emit((v ?? '').toString().trim());
+        })
+      );
+    }
+
     this.filterSubs.add(
       merge(...streams).pipe(debounceTime(120)).subscribe(() => {
-        this.applyFilters();
+        if (!this.serverSide) this.applyFilters();
         this.refreshSticky();
         this.cdr.detectChanges();
       }),
@@ -1045,5 +1081,41 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   // Get date cols for dropdown
   getDateColumns(): ColumnDefinition[] {
     return this.columnDefinitions?.filter(c => c.type === 'date') || [];
+  }
+
+  /**
+   * Presentación de la celda. Sin esto una columna `type:'number'` pintaba el
+   * valor crudo: 1300000 en vez de $1.300.000, o 12.5 en vez de 12,5 %.
+   *
+   * Se formatea SOLO si la columna declara `format`, así que las 22 páginas que
+   * usan esta tabla siguen viendo exactamente lo mismo hasta que lo pidan.
+   *
+   * Se fuerza es-CO en vez de heredar LOCALE_ID: main.ts registra el locale
+   * es-CO pero nunca lo provee, así que los pipes de la app caen en en-US y
+   * pintarían $1,300,000 (formato gringo) en una app colombiana.
+   */
+  formatCell(value: any, col: ColumnDefinition): string {
+    // Sin `format` se replica EXACTAMENTE lo de antes (`row[col.name] ?? '-'`).
+    // Ojo: `??` no atrapa cadena vacía ni 0, y así debe seguir siendo — hay 49
+    // columnas numéricas en la app que dependen de este comportamiento.
+    if (!col.format) return String(value ?? '-');
+
+    if (value === null || value === undefined || value === '') return '-';
+
+    const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(n)) return String(value);
+
+    switch (col.format) {
+      case 'currency':
+        return formatCurrency(n, 'es-CO', '$', 'COP', '1.0-0');
+      case 'percent':
+        // No se usa el pipe percent: multiplicaría por 100 y aquí el valor ya
+        // viene como porcentaje (12.5 significa 12,5 %).
+        return `${formatNumber(n, 'es-CO', '1.0-2')} %`;
+      case 'decimal':
+        return formatNumber(n, 'es-CO', '1.0-2');
+      default:
+        return String(value);
+    }
   }
 }

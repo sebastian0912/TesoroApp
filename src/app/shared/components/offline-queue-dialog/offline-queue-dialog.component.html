@@ -1,13 +1,14 @@
+<!-- ═══ TÍTULO ═══ -->
 <h2 mat-dialog-title class="dialog-title">
   <mat-icon class="title-icon">{{ isOnline ? 'cloud_sync' : 'cloud_off' }}</mat-icon>
-  Envíos pendientes
-  @if (total > 0) {
-    <span class="title-count">{{ total }}</span>
+  Estado de sincronización
+  @if (totalQueue > 0) {
+    <span class="title-count">{{ totalQueue }}</span>
   }
 </h2>
 
 <mat-dialog-content class="dialog-content">
-  <!-- Estado de conexión -->
+  <!-- ─── Banner de conexión ─── -->
   <div class="conn-banner" [class.online]="isOnline" [class.offline]="!isOnline">
     <mat-icon>{{ isOnline ? 'wifi' : 'wifi_off' }}</mat-icon>
     <span>
@@ -19,118 +20,215 @@
     </span>
   </div>
 
-  <!-- Cargando -->
+  <!-- ─── Pestañas ─── -->
+  <div class="tab-bar">
+    <button class="tab-btn" [class.active]="activeTab === 'queue'" (click)="setTab('queue')">
+      <mat-icon>upload</mat-icon>
+      Cola de envíos
+      @if (totalQueue > 0) { <span class="tab-badge">{{ totalQueue }}</span> }
+    </button>
+    <button class="tab-btn" [class.active]="activeTab === 'cache'" (click)="setTab('cache')"
+      [disabled]="!hasLocalDb">
+      <mat-icon>storage</mat-icon>
+      Datos locales
+      @if (hasPendingCache) { <span class="tab-badge warn">!</span> }
+    </button>
+  </div>
+
+  <!-- ─── Loading ─── -->
   @if (loading) {
     <div class="state-center">
       <mat-spinner diameter="32"></mat-spinner>
-      <p>Revisando la cola local…</p>
-    </div>
-  } @else if (total === 0) {
-    <!-- Todo sincronizado -->
-    <div class="state-center empty">
-      <mat-icon class="empty-icon">check_circle</mat-icon>
-      <p class="empty-title">Todo sincronizado</p>
-      <p class="empty-sub">No hay archivos ni envíos esperando subir.</p>
+      <p>Revisando estado local…</p>
     </div>
   } @else {
-    <!-- Pendientes por subir -->
-    @if (pending.length > 0) {
-      <h3 class="section-head">
-        <mat-icon>schedule</mat-icon>
-        Esperando subir ({{ pending.length }})
-      </h3>
-      <div class="queue-list">
-        @for (row of pending; track trackById($index, row)) {
-          <div class="queue-item pending">
-            <mat-icon class="item-icon">{{ row.icon }}</mat-icon>
-            <div class="item-body">
-              <div class="item-head">
-                <span class="item-label">{{ row.label }}</span>
-                @if (row.age) { <span class="item-age">{{ row.age }}</span> }
-              </div>
-              @if (row.fileNames.length) {
-                <div class="item-files">
-                  @for (name of row.fileNames; track $index) {
-                    <span class="file-chip" [title]="name"><mat-icon>attach_file</mat-icon>{{ name }}</span>
+
+    <!-- ════ PESTAÑA: COLA DE ENVÍOS ════ -->
+    @if (activeTab === 'queue') {
+      @if (totalQueue === 0) {
+        <div class="state-center empty">
+          <mat-icon class="empty-icon">check_circle</mat-icon>
+          <p class="empty-title">Todo sincronizado</p>
+          <p class="empty-sub">No hay formularios ni archivos esperando subir.</p>
+        </div>
+      } @else {
+        <!-- Pendientes por subir -->
+        @if (pending.length > 0) {
+          <h3 class="section-head">
+            <mat-icon>schedule</mat-icon>
+            Esperando subir ({{ pending.length }})
+          </h3>
+          <div class="queue-list">
+            @for (row of pending; track trackById($index, row)) {
+              <div class="queue-item pending">
+                <mat-icon class="item-icon">{{ row.icon }}</mat-icon>
+                <div class="item-body">
+                  <div class="item-head">
+                    <span class="item-label">{{ row.label }}</span>
+                    @if (row.age) { <span class="item-age">{{ row.age }}</span> }
+                  </div>
+                  @if (row.fileNames.length) {
+                    <div class="item-files">
+                      @for (name of row.fileNames; track $index) {
+                        <span class="file-chip" [title]="name"><mat-icon>attach_file</mat-icon>{{ name }}</span>
+                      }
+                    </div>
+                  }
+                  @if (row.last_error) {
+                    <div class="item-warn">
+                      <mat-icon>info</mat-icon>
+                      <span>Último intento: {{ row.last_error }}</span>
+                    </div>
                   }
                 </div>
-              }
-              @if (row.last_error) {
-                <div class="item-warn">
-                  <mat-icon>info</mat-icon>
-                  <span>Último intento: {{ row.last_error }}</span>
-                </div>
-              }
-            </div>
-            <button mat-icon-button class="item-discard" matTooltip="Descartar"
-              (click)="descartar(row)" aria-label="Descartar envío">
-              <mat-icon>delete_outline</mat-icon>
-            </button>
+                <button mat-icon-button class="item-discard" matTooltip="Descartar"
+                  (click)="descartar(row)" aria-label="Descartar envío">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
+            }
           </div>
         }
-      </div>
+
+        <!-- Fallidos: requieren acción del usuario -->
+        @if (failed.length > 0) {
+          <h3 class="section-head failed">
+            <mat-icon>error_outline</mat-icon>
+            Con errores ({{ failed.length }})
+          </h3>
+          <p class="section-note">
+            El servidor rechazó estos envíos. Revisa el motivo, reintenta o descártalos.
+          </p>
+          <div class="queue-list">
+            @for (row of failed; track trackById($index, row)) {
+              <div class="queue-item failed">
+                <mat-icon class="item-icon">{{ row.icon }}</mat-icon>
+                <div class="item-body">
+                  <div class="item-head">
+                    <span class="item-label">{{ row.label }}</span>
+                    @if (row.age) { <span class="item-age">{{ row.age }}</span> }
+                    @if (row.attempt_count) { <span class="item-attempts">{{ row.attempt_count }} intento(s)</span> }
+                  </div>
+                  @if (row.fileNames.length) {
+                    <div class="item-files">
+                      @for (name of row.fileNames; track $index) {
+                        <span class="file-chip" [title]="name"><mat-icon>attach_file</mat-icon>{{ name }}</span>
+                      }
+                    </div>
+                  }
+                  @if (row.last_error) {
+                    <div class="item-error">
+                      <mat-icon>report</mat-icon>
+                      <span>{{ row.last_error }}</span>
+                    </div>
+                  }
+                </div>
+                <div class="item-actions">
+                  <button mat-icon-button class="item-retry" matTooltip="Reintentar"
+                    [disabled]="!isOnline" (click)="reintentar(row)" aria-label="Reintentar envío">
+                    <mat-icon>refresh</mat-icon>
+                  </button>
+                  <button mat-icon-button class="item-discard" matTooltip="Descartar"
+                    (click)="descartar(row)" aria-label="Descartar envío">
+                    <mat-icon>delete_outline</mat-icon>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      }
     }
 
-    <!-- Fallidos: requieren acción del usuario -->
-    @if (failed.length > 0) {
-      <h3 class="section-head failed">
-        <mat-icon>error_outline</mat-icon>
-        Con errores ({{ failed.length }})
-      </h3>
-      <p class="section-note">
-        El servidor rechazó estos envíos. Revisa el motivo, reintenta o descártalos.
-      </p>
-      <div class="queue-list">
-        @for (row of failed; track trackById($index, row)) {
-          <div class="queue-item failed">
-            <mat-icon class="item-icon">{{ row.icon }}</mat-icon>
-            <div class="item-body">
-              <div class="item-head">
-                <span class="item-label">{{ row.label }}</span>
-                @if (row.age) { <span class="item-age">{{ row.age }}</span> }
-                @if (row.attempt_count) { <span class="item-attempts">{{ row.attempt_count }} intento(s)</span> }
+    <!-- ════ PESTAÑA: DATOS LOCALES ════ -->
+    @if (activeTab === 'cache') {
+      @if (!hasLocalDb) {
+        <div class="state-center">
+          <mat-icon style="font-size:40px;width:40px;height:40px;color:#94a3b8;">browser_not_supported</mat-icon>
+          <p class="empty-title">Navegador no compatible</p>
+          <p class="empty-sub">Este navegador no soporta almacenamiento local (IndexedDB).</p>
+        </div>
+      } @else if (cacheCategories.length === 0) {
+        <div class="state-center empty">
+          <mat-icon class="empty-icon">storage</mat-icon>
+          <p class="empty-title">Sin datos en caché</p>
+          <p class="empty-sub">Navega por la app para que los datos queden guardados localmente.</p>
+        </div>
+      } @else {
+        <!-- Toggle ver todos / solo pendientes -->
+        <div class="cache-toolbar">
+          <span class="cache-toolbar-label">
+            <mat-icon>info_outline</mat-icon>
+            {{ cacheCategories.length }} grupo(s) · {{ totalCacheEntries }} entrada(s)
+          </span>
+          <button mat-stroked-button class="toggle-btn" (click)="showAllCache = !showAllCache">
+            <mat-icon>{{ showAllCache ? 'filter_list_off' : 'filter_list' }}</mat-icon>
+            {{ showAllCache ? 'Solo con pendientes' : 'Ver todos' }}
+          </button>
+        </div>
+
+        @if (visibleCategories.length === 0) {
+          <div class="state-center empty" style="padding:24px 12px">
+            <mat-icon class="empty-icon">check_circle</mat-icon>
+            <p class="empty-title">Todo sincronizado</p>
+            <p class="empty-sub">No hay grupos con datos pendientes o desactualizados.</p>
+          </div>
+        } @else {
+          <div class="cache-list">
+            @for (cat of visibleCategories; track trackByCat($index, cat)) {
+              <div class="cache-row" [class]="'status-' + cat.status">
+                <mat-icon class="cache-icon">{{ cat.icon }}</mat-icon>
+                <div class="cache-body">
+                  <div class="cache-head">
+                    <span class="cache-name">{{ cat.name }}</span>
+                    <span class="cache-age">{{ cat.lastUpdated }}</span>
+                  </div>
+                  <div class="cache-meta">
+                    <span class="cache-count">{{ cat.count }} entrada(s)</span>
+                  </div>
+                </div>
+                <span class="status-badge" [class]="'badge-' + cat.status">
+                  <mat-icon>{{ statusIcon(cat.status) }}</mat-icon>
+                  {{ statusLabel(cat.status) }}
+                </span>
               </div>
-              @if (row.fileNames.length) {
-                <div class="item-files">
-                  @for (name of row.fileNames; track $index) {
-                    <span class="file-chip" [title]="name"><mat-icon>attach_file</mat-icon>{{ name }}</span>
-                  }
-                </div>
-              }
-              @if (row.last_error) {
-                <div class="item-error">
-                  <mat-icon>report</mat-icon>
-                  <span>{{ row.last_error }}</span>
-                </div>
-              }
-            </div>
-            <div class="item-actions">
-              <button mat-icon-button class="item-retry" matTooltip="Reintentar"
-                [disabled]="!isOnline" (click)="reintentar(row)" aria-label="Reintentar envío">
-                <mat-icon>refresh</mat-icon>
-              </button>
-              <button mat-icon-button class="item-discard" matTooltip="Descartar"
-                (click)="descartar(row)" aria-label="Descartar envío">
-                <mat-icon>delete_outline</mat-icon>
-              </button>
-            </div>
+            }
           </div>
         }
-      </div>
+
+        <!-- Botón limpiar caché (solo desktop) -->
+        <div class="cache-footer">
+          <button mat-button class="btn-clear-cache" (click)="limpiarCache()">
+            <mat-icon>delete_sweep</mat-icon>
+            Limpiar caché local
+          </button>
+        </div>
+      }
     }
   }
 </mat-dialog-content>
 
+<!-- ─── Acciones del diálogo ─── -->
 <mat-dialog-actions align="end" class="dialog-actions">
   <button mat-button (click)="cerrar()">Cerrar</button>
-  <button mat-flat-button color="primary"
-    [disabled]="!isOnline || syncing || pending.length === 0"
-    (click)="sincronizarAhora()">
-    @if (syncing) {
-      <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
-    } @else {
-      <mat-icon>sync</mat-icon>
-    }
-    {{ syncing ? 'Sincronizando…' : 'Sincronizar ahora' }}
-  </button>
+  @if (activeTab === 'queue') {
+    <button mat-flat-button color="primary"
+      [disabled]="!isOnline || syncing || pending.length === 0"
+      (click)="sincronizarAhora()">
+      @if (syncing) {
+        <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+      } @else {
+        <mat-icon>sync</mat-icon>
+      }
+      {{ syncing ? 'Sincronizando…' : 'Sincronizar ahora' }}
+    </button>
+  }
+  @if (activeTab === 'cache') {
+    <button mat-flat-button color="primary"
+      [disabled]="!isOnline || syncing"
+      (click)="reload()">
+      <mat-icon>refresh</mat-icon>
+      Refrescar
+    </button>
+  }
 </mat-dialog-actions>

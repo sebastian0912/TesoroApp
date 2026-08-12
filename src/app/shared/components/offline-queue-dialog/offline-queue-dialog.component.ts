@@ -10,11 +10,10 @@ import { Subscription } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { SharedModule } from '../../shared.module';
-import { OfflineSyncService } from '../../../core/services/offline-sync.service';
+import { OfflineSyncService, CacheCategory } from '../../../core/services/offline-sync.service';
 import { NetworkStatusService } from '../../../core/services/network-status.service';
 import { describeQueuedRequest, formatRelativeAge } from '../../../core/utils/offline-response';
 
-/** Fila de la cola tal como la consume la vista (datos crudos + derivados). */
 interface QueuedRow {
   id: number;
   method: string;
@@ -24,8 +23,6 @@ interface QueuedRow {
   last_error?: string | null;
   attempt_count?: number;
   body_type?: 'json' | 'multipart';
-
-  // Derivados para la plantilla.
   icon: string;
   label: string;
   age: string;
@@ -33,9 +30,9 @@ interface QueuedRow {
 }
 
 /**
- * Diálogo "Envíos pendientes": muestra al usuario QUÉ no se ha subido todavía
- * (el badge "9" del chip de red) y le da control: sincronizar ahora, reintentar
- * los fallidos o descartarlos. Se abre al hacer clic en el chip del header.
+ * Diálogo de sincronización: muestra el estado de la cola de escrituras locales
+ * y el caché de lecturas (api_cache), agrupado por recurso.
+ * Se abre al hacer clic en el chip "En línea / Sin conexión" del header.
  */
 @Component({
   selector: 'app-offline-queue-dialog',
@@ -48,14 +45,19 @@ interface QueuedRow {
 export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
   pending: QueuedRow[] = [];
   failed: QueuedRow[] = [];
+  cacheCategories: CacheCategory[] = [];
 
   loading = true;
   isOnline = true;
   syncing = false;
+  showAllCache = false;
+  hasLocalDb = false;   // true en todos los navegadores modernos (IndexedDB o SQLite)
+  activeTab: 'queue' | 'cache' = 'queue';
 
   private subs: Subscription[] = [];
   private onQueueEvent?: () => void;
   private reloadTimer: ReturnType<typeof setTimeout> | null = null;
+  private prevOnline: boolean | null = null;
 
   constructor(
     private dialogRef: MatDialogRef<OfflineQueueDialogComponent>,
@@ -65,19 +67,26 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
   ) {}
 
   async ngOnInit(): Promise<void> {
+    this.hasLocalDb = typeof indexedDB !== 'undefined';
+
     this.subs.push(
-      this.networkStatus.isOnline$.subscribe(status => {
+      this.networkStatus.isOnline$.subscribe(async status => {
+        const wasOffline = this.prevOnline === false;
+        this.prevOnline = status;
         this.isOnline = status;
-        this.cdr.markForCheck();
+        // Trigger automático: si acabamos de reconectarnos, refrescar todo
+        if (status && wasOffline) {
+          await this.reload();
+        } else {
+          this.cdr.detectChanges();
+        }
       }),
       this.offlineSync.syncProgress$.subscribe(progress => {
         this.syncing = progress !== null;
-        this.cdr.markForCheck();
+        this.cdr.detectChanges();
       }),
     );
 
-    // Refresco en vivo: si la cola cambia mientras el diálogo está abierto
-    // (sincronización en curso, fallo, descarte), recargamos las listas.
     this.onQueueEvent = () => this.scheduleReload();
     for (const ev of ['offline-queue-updated', 'offline-request-synced', 'offline-request-failed', 'offline-request-stalled']) {
       window.addEventListener(ev, this.onQueueEvent);
@@ -98,8 +107,19 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
     if (this.reloadTimer) { clearTimeout(this.reloadTimer); this.reloadTimer = null; }
   }
 
-  get total(): number {
-    return this.pending.length + this.failed.length;
+  get totalQueue(): number { return this.pending.length + this.failed.length; }
+
+  get visibleCategories(): CacheCategory[] {
+    if (this.showAllCache) return this.cacheCategories;
+    return this.cacheCategories.filter(c => c.status !== 'synced');
+  }
+
+  get hasPendingCache(): boolean {
+    return this.cacheCategories.some(c => c.status !== 'synced');
+  }
+
+  get totalCacheEntries(): number {
+    return this.cacheCategories.reduce((s, c) => s + c.count, 0);
   }
 
   private scheduleReload(): void {
@@ -107,23 +127,29 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
     this.reloadTimer = setTimeout(() => { void this.reload(); }, 300);
   }
 
-  private async reload(): Promise<void> {
+  async reload(): Promise<void> {
+    this.loading = true;
+    this.cdr.detectChanges();
     try {
-      const [pendingRaw, failedRaw] = await Promise.all([
+      const [pendingRaw, failedRaw, cats] = await Promise.all([
         this.offlineSync.getPendingRequests(),
         this.offlineSync.getFailedRequests(),
+        this.offlineSync.getCacheEntriesWithStatus(),
       ]);
       this.pending = await Promise.all((pendingRaw || []).map(r => this.toRow(r)));
       this.failed = await Promise.all((failedRaw || []).map(r => this.toRow(r)));
+      this.cacheCategories = cats;
+      // Cambiar tab automáticamente si hay cola activa
+      if (this.totalQueue > 0) this.activeTab = 'queue';
+      else if (cats.some(c => c.status !== 'synced')) this.activeTab = 'cache';
     } catch {
-      // Si la DB local no responde, dejamos las listas como estén.
+      // Dejamos las listas como estén si hay error
     } finally {
       this.loading = false;
-      this.cdr.markForCheck();
+      this.cdr.detectChanges();
     }
   }
 
-  /** Enriquece una fila cruda con etiqueta, icono, antigüedad y nombres de archivo. */
   private async toRow(raw: any): Promise<QueuedRow> {
     const meta = describeQueuedRequest(raw?.method, raw?.url);
     let fileNames: string[] = [];
@@ -131,7 +157,7 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
       try {
         const files = await this.offlineSync.getRequestFiles(raw.id);
         fileNames = (files || []).map((f: any) => f?.file_name).filter(Boolean);
-      } catch { /* sin nombres de archivo, no es crítico */ }
+      } catch { /* noop */ }
     }
     return {
       id: raw?.id,
@@ -152,7 +178,7 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
   async sincronizarAhora(): Promise<void> {
     if (!this.isOnline || this.syncing) return;
     this.syncing = true;
-    this.cdr.markForCheck();
+    this.cdr.detectChanges();
     await this.offlineSync.syncNow();
     await this.reload();
   }
@@ -169,7 +195,7 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
       html:
         `Se eliminará <b>${row.label}</b>` +
         (row.fileNames.length ? ` y ${row.fileNames.length} archivo(s) adjunto(s)` : '') +
-        '.<br><br>Esta acción <b>no se puede deshacer</b> y los datos no se subirán.',
+        '.<br><br>Esta acción <b>no se puede deshacer</b>.',
       showCancelButton: true,
       confirmButtonText: 'Sí, descartar',
       cancelButtonText: 'Cancelar',
@@ -181,9 +207,44 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
     await this.reload();
   }
 
-  cerrar(): void {
-    this.dialogRef.close();
+  limpiarCache(): void {
+    Swal.fire({
+      icon: 'warning',
+      title: '¿Limpiar caché local?',
+      html: 'Se borrarán todos los datos guardados en este equipo.<br>Los cambios pendientes <b>no se tocan</b>.',
+      showCancelButton: true,
+      confirmButtonText: 'Limpiar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+      reverseButtons: true,
+    }).then(async r => {
+      if (!r.isConfirmed) return;
+      await this.offlineSync.clearCache();
+      await this.reload();
+    });
+  }
+
+  setTab(tab: 'queue' | 'cache'): void {
+    this.activeTab = tab;
+    this.cdr.detectChanges();
+  }
+
+  cerrar(): void { this.dialogRef.close(); }
+
+  statusLabel(s: CacheCategory['status']): string {
+    return s === 'pending_write' ? 'Pendiente'
+      : s === 'failed_write' ? 'Fallido'
+      : s === 'stale' ? 'Desactualizado'
+      : 'Sincronizado';
+  }
+
+  statusIcon(s: CacheCategory['status']): string {
+    return s === 'pending_write' ? 'upload'
+      : s === 'failed_write' ? 'error_outline'
+      : s === 'stale' ? 'schedule'
+      : 'check_circle';
   }
 
   trackById = (_: number, row: QueuedRow) => row.id;
+  trackByCat = (_: number, cat: CacheCategory) => cat.name;
 }

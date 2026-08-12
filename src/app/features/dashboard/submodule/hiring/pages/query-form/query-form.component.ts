@@ -1,10 +1,12 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import {  Component, ViewChild , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, ViewChild , ChangeDetectionStrategy, ChangeDetectorRef, OnInit } from '@angular/core';
 import Swal from 'sweetalert2';
 import { HiringService } from '../../service/hiring.service';
 import { MatSort } from '@angular/material/sort';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { forkJoin, of, Observable } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -16,11 +18,18 @@ import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
   templateUrl: './query-form.component.html',
   styleUrl: './query-form.component.css'
 } )
-export class QueryFormComponent {
+export class QueryFormComponent implements OnInit {
+  /** Texto crudo del buscador. Admite una cédula o muchas, en cualquier formato. */
   cedula: string = '';
   dataSource = new MatTableDataSource<any>([]); // MatTableDataSource
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
+
+  buscando = false;
+  /** Resumen de la última búsqueda múltiple, para no dejar al usuario a ciegas. */
+  encontradas = 0;
+  noEncontradas: string[] = [];
+  yaBusco = false;
 
   displayedColumns: string[] = [
     'numerodeceduladepersona', 'primer_apellido', 'segundo_apellido', 'primer_nombre', 'segundo_nombre',
@@ -72,13 +81,62 @@ export class QueryFormComponent {
   ];
 
   constructor(
-    private hiringService: HiringService
+    private hiringService: HiringService,
+    private cdr: ChangeDetectorRef
   ) { }
 
     // Captura el valor de la cédula ingresada
     onCedulaInput(event: Event) {
       const inputElement = event.target as HTMLInputElement;
-      this.cedula = inputElement.value.trim(); // Guarda el valor de la cédula en la variable de clase
+      this.cedula = inputElement.value; // sin trim: puede traer saltos de línea de un pegado
+    }
+
+    /**
+     * Separa el texto en cédulas. Acepta lo que salga de pegar una columna de
+     * Excel (saltos de línea), una lista (comas o punto y coma) o espacios, que
+     * es como llega en la práctica. Se quitan duplicados conservando el orden.
+     */
+    parseCedulas(raw: string): string[] {
+      const vistas = new Set<string>();
+      return (raw || '')
+        .split(/[\s,;]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .filter(c => {
+          const k = c.toUpperCase();
+          if (vistas.has(k)) return false;
+          vistas.add(k);
+          return true;
+        });
+    }
+
+    get cedulasDetectadas(): number {
+      return this.parseCedulas(this.cedula).length;
+    }
+
+    /**
+     * Al pegar varias cédulas se busca solo: es el flujo real (copias una columna
+     * de Excel y quieres verlas todas). Con una sola no se dispara, para no
+     * buscar mientras el usuario aún está escribiendo.
+     */
+    onPaste(event: ClipboardEvent) {
+      const texto = event.clipboardData?.getData('text') ?? '';
+      if (this.parseCedulas(texto).length > 1) {
+        // El input aún no tiene el valor pegado en este punto del evento.
+        setTimeout(() => {
+          this.cedula = texto;
+          this.buscarPorCedula();
+        });
+      }
+    }
+
+    limpiar() {
+      this.cedula = '';
+      this.dataSource.data = [];
+      this.encontradas = 0;
+      this.noEncontradas = [];
+      this.yaBusco = false;
+      this.cdr.markForCheck();
     }
 
 
@@ -103,37 +161,110 @@ export class QueryFormComponent {
 
     }
 
-    buscarPorCedula(){
-      // Obtención de datos desde el servicio
-      this.hiringService.buscarEncontratacion(this.cedula).subscribe(
-        (data) => {
-          this.dataSource.data = data.data;  // Asigna los datos a la fuente de la tabla
-          this.dataSource.paginator = this.paginator;  // Vincula el paginador
-          this.dataSource.sort = this.sort;  // Vincula la ordenación
-        },
-        (error) => {
-          // "No se encontraron datos para la cédula ingresada: 78"
-          if (error.status === 404) {
-            Swal.fire({
-              icon: 'error',
-              title: 'Error',
-              text: `No se encontraron datos para la cédula ingresada: ${this.cedula}`,
-            });
+    /**
+     * Busca una o varias cédulas.
+     *
+     * El endpoint solo acepta una por llamada, así que con varias se lanzan en
+     * paralelo y se fusionan. Cada una lleva su propio catchError: que una cédula
+     * no exista (404) no puede tumbar el resto del lote, que es justo lo que pasa
+     * al pegar una columna de Excel con alguna cédula vieja.
+     */
+    buscarPorCedula() {
+      const cedulas = this.parseCedulas(this.cedula);
+
+      if (!cedulas.length) {
+        Swal.fire({ icon: 'info', title: 'Escribe una cédula', text: 'Puedes pegar varias a la vez.' });
+        return;
+      }
+
+      this.buscando = true;
+      this.noEncontradas = [];
+      this.cdr.markForCheck();
+
+      const peticiones: Observable<{ cedula: string; filas: any[] }>[] = cedulas.map(c =>
+        this.hiringService.buscarEncontratacion(c).pipe(
+          map((resp: any) => ({ cedula: c, filas: (resp?.data ?? []) as any[] })),
+          catchError(() => of({ cedula: c, filas: [] as any[] }))
+        )
+      );
+
+      forkJoin(peticiones).subscribe({
+        next: (resultados) => {
+          const filas: any[] = [];
+          for (const r of resultados) {
+            if (r.filas.length) filas.push(...r.filas);
+            else this.noEncontradas.push(r.cedula);
           }
 
+          this.dataSource.data = filas;
+          // El paginador/sort se atan aquí porque los @ViewChild no existen
+          // hasta que la tabla se ha pintado por primera vez.
+          this.dataSource.paginator = this.paginator;
+          this.dataSource.sort = this.sort;
+
+          this.encontradas = filas.length;
+          this.buscando = false;
+          this.yaBusco = true;
+          // App zoneless: sin esto los resultados no se pintan hasta que toques algo.
+          this.cdr.markForCheck();
+
+          this.avisarResultado(cedulas.length);
+        },
+        error: () => {
+          this.buscando = false;
+          this.yaBusco = true;
+          this.cdr.markForCheck();
+          Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo completar la búsqueda.' });
         }
-      );
+      });
+    }
+
+    /** Un solo aviso al final: con 40 cédulas, 40 alertas serían inusables. */
+    private avisarResultado(pedidas: number) {
+      const faltan = this.noEncontradas.length;
+
+      if (pedidas === 1) {
+        if (faltan) {
+          Swal.fire({ icon: 'error', title: 'Sin resultados',
+            text: `No se encontraron datos para la cédula ${this.noEncontradas[0]}.` });
+        }
+        return;
+      }
+
+      if (!faltan) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', showConfirmButton: false, timer: 2200,
+          title: `${this.encontradas} de ${pedidas} encontradas` });
+        return;
+      }
+
+      Swal.fire({
+        icon: faltan === pedidas ? 'error' : 'warning',
+        title: `${this.encontradas} de ${pedidas} encontradas`,
+        html: `<p>No se encontraron <b>${faltan}</b>:</p>
+               <div style="max-height:180px;overflow:auto;text-align:left;font-size:13px">
+                 ${this.noEncontradas.join('<br>')}
+               </div>`,
+      });
     }
 
 
     async copyTableToClipboard(): Promise<void> {
+      if (!this.dataSource.data.length) {
+        Swal.fire({ icon: 'info', title: 'Nada que copiar', text: 'Busca una cédula primero.' });
+        return;
+      }
+
       let copyText = '';
 
-      // Definir los mapeos de columnas al principio del método
-      const columnMappings: { [key: string]: string } = {
-        'num_hijos_dependen_economicamente2': 'Número de hijos dependientes',
-        // Otros mapeos necesarios
-      };
+      /**
+       * Alias de campo -> por si el dato viaja con otro nombre que la columna.
+       * OJO: antes aquí había 'num_hijos_dependen_economicamente2' apuntando a
+       * 'Número de hijos dependientes', que es una ETIQUETA, no un campo del
+       * JSON. El código hacía row['Número de hijos dependientes'] -> undefined,
+       * así que esa columna se copiaba SIEMPRE vacía. Se deja el mapa por si
+       * hace falta algún alias real, pero abajo se prueba primero la columna.
+       */
+      const columnMappings: { [key: string]: string } = {};
 
       // Itera sobre los datos filtrados y genera las filas
       this.dataSource.filteredData.forEach(row => {
@@ -158,9 +289,11 @@ export class QueryFormComponent {
             }
           }
 
-          // Manejo de columnas normales con mapeo
-          const dataField = columnMappings[column] || column;
-          return this.escapeForExcel(row[dataField] || '');
+          // Primero el nombre de la columna (que es como viaja el dato); el alias
+          // solo como respaldo.
+          const alias = columnMappings[column];
+          const valor = row[column] ?? (alias ? row[alias] : undefined) ?? '';
+          return this.escapeForExcel(valor);
         }).join('\t');
         copyText += rowData + '\n';
       });

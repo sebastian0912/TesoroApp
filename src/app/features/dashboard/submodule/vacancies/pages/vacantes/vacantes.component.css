@@ -1,347 +1,69 @@
-/* ====== Texto base ====== */
-p {
-  margin: 0;
-  padding: 0;
-  line-height: 1.3;
-}
-
-/* ====== Botón Añadir (si se usa) ====== */
-.anadir {
+/* ============================================================
+   ALTO DE PÁGINA
+   `.dashboard-page-wrapper` ya mide el alto disponible. El :host lo llena y
+   ahoga su scroll: la página no scrollea, scrollea el cuerpo de la tabla.
+   Nada de vh inventados. La cadena de min-height:0 llega hasta
+   <app-standard-filter-table>, que ya scrollea por dentro; si se rompe un
+   eslabón el scroll se escapa a la página.
+   ============================================================ */
+:host {
   display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-.anadir button {
-  margin-right: 20pt;
-  border-radius: 5pt;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-/* ====== Encabezado de página ====== */
-.page-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.page-header .title {
-  font-size: 1.4rem;
-  font-weight: 600;
-  letter-spacing: .2px;
-  margin: 0;
-}
-.spacer {
-  flex: 1 1 auto;
-}
-
-/* Toggle de vista */
-.view-toggle {
-  margin-right: 8px;
-}
-.view-toggle .mat-button-toggle-label-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  line-height: 1;
-}
-
-/* High contrast for dark header */
-::ng-deep .view-toggle .mat-button-toggle-appearance-standard .mat-button-toggle-label-content {
-  color: #cbd5e1 !important;
-}
-::ng-deep .view-toggle .mat-button-toggle-appearance-standard.mat-button-toggle-checked {
-  background-color: rgba(255, 255, 255, 0.15) !important;
-}
-::ng-deep .view-toggle .mat-button-toggle-appearance-standard.mat-button-toggle-checked .mat-button-toggle-label-content {
-  color: #ffffff !important;
-  font-weight: 600;
-}
-::ng-deep .view-toggle .mat-button-toggle-appearance-standard.mat-button-toggle-checked .mat-button-toggle-label-content .mat-icon {
-  color: #ffffff !important;
-}
-
-/* ====== Campo filtro ====== */
-.filtro {
-  width: 100%;
-  max-width: 420px;
-  margin: 8px 0 16px;
-}
-
-/* ====== Tabla ====== */
-.table-container {
-  overflow: auto;
-  border-radius: 12px;
-}
-
-/* Semaforización: celdas de tabla Material o <td> plano */
-.mat-mdc-cell.semaforo-ok,
-td.semaforo-ok {
-  background-color: #e9f7ee !important; /* verde muy suave */
-}
-.mat-mdc-cell.semaforo-warn,
-td.semaforo-warn {
-  background-color: #fff6e5 !important; /* naranja muy suave */
-}
-.mat-mdc-cell.semaforo-error,
-td.semaforo-error {
-  background-color: #ffecee !important; /* rojo muy suave */
-}
-
-/* ====== Cards ====== */
-.cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-/* Card contenedor */
-.vacante-card {
-  position: relative;
-  border-radius: 16px;
-}
-
-/* Fondo/estilo texto de títulos subtítulos en mat-card */
-mat-card-title,
-mat-card-subtitle,
-.mat-mdc-card-title,
-.mat-mdc-card-subtitle {
-  font-weight: 600;
-  font-size: 13pt;
-}
-mat-card-subtitle,
-.mat-mdc-card-subtitle {
-  margin-bottom: 10px;
-  color: rgba(0,0,0,.6);
-}
-
-.card-title {
-  font-weight: 600;
-}
-
-/* Botón de acciones sobre la card (si lo usas fuera del header) */
-.actions-wrapper {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1;
-  display: flex;
-  justify-content: flex-end;
-  padding: 5px;
-}
-.fixed-button {
-  background-color: #fff;
-  box-shadow: none;
-}
-
-/* Avatar redondo con iniciales */
-.avatar {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  text-transform: uppercase;
-  font-weight: 700;
-  color: #222;
-  background: radial-gradient(100% 100% at 70% 0%, #e0e0e0 0%, #c7c7c7 100%);
-}
-
-/* KPI seleccionados / contratados */
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin: 4px 0 8px;
-}
-.kpi {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: #fafafa;
-  border: 1px solid #eee;
-}
-.kpi .kpi-label {
-  font-size: .78rem;
-  color: rgba(0,0,0,.6);
-  line-height: 1.1;
-}
-.kpi .kpi-value {
-  font-size: 1.05rem;
-  font-weight: 600;
-  line-height: 1.1;
-}
-
-/* Semáforo aplicado a tarjetas (usa mismas clases) */
-.kpi.semaforo-ok {
-  border-color: #d8efe0;
-  background: #f4fbf6;
-}
-.kpi.semaforo-warn {
-  border-color: #ffe9c7;
-  background: #fffaf2;
-}
-.kpi.semaforo-error {
-  border-color: #ffd6da;
-  background: #fff6f6;
-}
-
-/* Grilla de información (salario, auxilio, etc.) */
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 12px;
-  margin: 6px 0 10px;
-}
-.info-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-.info-row .strong {
-  font-weight: 600;
-}
-.muted {
-  color: rgba(0,0,0,.6);
-  font-size: .92rem;
-}
-
-/* Chips de municipios */
-.pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 6px 0 10px;
-}
-.pill {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #f2f2f2;
-  border: 1px solid #ececec;
-  font-size: .82rem;
-}
-
-/* Oficinas */
-.oficinas {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.oficina {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: #fafafa;
-  border: 1px solid #eee;
-  border-radius: 10px;
-}
-.oficina-icon {
-  font-size: 18px;
-}
-.oficina-text {
-  font-size: .9rem;
-}
-
-/* Texto de descripción y observación */
-.descripcion,
-.observacion {
-  font-size: .92rem;
-  line-height: 1.35;
-  color: #222;
-  margin-bottom: 6px;
-}
-.observacion .muted {
-  font-weight: 500;
-  margin-right: 6px;
-}
-
-/* Estado sin datos */
-.no-data {
-  padding: 16px;
-  text-align: center;
-  color: rgba(0,0,0,.6);
-}
-
-.semaforo-pill {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 12px;
-  display: inline-block;
-  border: 1px solid transparent;
-}
-
-.semaforo-ok {
-  color: #0f5132;
-  background: #d1e7dd;
-  border-color: #badbcc;
-}
-
-.semaforo-warn {
-  color: #664d03;
-  background: #fff3cd;
-  border-color: #ffecb5;
-}
-
-.semaforo-error {
-  color: #842029;
-  background: #f8d7da;
-  border-color: #f5c2c7;
-}
-
-
-/* ====== Responsive ====== */
-@media (max-width: 599px) {
-  .info-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .kpis {
-    grid-template-columns: 1fr !important;
-  }
-  .page-header .title {
-    font-size: 1.2rem;
-  }
-}
-
-
-/* === MANAGERIAL PREMIUM THEME === */
+/* ============================================================
+   TARJETA CONTENEDORA
+   ============================================================ */
 .premium-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   border-radius: 16px !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--slate-100);
   background-color: #ffffff;
   overflow: hidden;
-  margin-bottom: 24px;
+  box-sizing: border-box;
 }
 
+.card-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 16px 16px !important;
+}
+
+/* La tabla compartida se estira y scrollea por dentro. */
+.card-content app-standard-filter-table {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ============================================================
+   ENCABEZADO
+   ============================================================ */
 .card-header-premium {
   display: flex !important;
   align-items: center !important;
-  padding: 24px 32px 20px 32px !important;
+  gap: 16px;
+  padding: 20px 24px !important;
   border-bottom: none !important;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  background: linear-gradient(135deg, var(--navy-deep) 0%, #1e293b 60%, var(--slate-700) 100%) !important;
   position: relative !important;
   overflow: hidden !important;
   border-radius: 16px !important;
-  margin-bottom: 20px !important;
+  margin: 0 0 16px 0 !important;
+  flex: 0 0 auto;
 }
 
-.modal-header-premium {
-  padding: 24px 32px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  color: white;
-  border-radius: 16px 16px 0 0;
-}
-
-.card-header-premium::before, .modal-header-premium::before {
+.card-header-premium::before {
   content: '';
   position: absolute;
   top: -50%;
@@ -358,13 +80,15 @@ mat-card-subtitle,
   align-items: center;
   gap: 16px;
   z-index: 1;
+  /* Sin esto el título largo no deja encoger al header y empuja las acciones. */
+  min-width: 0;
 }
 
 .header-icon-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-width: 48px;
+  flex: 0 0 auto;
   width: 48px;
   height: 48px;
   background-color: rgba(255, 255, 255, 0.1);
@@ -381,63 +105,326 @@ mat-card-subtitle,
 .header-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .titulo {
-  font-family: 'Inter', 'Roboto', sans-serif !important;
-  font-size: 1.4rem !important;
+  font-size: 1.35rem !important;
   font-weight: 700 !important;
   color: #ffffff !important;
   margin: 0 0 2px 0 !important;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .subtitulo {
-  font-family: 'Inter', 'Roboto', sans-serif !important;
   font-size: 0.85rem !important;
-  color: #cbd5e1 !important;
+  color: var(--slate-300) !important;
   margin: 0 !important;
   font-weight: 400 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.grow {
-  flex: 1 1 auto;
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  z-index: 1;
+  min-width: 0;
 }
 
-.btn-managerial {
-  background-color: #192030 !important;
-  color: #8DD603 !important;
+/* ============================================================
+   TOGGLE DE VISTA
+   ============================================================ */
+.view-toggle {
+  border-color: rgba(255, 255, 255, 0.18) !important;
   border-radius: 8px !important;
-  padding: 0 20px !important;
-  height: 40px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.3px !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important;
-  transition: all 0.2s ease !important;
-  border: none;
+  flex-shrink: 1;
+  min-width: 0;
+  /* Si no caben, el grupo scrollea; el body nunca scrollea en horizontal. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.view-toggle::-webkit-scrollbar {
+  display: none;
+}
+
+:host ::ng-deep .view-toggle .mat-button-toggle {
+  border-left-color: rgba(255, 255, 255, 0.18) !important;
+  background-color: transparent !important;
+}
+
+:host ::ng-deep .view-toggle .mat-button-toggle-label-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  line-height: 38px;
+  color: var(--slate-300) !important;
+  white-space: nowrap;
+}
+
+:host ::ng-deep .view-toggle .mat-button-toggle:hover .mat-button-toggle-label-content {
+  color: #ffffff !important;
+}
+
+/* Lima = interacción. Relleno sólido con navy encima: sobre blanco no llega a
+   AA (1.8:1), pero como fondo con texto navy sí. */
+:host ::ng-deep .view-toggle .mat-button-toggle-checked {
+  background-color: var(--lime) !important;
+}
+
+:host ::ng-deep .view-toggle .mat-button-toggle-checked .mat-button-toggle-label-content,
+:host ::ng-deep .view-toggle .mat-button-toggle-checked .mat-button-toggle-label-content .mat-icon {
+  color: var(--navy) !important;
+  font-weight: 600;
+}
+
+:host ::ng-deep .view-toggle .mat-button-toggle-label-content .mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================================
+   BOTONES
+   ============================================================ */
+.btn-managerial {
+  background-color: var(--navy);
+  color: var(--lime);
+  border-radius: 8px;
+  padding: 0 18px;
+  height: 40px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.3px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  transition: background-color .2s ease, color .2s ease, transform .2s ease, box-shadow .2s ease;
+  border: 1px solid transparent;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .btn-managerial:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25) !important;
-  background-color: #8DD603 !important;
-  color: #192030 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25);
+  background-color: var(--lime);
+  color: var(--navy);
+}
+
+/* Anillo de foco navy sobre fondo claro (estado vacío). */
+.btn-managerial:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+/* Dentro del header navy el botón necesita separarse del fondo, y el anillo
+   navy sería invisible: ahí manda la lima. */
+.card-header-premium .btn-managerial {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.card-header-premium .btn-managerial:focus-visible {
+  outline-color: var(--lime);
+}
+
+.btn-managerial mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
 }
 
 .btn-managerial-icon {
   background-color: transparent !important;
   color: #ffffff !important;
+  flex: 0 0 auto;
 }
+
 .btn-managerial-icon:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-/* ───────── Embudo (8 etapas colapsadas en una columna) ───────── */
+/* Secundario neutro (estado vacío) */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: 1px solid var(--slate-300);
+  background: #fff;
+  color: var(--slate-700);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+
+.btn-ghost:hover {
+  border-color: var(--lime);
+  background: var(--slate-50);
+}
+
+.btn-ghost mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+/* Destructivo: neutro en reposo, rojo sólo al hover.
+   Sin `:host ::ng-deep`: el mat-menu se renderiza en un overlay del CDK que NO
+   cuelga del host, así que `[_nghost] ...` nunca casaría. El contenido del
+   <mat-menu> sí lleva el _ngcontent de esta plantilla, por lo que un selector
+   normal (encapsulado) sí llega. Se cualifica con .mat-mdc-menu-item para ganarle
+   a la regla de hover de Material. */
+.mat-mdc-menu-item.menu-item-danger:hover {
+  color: #b42318;
+  background: #fef3f2;
+}
+
+.mat-mdc-menu-item.menu-item-danger:hover mat-icon {
+  color: #b42318;
+}
+
+.menu-toggle {
+  padding: 8px 16px;
+}
+
+/* ============================================================
+   BARRA DE ACCIONES MASIVAS
+   ============================================================ */
+.bulk-actions-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 0 0 auto;
+  margin: 0 0 10px;
+  padding: 8px 14px;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+}
+
+.bulk-actions-bar .bulk-icon {
+  color: var(--slate-700);
+  flex: 0 0 auto;
+}
+
+.bulk-actions-bar .bulk-count {
+  font-weight: 700;
+  color: var(--navy);
+  min-width: 0;
+}
+
+.bulk-actions-bar .bulk-spacer {
+  flex: 1 1 auto;
+}
+
+.bulk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--slate-300);
+  background: #fff;
+  color: var(--slate-700);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+
+.bulk-btn:hover {
+  border-color: var(--lime);
+  background: var(--slate-50);
+}
+
+.bulk-btn mat-icon {
+  font-size: 18px;
+  height: 18px;
+  width: 18px;
+}
+
+/* Rojo sólo al hover: en reposo es un botón neutro más. */
+.bulk-btn-danger:hover {
+  border-color: #b42318;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+/* ============================================================
+   ESTADO VACÍO
+   ============================================================ */
+.empty-state {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 32px 24px;
+  text-align: center;
+  border: 1px dashed var(--slate-300);
+  border-radius: 12px;
+  background: var(--slate-50);
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: var(--slate-200);
+  color: var(--slate-500);
+}
+
+.empty-icon mat-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.empty-hint {
+  margin: 0 0 14px;
+  max-width: 46ch;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--slate-500);
+}
+
+/* ============================================================
+   CELDAS: EMBUDO
+   ============================================================ */
 .embudo-cell {
   display: grid;
   grid-template-columns: repeat(4, auto);
@@ -454,13 +441,29 @@ mat-card-subtitle,
   font-size: 10.5px;
   font-weight: 700;
   line-height: 1.5;
-  background: #eef2f7;
-  color: #334155;
+  background: var(--slate-100);
+  color: var(--slate-700);
   white-space: nowrap;
   cursor: default;
 }
 
-/* ───────── Chips de texto (observación / descripción) ───────── */
+/* Un 0 no es información: que no compita con los que sí lo son. */
+.embudo-chip.embudo-cero {
+  background: transparent;
+  color: var(--slate-400);
+  font-weight: 500;
+}
+
+/* Faltantes > 0 = la anomalía que se busca en esta pantalla. */
+.embudo-chip.embudo-falt {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  box-shadow: inset 0 0 0 1px var(--warn-border);
+}
+
+/* ============================================================
+   CELDAS: CHIPS DE TEXTO / SEMÁFORO
+   ============================================================ */
 .texto-chip {
   display: inline-flex;
   align-items: center;
@@ -469,8 +472,9 @@ mat-card-subtitle,
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  background: #e0f2fe;
-  color: #075985;
+  background: var(--slate-100);
+  color: var(--slate-700);
+  border: 1px solid var(--slate-200);
   cursor: help;
   white-space: nowrap;
 }
@@ -483,47 +487,66 @@ mat-card-subtitle,
 }
 
 .text-muted {
-  color: #94a3b8;
+  color: var(--slate-400);
 }
 
-/* ───────── Barra de acciones masivas (selección por checkbox) ───────── */
-.bulk-actions-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 4px 0 10px;
-  padding: 8px 14px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-}
-
-.bulk-actions-bar .bulk-icon {
-  color: #1d4ed8;
-}
-
-.bulk-actions-bar .bulk-count {
+.semaforo-pill {
+  padding: 2px 10px;
+  border-radius: 999px;
   font-weight: 700;
-  color: #1e3a8a;
+  font-size: 12px;
+  display: inline-block;
+  border: 1px solid transparent;
 }
 
-.bulk-actions-bar .bulk-spacer {
-  flex: 1 1 auto;
+.semaforo-ok {
+  color: var(--ok-fg);
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
 }
 
-.bulk-actions-bar button mat-icon {
-  margin-right: 4px;
-  font-size: 18px;
-  height: 18px;
-  width: 18px;
-  vertical-align: middle;
+.semaforo-warn {
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border-color: var(--warn-border);
 }
 
-/* ───────── Tabla de vacantes: letra más pequeña y filas compactas ─────────
-   Scoped con :host ::ng-deep para no afectar otras tablas que usan el mismo
-   componente compartido. Se usa !important porque las reglas propias de la
-   tabla (.sf-table td/th con su atributo de encapsulación) tienen mayor
-   especificidad y de lo contrario ganan. */
+.semaforo-error {
+  color: #b42318;
+  background: #fef3f2;
+  border-color: #fecdca;
+}
+
+/* Pill de cumplimiento clickeable (abre el detalle de candidatos asignados) */
+.cumpl-pill-btn {
+  font: inherit;
+  font-weight: 700;
+  font-size: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: filter .12s, transform .12s, box-shadow .12s;
+}
+
+.cumpl-pill-btn:hover {
+  filter: brightness(0.97);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+}
+
+.cumpl-pill-btn:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   DENSIDAD DE LA TABLA COMPARTIDA
+   Scoped con :host ::ng-deep para no mover las otras 21 páginas que usan el
+   mismo componente. Va con !important porque las reglas propias de la tabla
+   (con su atributo de encapsulación) tienen más especificidad.
+   ============================================================ */
 :host ::ng-deep .sf-table th,
 :host ::ng-deep .sf-table thead th {
   font-size: 0.64rem !important;
@@ -534,7 +557,6 @@ mat-card-subtitle,
   font-size: 0.68rem !important;
 }
 
-/* Contenido renderizado por la tabla (links, badges) también más pequeño */
 :host ::ng-deep .sf-table td .sf-custom-badge,
 :host ::ng-deep .sf-table td .sf-status-badge,
 :host ::ng-deep .sf-table td a {
@@ -547,24 +569,122 @@ mat-card-subtitle,
   padding: 4px 9px !important;
 }
 
-/* Pill de cumplimiento clickeable (abre el detalle de candidatos asignados) */
-.cumpl-pill-btn {
-  font: inherit;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: filter .12s, transform .12s, box-shadow .12s;
+/* La tabla compartida alinea a la derecha sólo la CABECERA de las columnas
+   `type:'number'` (no llega a consumir `align` de ColumnDefinition), así que el
+   importe quedaba a la izquierda bajo un encabezado a la derecha. Se corrige
+   aquí, scoped a esta página. tabular-nums para que las cifras cuadren al leer
+   la columna en vertical. */
+:host ::ng-deep .sf-table .mat-column-salario {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-.cumpl-pill-btn:hover {
-  filter: brightness(0.96);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+/* ============================================================
+   RESPONSIVE — breakpoints del proyecto: 1100 / 900 / 600
+   ============================================================ */
+@media (max-width: 1100px) {
+  .card-header-premium {
+    padding: 16px 20px !important;
+    gap: 12px;
+  }
+
+  .titulo {
+    font-size: 1.15rem !important;
+  }
+
+  .subtitulo {
+    display: none;
+  }
+
+  .header-icon-container {
+    width: 40px;
+    height: 40px;
+  }
+
+  .header-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
 }
 
-.cumpl-pill-btn:focus-visible {
-  outline: 2px solid #1565c0;
-  outline-offset: 2px;
+@media (max-width: 900px) {
+  /* Soltamos el alto: por debajo de 900 la página scrollea normal y la tabla
+     deja de competir por un alto que ya no sobra. */
+  :host {
+    height: auto;
+    overflow: visible;
+  }
+
+  .premium-card {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .card-content {
+    overflow: visible;
+  }
+
+  .card-content app-standard-filter-table {
+    flex: 0 0 auto;
+  }
+
+  .card-header-premium {
+    flex-wrap: wrap;
+    align-items: flex-start !important;
+  }
+
+  .header-actions {
+    /* Fila propia: en tablet el título y 4 toggles + 2 botones no conviven. */
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .view-toggle {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .card-header-premium {
+    padding: 14px 14px !important;
+    border-radius: 12px !important;
+  }
+
+  .card-content {
+    padding: 0 10px 12px !important;
+  }
+
+  .toggle-text,
+  .btn-managerial-text {
+    /* Icono solo: los toggles llevan matTooltip + aria-label. */
+    display: none;
+  }
+
+  :host ::ng-deep .view-toggle .mat-button-toggle-label-content {
+    padding: 0 10px;
+  }
+
+  .btn-managerial {
+    padding: 0 12px;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .empty-state {
+    padding: 24px 14px;
+  }
+
+  .bulk-actions-bar {
+    padding: 8px 10px;
+  }
+
+  /* En táctil no hay hover: las acciones de la pill deben verse siempre. */
+  .cumpl-pill-btn:hover {
+    transform: none;
+    box-shadow: none;
+  }
 }

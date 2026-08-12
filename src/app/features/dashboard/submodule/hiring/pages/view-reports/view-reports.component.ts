@@ -17,7 +17,7 @@ import { MatMenu } from '@angular/material/menu';
 
 import Swal from 'sweetalert2';
 import saveAs from 'file-saver';
-import { finalize, interval } from 'rxjs';
+import { finalize, firstValueFrom, interval } from 'rxjs';
 import { HttpEventType } from '@angular/common/http';
 
 import { SharedModule } from '@/app/shared/shared.module';
@@ -27,6 +27,7 @@ import {
   ViewerDocument,
 } from '../../components/ver-pdfs/ver-pdfs.component';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { DocViewerService } from '@/app/shared/services/doc-viewer/doc-viewer.service';
 import { HiringService } from '../../service/hiring.service';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ReportesService } from '../../service/reportes/reportes.service';
@@ -34,13 +35,26 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 
-type DateRangeAction =
-  | 'filterTables'
-  | 'exportContratacion'
-  | 'generateCentroCostoTable'
-  | 'exportFincas';
+import { compararOficinas, ordenarPorOficina } from './oficinas-orden';
+
+/** Una contratación finalizada desde el pipeline (reemplaza una fila del cruce). */
+interface ContratacionRow {
+  numero_documento: string;
+  tem: 'AL' | 'TA' | null;
+  fecha_ingreso: string | null;
+  arl_ok: boolean | null;
+  arl_fecha: string | null;
+  arl_detalle: string | null;
+  finalizado_por: string | null;
+  finalizado_at: string | null;
+}
+
+/** Etiqueta para filas sin oficina registrada. */
+const SIN_OFICINA = 'SIN OFICINA';
+
 
 interface ReporteRow {
+  id?: number;
   fecha: string;
   nombre: string;
   sede: string;
@@ -51,6 +65,16 @@ interface ReporteRow {
   traslados?: any[];
   cruce_document?: { file_url?: string } | null;
   sst_document?: { file_url?: string } | null;
+  /**
+   * Vacío en los reportes cargados a mano desde hiring-report (ahí el cruce es
+   * un archivo adjunto). Lleno en los que se armaron con "Finalizar
+   * contratación": para esos el cruce se GENERA desde BD.
+   */
+  contrataciones?: ContratacionRow[];
+  /** Contratos finalizados desde el pipeline del programa. */
+  desdePrograma?: number;
+  /** Contratos ingresados por cargue masivo (cruce diario Excel). */
+  desdeCargue?: number;
 }
 
 interface ConsolidadoRow {
@@ -64,6 +88,8 @@ interface ConsolidadoRow {
   traslados: number;
   sst: string;
   notas?: string;
+  desdePrograma?: number;
+  desdeCargue?: number;
 }
 
 interface FincaRow {
@@ -79,20 +105,15 @@ interface ErrorValidacionRow {
   registro: string;
   mensaje: string;
   responsable: string;
+  oficina: string;
 }
 
 const STATUS_REPORTADO = 'Reportado';
 const STATUS_SIN_CONTRATACION = 'Sin contratación';
 const STATUS_NO_REPORTO = 'No reportó';
 
-const STATUS_ORDER: Record<string, number> = {
-  [STATUS_NO_REPORTO]: 0,
-  [STATUS_SIN_CONTRATACION]: 1,
-  [STATUS_REPORTADO]: 2,
-};
-
+// ADMINISTRATIVOS sí se muestra, pero va de última (ver oficinas-orden.ts).
 const EXCLUDED_SEDES = new Set<string>([
-  'ADMINISTRATIVOS',
   'ANDES',
   'FORANEOS',
   'MONTE_VERDE',
@@ -112,6 +133,10 @@ export class ViewReportsComponent implements OnInit {
   reportes = signal<ReporteRow[]>([]);
   consolidado = signal<ConsolidadoRow[]>([]);
   fincas = signal<FincaRow[]>([]);
+
+  readonly excelReportes = computed(() =>
+    this.reportes().filter(r => !!r.cruce_document?.file_url),
+  );
   erroresValidacion = signal<ErrorValidacionRow[]>([]);
   erroresPorTipo = signal<Record<string, number>>({});
   activeFrom = signal<string>('');
@@ -186,6 +211,20 @@ export class ViewReportsComponent implements OnInit {
       width: '180px',
       align: 'right',
     },
+    {
+      name: 'desdePrograma',
+      header: 'Desde programa',
+      type: 'number',
+      width: '145px',
+      align: 'right',
+    },
+    {
+      name: 'desdeCargue',
+      header: 'Cargue masivo',
+      type: 'number',
+      width: '135px',
+      align: 'right',
+    },
     { name: 'nota', header: 'Nota', type: 'text', align: 'left' },
     {
       name: 'actions',
@@ -234,6 +273,20 @@ export class ViewReportsComponent implements OnInit {
       align: 'right',
     },
     {
+      name: 'desdePrograma',
+      header: 'Desde programa',
+      type: 'number',
+      width: '145px',
+      align: 'right',
+    },
+    {
+      name: 'desdeCargue',
+      header: 'Cargue masivo',
+      type: 'number',
+      width: '135px',
+      align: 'right',
+    },
+    {
       name: 'cedulas',
       header: 'Cédulas subidas',
       type: 'number',
@@ -256,6 +309,43 @@ export class ViewReportsComponent implements OnInit {
       align: 'center',
     },
     { name: 'notas', header: 'Notas', type: 'text', align: 'left' },
+    {
+      name: 'actions',
+      header: 'Documentos',
+      type: 'custom',
+      width: '110px',
+      align: 'center',
+      filterable: false,
+    },
+  ];
+
+  cruceColumns: ColumnDefinition[] = [
+    { name: 'fecha', header: 'Fecha', type: 'date', width: '140px', align: 'left' },
+    { name: 'nombre', header: 'Subido por', type: 'text', align: 'left' },
+    { name: 'sede', header: 'Sede', type: 'text', align: 'left' },
+    {
+      name: 'cantidadContratosTuAlianza',
+      header: 'Tu Alianza',
+      type: 'number',
+      width: '120px',
+      align: 'right',
+    },
+    {
+      name: 'cantidadContratosApoyoLaboral',
+      header: 'Apoyo Laboral',
+      type: 'number',
+      width: '130px',
+      align: 'right',
+    },
+    { name: 'nota', header: 'Nota', type: 'text', align: 'left' },
+    {
+      name: 'actions',
+      header: 'Cruce Excel',
+      type: 'custom',
+      width: '110px',
+      align: 'center',
+      filterable: false,
+    },
   ];
 
   fincasColumns: ColumnDefinition[] = [
@@ -290,6 +380,7 @@ export class ViewReportsComponent implements OnInit {
     private readonly reportesService: ReportesService,
     private readonly dialog: MatDialog,
     private readonly utilityService: UtilityServiceService,
+    private readonly docViewer: DocViewerService,
     private readonly cdr: ChangeDetectorRef,
     private readonly destroyRef: DestroyRef,
     @Inject(PLATFORM_ID) private readonly platformId: object,
@@ -317,7 +408,7 @@ export class ViewReportsComponent implements OnInit {
   }
 
   private todayIso(): string {
-    return new Date().toISOString().slice(0, 10);
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   }
 
   private setupAutoRefresh(): void {
@@ -355,6 +446,35 @@ export class ViewReportsComponent implements OnInit {
     );
   }
 
+  private docsParaSede(sede: string): { cedulas: any[]; traslados: any[]; cruces: any[]; ssts: any[] } {
+    const s = (sede ?? '').trim();
+    const matching = this.reportes().filter(r => (r.sede ?? '').trim() === s);
+    return {
+      cedulas: matching.flatMap(r => (r.cedulas ?? []).filter((d: any) => !!d?.file_url)),
+      traslados: matching.flatMap(r => (r.traslados ?? []).filter((d: any) => !!d?.file_url)),
+      cruces: matching.map(r => r.cruce_document).filter((d): d is { file_url: string } => !!d?.file_url),
+      ssts: matching.map(r => r.sst_document).filter((d): d is { file_url: string } => !!d?.file_url),
+    };
+  }
+
+  totalDocsParaSede(sede: string): number {
+    const { cedulas, traslados, cruces, ssts } = this.docsParaSede(sede);
+    return cedulas.length + traslados.length + cruces.length + ssts.length;
+  }
+
+  abrirDocumentosConsolidado(sede: string): void {
+    if (!this.isBrowser) return;
+    const { cedulas, traslados, cruces, ssts } = this.docsParaSede(sede);
+    const all = [
+      ...cedulas.map((d: any) => ({ ...d, title: d.title || 'Cédula' })),
+      ...traslados.map((d: any) => ({ ...d, title: d.title || 'Traslado' })),
+      ...cruces.map((d: any) => ({ ...(d as any), title: (d as any).title || 'Cruce diario' })),
+      ...ssts.map((d: any) => ({ ...(d as any), title: (d as any).title || 'SST' })),
+    ];
+    if (all.length === 0) return;
+    this.openDocsDialog(`Documentos — ${sede}`, all);
+  }
+
   private loadReportes(
     filters?: {
       nombre?: string;
@@ -376,10 +496,23 @@ export class ViewReportsComponent implements OnInit {
         }),
       )
       .subscribe({
-        next: ({ reportes, consolidado }) => {
-          this.reportes.set(reportes ?? []);
+        next: ({ reportes: rawReportes, consolidado }) => {
+          // Enriquecer cada reporte con el desglose por fuente
+          const enrichedReportes: ReporteRow[] = (rawReportes ?? []).map((r: any) => {
+            const desdePrograma = (r.contrataciones ?? []).length;
+            const total = (r.cantidadContratosTuAlianza ?? 0) + (r.cantidadContratosApoyoLaboral ?? 0);
+            return { ...r, desdePrograma, desdeCargue: Math.max(0, total - desdePrograma) };
+          });
+          this.reportes.set(enrichedReportes);
 
           if (this.isAdminReportUser) {
+            // Acumular contratos desde programa por sede
+            const programaPorSede = new Map<string, number>();
+            for (const r of enrichedReportes) {
+              const s = (r.sede ?? '').trim();
+              programaPorSede.set(s, (programaPorSede.get(s) ?? 0) + (r.desdePrograma ?? 0));
+            }
+
             const normalizado: ConsolidadoRow[] = (consolidado ?? [])
               .filter(
                 (item: any) =>
@@ -387,20 +520,22 @@ export class ViewReportsComponent implements OnInit {
                     String(item?.sede ?? '').trim().toUpperCase(),
                   ),
               )
-              .map((item: any) => ({
-                ...item,
-                sst: item.sst ? 'Sí' : 'No',
-                status: this.normalizeStatus(item.status),
-              }));
+              .map((item: any) => {
+                const sede = String(item?.sede ?? '').trim();
+                const desdePrograma = programaPorSede.get(sede) ?? 0;
+                const total = (item.cantidadContratosTuAlianza ?? 0) + (item.cantidadContratosApoyoLaboral ?? 0);
+                return {
+                  ...item,
+                  sst: item.sst ? 'Sí' : 'No',
+                  status: this.normalizeStatus(item.status),
+                  desdePrograma,
+                  desdeCargue: Math.max(0, total - desdePrograma),
+                };
+              });
 
-            normalizado.sort((a, b) => {
-              const pa = STATUS_ORDER[a.status] ?? 99;
-              const pb = STATUS_ORDER[b.status] ?? 99;
-              if (pa !== pb) return pa - pb;
-              return (a.sede || '').localeCompare(b.sede || '');
-            });
-
-            this.consolidado.set(normalizado);
+            // Orden fijo de oficinas (no por estado), para que la tabla se lea
+            // siempre igual y coincida con el Excel de bases unidas.
+            this.consolidado.set(ordenarPorOficina(normalizado, (r) => r.sede));
           } else {
             this.consolidado.set([]);
           }
@@ -446,8 +581,9 @@ export class ViewReportsComponent implements OnInit {
             registro: e.registro != null ? String(e.registro) : '',
             mensaje: e.mensaje || '',
             responsable: e.responsable || '',
+            oficina: e.oficina || SIN_OFICINA,
           }));
-          this.erroresValidacion.set(rows);
+          this.erroresValidacion.set(ordenarPorOficina(rows, (r) => r.oficina));
           this.erroresPorTipo.set(por_tipo ?? {});
           this.lastUpdate.set(new Date());
         },
@@ -480,7 +616,15 @@ export class ViewReportsComponent implements OnInit {
     });
   }
 
-  openDateRangeDialog(action: DateRangeAction): void {
+  /**
+   * Único punto donde se cambia el rango de fechas.
+   * Todo lo demás (tablas, ZIPs y exportaciones) consume `activeFrom()` /
+   * `activeTo()`, así lo que se descarga siempre es lo mismo que se ve filtrado.
+   *
+   * Antes cada opción del menú volvía a preguntar el rango, y era fácil exportar
+   * un periodo distinto del que estaba en pantalla.
+   */
+  openDateRangeDialog(): void {
     if (!this.isBrowser) return;
 
     const dialogRef = this.dialog.open(DateRangeDialogComponent, {
@@ -492,25 +636,25 @@ export class ViewReportsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result?: { start: string | null; end: string | null }) => {
         if (!result || (!result.start && !result.end)) return;
-
-        const from = result.start ?? '';
-        const to = result.end ?? '';
-
-        switch (action) {
-          case 'filterTables':
-            this.handleFilterTables(from, to);
-            break;
-          case 'exportContratacion':
-            this.handleExportContratacion(from, to);
-            break;
-          case 'generateCentroCostoTable':
-            this.handleGenerateCentroCosto(from, to);
-            break;
-          case 'exportFincas':
-            this.handleExportFincas(from, to);
-            break;
-        }
+        this.handleFilterTables(result.start ?? '', result.end ?? '');
       });
+  }
+
+  // ---- Exportaciones del menú: usan el rango ya activo, no vuelven a preguntar ----
+
+  exportContratacion(): void {
+    if (!this.isBrowser) return;
+    this.handleExportContratacion(this.activeFrom(), this.activeTo());
+  }
+
+  generateCentroCostoTable(): void {
+    if (!this.isBrowser) return;
+    this.handleGenerateCentroCosto(this.activeFrom(), this.activeTo());
+  }
+
+  exportFincas(): void {
+    if (!this.isBrowser) return;
+    this.handleExportFincas(this.activeFrom(), this.activeTo());
   }
 
   private handleFilterTables(from: string, to: string): void {
@@ -666,7 +810,7 @@ export class ViewReportsComponent implements OnInit {
   }
 
   private buildRangeLabel(from: string, to: string): string {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
     const fmt = (iso: string) => {
       const [y, m, d] = iso.split('-');
       return `${d}/${m}/${y}`;
@@ -732,10 +876,15 @@ export class ViewReportsComponent implements OnInit {
       const alianzaRows: any[][] = [];
       const apoyoRows: any[][] = [];
 
+      let noLeidos = 0;
+
       for (const url of urls) {
-        const resp = await fetch(url);
-        if (!resp.ok) continue;
-        const buf = await resp.arrayBuffer();
+        // Con `fetch(url)` a pelo esto salia sin Authorization y el gateway respondia 401
+        // a TODOS los cruces nuevos (los sirve la API, no el media legacy) -> el Excel
+        // combinado salia siempre vacio. docViewer pone el JWT cuando la URL es de la API.
+        const blob = await this.docViewer.fetchBlob(url);
+        if (!blob) { noLeidos++; continue; }
+        const buf = await blob.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
 
         for (const sheetName of wb.SheetNames) {
@@ -765,7 +914,10 @@ export class ViewReportsComponent implements OnInit {
         Swal.fire({
           icon: 'warning',
           title: 'Sin datos',
-          text: 'Los archivos de cruce están vacíos o no se pudieron leer.',
+          text:
+            noLeidos > 0
+              ? `No se pudo leer ninguno de los ${noLeidos} archivo(s) de cruce del rango.`
+              : 'Los archivos de cruce están vacíos o no se pudieron leer.',
         });
         return;
       }
@@ -799,9 +951,12 @@ export class ViewReportsComponent implements OnInit {
         icon: 'success',
         title: 'Descarga lista',
         html:
-          `Se combinaron <b>${urls.length}</b> archivo(s) de cruce.<br>` +
+          `Se combinaron <b>${urls.length - noLeidos}</b> de ${urls.length} archivo(s) de cruce.<br>` +
           `<b>Tu Alianza:</b> ${alianzaRows.length} filas<br>` +
-          `<b>Apoyo Laboral:</b> ${apoyoRows.length} filas`,
+          `<b>Apoyo Laboral:</b> ${apoyoRows.length} filas` +
+          (noLeidos > 0
+            ? `<br><span style="color:#b45309;">${noLeidos} archivo(s) no se pudieron descargar.</span>`
+            : ''),
       });
     } catch (err: any) {
       Swal.fire({
@@ -882,7 +1037,137 @@ export class ViewReportsComponent implements OnInit {
     return null;
   }
 
-  descargarDocumentosZip(tipo: 'cedulas' | 'traslados' | 'sst'): void {
+  /**
+   * ZIP del lado del navegador: descarga cada documento del tipo pedido desde su
+   * file_url (los historicos los sirve formulario.tsservicios.co, que el navegador
+   * SI alcanza; el servidor no) y los empaqueta con JSZip. Reemplaza el ZIP
+   * server-side (que no puede alcanzar el media legacy).
+   */
+  async descargarDocumentosZip(tipo: 'cedulas' | 'traslados' | 'sst'): Promise<void> {
+    if (!this.isBrowser) return;
+
+    const meta = {
+      cedulas: { label: 'cédulas', file: 'cedulas' },
+      traslados: { label: 'traslados', file: 'traslados' },
+      sst: { label: 'SST', file: 'sst' },
+    }[tipo];
+
+    const docs = this.collectDocsForZip(tipo);
+    if (docs.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: `Sin ${meta.label}`,
+        text: `No hay documentos de ${meta.label} en los reportes del rango activo (${this.activeRangeLabel()}).`,
+      });
+      return;
+    }
+
+    this.isExporting.set(true);
+    this.zipLabel.set(meta.label);
+    this.zipProgress.set(0);
+    this.zipLoadedMb.set(0);
+    this.zipTotalMb.set(null);
+
+    const reset = () => {
+      this.isExporting.set(false);
+      this.zipProgress.set(null);
+      this.zipLoadedMb.set(0);
+      this.zipTotalMb.set(null);
+      this.zipLabel.set('');
+    };
+
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      const usedNames = new Set<string>();
+      let ok = 0;
+      let fail = 0;
+      let bytes = 0;
+
+      for (let i = 0; i < docs.length; i++) {
+        const d = docs[i];
+        // Antes iba con `fetch(d.url)` a pelo: sin Authorization, y como hoy TODOS los
+        // documentos del pipeline los sirve la API (/api/v1/documents/{id}/download), el
+        // gateway respondia 401 y el ZIP salia vacio siempre. docViewer adjunta el JWT.
+        const blob = await this.docViewer.fetchBlob(d.url);
+        if (blob) {
+          zip.file(this.uniqueZipName(d.name, usedNames), blob);
+          ok++;
+          bytes += blob.size;
+          this.zipLoadedMb.set(Math.round((bytes / (1024 * 1024)) * 10) / 10);
+        } else {
+          fail++;
+        }
+        this.zipProgress.set(Math.floor(((i + 1) / docs.length) * 90));
+      }
+
+      if (ok === 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'No se pudo descargar',
+          text: `No se pudo obtener ningún archivo de ${meta.label}. Puede ser un problema de acceso al servidor de documentos.`,
+        });
+        return;
+      }
+
+      const out = await zip.generateAsync({ type: 'blob' }, (m) => {
+        this.zipProgress.set(90 + Math.floor((m.percent / 100) * 10));
+      });
+      const fileName = `${meta.file}_${this.activeFrom() || 'sin_desde'}_a_${this.activeTo() || 'sin_hasta'}.zip`;
+      saveAs(out, fileName);
+
+      Swal.fire({
+        icon: fail > 0 ? 'warning' : 'success',
+        title: 'Descarga lista',
+        html:
+          `Se empaquetaron <b>${ok}</b> archivo(s) de ${meta.label} para el rango ` +
+          `<b>${this.activeRangeLabel()}</b>.` +
+          (fail > 0 ? `<br><span style="color:#b45309;">${fail} archivo(s) no se pudieron descargar.</span>` : ''),
+      });
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al generar el ZIP',
+        text: err?.message ?? `Ocurrió un error al empaquetar los documentos de ${meta.label}.`,
+      });
+    } finally {
+      reset();
+    }
+  }
+
+  /** Junta {url, name} unicos de los documentos del tipo pedido en los reportes cargados. */
+  private collectDocsForZip(tipo: 'cedulas' | 'traslados' | 'sst'): { url: string; name: string }[] {
+    const items: { url: string; name: string }[] = [];
+    const push = (d: any) => {
+      if (d?.file_url) {
+        items.push({ url: d.file_url, name: d.original_filename || d.title || `documento_${d.id ?? ''}` });
+      }
+    };
+    for (const r of this.reportes()) {
+      if (tipo === 'cedulas') (r.cedulas ?? []).forEach(push);
+      else if (tipo === 'traslados') (r.traslados ?? []).forEach(push);
+      else if (tipo === 'sst') push(r.sst_document);
+    }
+    const seen = new Set<string>();
+    return items.filter((i) => (seen.has(i.url) ? false : (seen.add(i.url), true)));
+  }
+
+  /** Evita nombres duplicados dentro del ZIP. */
+  private uniqueZipName(name: string, used: Set<string>): string {
+    let base = (name || 'documento').replace(/[\\/:*?"<>|]/g, '_').trim() || 'documento';
+    if (!/\.[a-z0-9]{2,5}$/i.test(base)) base += '.pdf';
+    if (!used.has(base)) { used.add(base); return base; }
+    const dot = base.lastIndexOf('.');
+    const stem = dot > 0 ? base.slice(0, dot) : base;
+    const ext = dot > 0 ? base.slice(dot) : '';
+    let n = 2;
+    let candidate = `${stem}_${n}${ext}`;
+    while (used.has(candidate)) { n++; candidate = `${stem}_${n}${ext}`; }
+    used.add(candidate);
+    return candidate;
+  }
+
+  private descargarDocumentosZipServer(tipo: 'cedulas' | 'traslados' | 'sst'): void {
     if (!this.isBrowser) return;
 
     const config = {
@@ -1066,4 +1351,94 @@ export class ViewReportsComponent implements OnInit {
         },
       });
   }
+
+  /** Detalle de las contrataciones finalizadas desde el pipeline, con estado ARL. */
+  openContratacionesDialog(row: ReporteRow): void {
+    if (!this.isBrowser) return;
+
+    const filas = row.contrataciones ?? [];
+    const cuerpo = filas
+      .map((c) => {
+        const arl =
+          c.arl_ok === true
+            ? '<span style="color:#166534;">ARL OK</span>'
+            : c.arl_ok === false
+              ? `<span style="color:#991b1b;">ARL: ${c.arl_detalle || 'no cuadra'}</span>`
+              : '<span style="color:#92400e;">ARL sin validar</span>';
+        return (
+          `<tr>` +
+          `<td style="padding:4px 8px;">${c.numero_documento}</td>` +
+          `<td style="padding:4px 8px; text-align:center;">${c.tem ?? '—'}</td>` +
+          `<td style="padding:4px 8px;">${c.fecha_ingreso ?? '—'}</td>` +
+          `<td style="padding:4px 8px;">${arl}</td>` +
+          `<td style="padding:4px 8px;">${c.finalizado_por ?? '—'}</td>` +
+          `</tr>`
+        );
+      })
+      .join('');
+
+    Swal.fire({
+      title: `Contrataciones — ${row.sede || 'Sin oficina'}`,
+      width: 800,
+      html:
+        `<div style="max-height:60vh; overflow:auto;">` +
+        `<table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">` +
+        `<thead><tr style="background:#f1f5f9;">` +
+        `<th style="padding:6px 8px;">Cédula</th>` +
+        `<th style="padding:6px 8px;">TEM</th>` +
+        `<th style="padding:6px 8px;">F. Ingreso</th>` +
+        `<th style="padding:6px 8px;">ARL</th>` +
+        `<th style="padding:6px 8px;">Finalizó</th>` +
+        `</tr></thead><tbody>${cuerpo}</tbody></table></div>`,
+    });
+  }
+
+  /**
+   * Adjunta al reporte del día lo que NO produce el pipeline por candidato:
+   * la constancia GRUPAL de inducción SST y la nota de la jornada.
+   */
+  async abrirAdjuntos(row: ReporteRow): Promise<void> {
+    if (!this.isBrowser || !row?.id) return;
+
+    const { value } = await Swal.fire({
+      title: `Adjuntos — ${row.sede || 'Sin oficina'}`,
+      html:
+        `<p style="text-align:left; margin:0 0 10px 0; font-size:13px; color:#475569;">` +
+        `El SST individual de cada persona ya queda enlazado al finalizar su ` +
+        `contratación. Esto es la constancia <b>grupal</b> del día.</p>` +
+        `<input type="file" id="vr-sst" accept=".pdf" class="swal2-file">` +
+        `<textarea id="vr-nota" class="swal2-textarea" placeholder="Nota del día (opcional)">${row.nota ?? ''}</textarea>`,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      preConfirm: () => {
+        const input = document.getElementById('vr-sst') as HTMLInputElement | null;
+        const nota = (document.getElementById('vr-nota') as HTMLTextAreaElement | null)?.value ?? '';
+        return { file: input?.files?.[0] ?? null, nota };
+      },
+    });
+
+    if (!value) return;
+    if (!value.file && (value.nota ?? '') === (row.nota ?? '')) return;
+
+    try {
+      await firstValueFrom(
+        this.reportesService.adjuntarAlReporte(row.id, {
+          sst_document: value.file,
+          nota: value.nota,
+        }),
+      );
+      Swal.fire({ icon: 'success', title: 'Guardado', timer: 1600, showConfirmButton: false });
+      this.loadReportes({ fechaDesde: this.activeFrom(), fechaHasta: this.activeTo() });
+    } catch (err: any) {
+      console.error('[abrirAdjuntos] Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo guardar',
+        text: err?.message ?? 'Error al adjuntar al reporte.',
+      });
+    }
+  }
+
 }

@@ -1,142 +1,40 @@
-.tarjetas-container {
-  padding: 24px;
+/* ===== SHELL DE PÁGINA =====
+   El alto lo manda .dashboard-page-wrapper (styles.css): aquí NO se inventan
+   vh. La página llena ese hueco y ahoga su scroll, así el que scrollea es el
+   listado por dentro y la cabecera nunca se va de la pantalla.
+   El padding tampoco se repite: el wrapper ya trae 1.5rem 2rem. */
+:host {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 500;
-}
-
-.subtitle {
-  margin: 0;
-  color: #666;
-  font-size: 14px;
-}
-
-.upload-section {
-  border-radius: 8px;
-}
-
-.upload-controls {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.drop-zone {
-  flex: 1;
-  border: 2px dashed #ccc;
-  border-radius: 8px;
-  padding: 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  min-width: 200px;
-}
-
-.drop-zone:hover {
-  background-color: #f9f9f9;
-  border-color: #3f51b5;
-}
-
-.upload-icon {
-  font-size: 48px;
-  height: 48px;
-  width: 48px;
-  color: #ccc;
-  margin-bottom: 8px;
-}
-
-.selected-file-name {
-  font-weight: 500;
-  color: #3f51b5;
-}
-
-.mt-2 { margin-top: 16px; }
-.mt-3 { margin-top: 24px; }
-
-.import-summary {
-    background: #f5f5f5;
-    padding: 16px;
-    border-radius: 8px;
-}
-
-.error-table-container {
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid #ddd;
-    margin-top: 8px;
-}
-
-.error-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-}
-
-.error-table th, .error-table td {
-    padding: 8px;
-    border-bottom: 1px solid #eee;
-    text-align: left;
-}
-
-.error-table th {
-    background-color: #eee;
-    font-weight: 500;
-}
-
-.actions-cell {
-    display: flex;
-    gap: 4px;
-}
-
-
-/* === MANAGERIAL PREMIUM THEME === */
-.premium-card {
-  border-radius: 16px !important;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid #f1f5f9;
-  background-color: #ffffff;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
-  margin-bottom: 24px;
+  box-sizing: border-box;
 }
 
+.tarjetas-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+}
+
+/* ===== CABECERA ===== */
 .card-header-premium {
-  display: flex !important;
-  align-items: center !important;
-  padding: 24px 32px 20px 32px !important;
-  border-bottom: none !important;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
-  position: relative !important;
-  overflow: hidden !important;
-  border-radius: 16px !important;
-  margin-bottom: 20px !important;
-}
-
-.modal-header-premium {
-  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  padding: 24px 32px 20px 32px;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
   position: relative;
+  /* overflow:hidden recorta el círculo del ::before contra las esquinas */
   overflow: hidden;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  color: white;
-  border-radius: 16px 16px 0 0;
+  border-radius: 16px;
+  /* La cabecera no se encoge: el espacio lo cede el listado. */
+  flex-shrink: 0;
 }
 
-.card-header-premium::before, .modal-header-premium::before {
+.card-header-premium::before {
   content: '';
   position: absolute;
   top: -50%;
@@ -152,6 +50,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
   z-index: 1;
 }
 
@@ -176,6 +75,7 @@ h1 {
 .header-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .titulo {
@@ -199,9 +99,19 @@ h1 {
   flex: 1 1 auto;
 }
 
+/* z-index 1: solo para montar sobre el círculo del ::before. La escala de la
+   app es navbar 60 > submenú 50 > página; de 3 no se pasa. */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+}
+
+/* ===== BOTÓN PRIMARIO ===== */
 .btn-managerial {
-  background-color: #192030 !important;
-  color: #8DD603 !important;
+  background-color: var(--navy) !important;
+  color: var(--lime) !important;
   border-radius: 8px !important;
   padding: 0 20px !important;
   height: 40px !important;
@@ -215,19 +125,417 @@ h1 {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
-.btn-managerial:hover {
+.btn-managerial:hover:not([disabled]) {
   transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25) !important;
-  background-color: #8DD603 !important;
-  color: #192030 !important;
+  background-color: var(--lime) !important;
+  color: var(--navy) !important;
 }
 
-.btn-managerial-icon {
-  background-color: transparent !important;
-  color: #ffffff !important;
+/* Sin esto el botón deshabilitado seguía pareciendo pulsable. */
+.btn-managerial[disabled] {
+  background-color: var(--slate-200) !important;
+  color: var(--slate-400) !important;
+  box-shadow: none !important;
+  cursor: not-allowed;
+  transform: none;
 }
-.btn-managerial-icon:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
+
+/* ===== CARGA MASIVA ===== */
+.upload-panel {
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.upload-controls {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.drop-zone {
+  flex: 1;
+  /* Sin min-width:0 un nombre de archivo largo estira la caja y arrastra la
+     página a scroll horizontal. */
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1.5px dashed var(--slate-300);
+  border-radius: 10px;
+  background: var(--slate-50);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.drop-zone:hover,
+.drop-zone:focus-visible,
+.drop-zone.is-dragging {
+  border-color: var(--lime);
+  background: #ffffff;
+  outline: none;
+}
+
+.drop-zone.is-dragging {
+  border-style: solid;
+}
+
+.drop-zone.has-file {
+  border-style: solid;
+  border-color: var(--slate-300);
+  background: #ffffff;
+}
+
+.drop-icon {
+  flex-shrink: 0;
+  font-size: 26px;
+  width: 26px;
+  height: 26px;
+  color: var(--slate-400);
+}
+
+.drop-zone.has-file .drop-icon {
+  color: var(--slate-700);
+}
+
+.drop-text {
+  min-width: 0;
+}
+
+.drop-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--slate-900);
+  /* El nombre del archivo se recorta, no empuja el layout. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drop-hint {
+  margin: 2px 0 0 0;
+  font-size: 0.75rem;
+  color: var(--slate-500);
+}
+
+.btn-import {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.upload-progress {
+  margin-top: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  /* Tokens M3: el indicador viene azul por defecto y el azul no existe aquí. */
+  --mdc-linear-progress-active-indicator-color: var(--lime);
+  --mdc-linear-progress-track-color: var(--slate-200);
+}
+
+/* ===== RESUMEN DE IMPORTACIÓN ===== */
+.import-result {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--slate-200);
+}
+
+.result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.result-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 16px;
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+  background: var(--slate-50);
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+.stat--warn {
+  background: var(--warn-bg);
+  border-color: var(--warn-border);
+}
+
+.stat--warn .stat-value,
+.stat--warn .stat-label {
+  color: var(--warn-fg);
+}
+
+/* ===== ERRORES DE IMPORTACIÓN ===== */
+.error-block {
+  margin-top: 12px;
+}
+
+.error-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--warn-fg);
+}
+
+.error-title mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.error-table-container {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+}
+
+.error-table {
+  width: 100%;
+  min-width: 320px;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.error-table th,
+.error-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--slate-200);
+}
+
+.error-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.error-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--slate-100);
+  color: var(--slate-700);
+  font-weight: 600;
+}
+
+.error-table td {
+  color: var(--slate-700);
+  overflow-wrap: anywhere;
+}
+
+.error-row-num {
+  width: 64px;
+  font-variant-numeric: tabular-nums;
+  color: var(--slate-500);
+}
+
+/* ===== ACCIONES DE FILA ===== */
+/* Neutras en reposo; el color solo aparece al apuntar. Siempre visibles (no
+   dependen del :hover de la fila: en táctil no hay hover). */
+.actions-cell {
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+}
+
+.btn-row {
+  color: var(--slate-400);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-row:hover {
+  color: var(--navy);
+  background: var(--slate-100);
+}
+
+.btn-row-danger:hover {
+  color: var(--danger);
+  background: #fef3f2;
+}
+
+.btn-quiet {
+  flex-shrink: 0;
+  color: var(--slate-400);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-quiet:hover {
+  color: var(--slate-700);
+  background: var(--slate-100);
+}
+
+.btn-quiet-danger {
+  flex-shrink: 0;
+  color: var(--slate-400);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-quiet-danger:hover {
+  color: var(--danger);
+  background: #fef3f2;
+}
+
+/* ===== LISTADO =====
+   La tabla compartida ya scrollea por dentro (:host height:100%); lo único que
+   le faltaba era una caja con alto acotado. min-height:0 para que pueda encoger:
+   sin él el scroll se escapa a la página. */
+app-standard-filter-table {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 1100px) {
+  .card-header-premium {
+    padding: 20px 24px 18px 24px;
+  }
+}
+
+/* Por debajo de 900px se suelta el alto fijo: una tabla encajada en la rendija
+   que queda bajo la cabecera apilada no sirve; mejor que la página scrollee. */
+@media (max-width: 900px) {
+  :host {
+    height: auto;
+    overflow: visible;
+  }
+
+  .tarjetas-page {
+    flex: 0 0 auto;
+  }
+
+  app-standard-filter-table {
+    flex: 0 0 auto;
+  }
+
+  .card-header-premium {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .grow {
+    display: none;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-actions .btn-managerial {
+    width: 100%;
+  }
+
+  /* En vertical el botón deja de competir por el ancho con la zona de arrastre. */
+  .upload-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-import {
+    align-self: stretch;
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .card-header-premium {
+    padding: 18px 18px 16px 18px;
+    border-radius: 12px;
+  }
+
+  .header-icon-container {
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .header-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  .titulo {
+    font-size: 1.15rem !important;
+  }
+
+  .upload-panel {
+    padding: 12px;
+  }
+
+  /* En columna la zona de arrastre gana altura táctil y el texto se centra. */
+  .drop-zone {
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+    padding: 18px 12px;
+  }
+
+  .drop-icon {
+    font-size: 30px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .drop-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .stat {
+    flex: 1 1 auto;
+    padding: 8px 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-managerial,
+  .drop-zone,
+  .btn-row,
+  .btn-quiet,
+  .btn-quiet-danger {
+    transition: none !important;
+  }
+
+  .btn-managerial:hover:not([disabled]) {
+    transform: none;
+  }
 }

@@ -1,5 +1,5 @@
 .backgraound {
-  background: linear-gradient(290deg, #fff 50%, #8DD603 40%);
+  background: linear-gradient(290deg, #fff 50%, #8CD50A 40%);
   background-repeat: no-repeat;
   width: 100vw;
   height: 100vh;
@@ -131,4 +131,145 @@ button {
   margin-top: 48px;
   font-size: 14px;
   color: #ada5b4;
+}
+
+/* === SECCIÓN DESCARGAS === */
+.downloads-section {
+  width: 100%;
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid #f0f0f2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.downloads-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ada5b4;
+}
+
+.downloads-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.dl-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1.5px solid #e8e8ec;
+  background: #fafafa;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  text-align: left;
+  font-family: inherit;
+}
+
+.dl-btn:hover:not(:disabled) {
+  border-color: #8CD50A;
+  background: #f7fde8;
+  box-shadow: 0 2px 8px rgba(140, 213, 10, 0.15);
+}
+
+.dl-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.dl-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: #4b5563;
+}
+
+.dl-btn--desktop .dl-icon { color: #0078d4; }
+.dl-btn--mobile .dl-icon  { color: #3ddc84; }
+
+.dl-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dl-platform {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.2;
+}
+
+.dl-version {
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dl-soon {
+  color: #a0aec0;
+  font-style: italic;
+}
+
+/* === ENLACE "¿Olvidaste tu contraseña?" === */
+.link-btn {
+  background: none;
+  border: none;
+  color: #1157FB;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 2px;
+  text-decoration: underline;
+  font-family: inherit;
+  height: auto;
+  border-radius: 0;
+}
+
+.link-btn:hover:not(:disabled) {
+  color: #8CD50A;
+}
+
+.link-btn.secondary {
+  color: #ada5b4;
+  margin-top: 6px;
+}
+
+.link-btn.secondary:hover {
+  color: #374151;
+}
+
+/* === CABECERA DE VISTAS OTP === */
+.otp-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.otp-icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+/* === INPUT DEL CÓDIGO OTP === */
+.otp-input {
+  text-align: center;
+  font-size: 24px;
+  letter-spacing: 8px;
+  font-weight: 600;
+  font-family: monospace;
 }

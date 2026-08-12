@@ -352,7 +352,7 @@
                                   {{ row[col.name] }}
                                 </span>
                               }
-                              @default { {{ row[col.name] ?? '-' }} }
+                              @default { {{ formatCell(row[col.name], col) }} }
                               }
                             }
                           }
@@ -427,7 +427,7 @@
                                           {{ getStatusLabel(col.name, row[col.name]) }}
                                         </span>
                                       }
-                                      @default { {{ row[col.name] ?? '-' }} }
+                                      @default { {{ formatCell(row[col.name], col) }} }
                                       }
                                     }
                                   </div>

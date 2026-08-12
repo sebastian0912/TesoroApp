@@ -1,3 +1,4 @@
+<app-matder-mobile-nav></app-matder-mobile-nav>
 <header class="hero">
   <div class="hero-copy">
     <p class="eyebrow">Notificaciones</p>
@@ -29,7 +30,7 @@
 } @else {
   <div class="notif-list">
     @for (n of items(); track n.id) {
-      <div class="notif-card" [class.unread]="!n.read" (click)="markRead(n)">
+      <div class="notif-card" [class.unread]="!n.read" [class.clickable]="!!n.link" (click)="open(n)">
         <div class="notif-icon" [style.background]="typeColor(n.type) + '15'" [style.color]="typeColor(n.type)">
           <mat-icon>{{ typeIcon(n.type) }}</mat-icon>
         </div>
@@ -41,8 +42,11 @@
           <p class="notif-msg">{{ n.message }}</p>
           <div class="notif-meta">
             <mat-chip-set>
-              <mat-chip class="type-chip">{{ n.type }}</mat-chip>
+              <mat-chip class="type-chip">{{ typeLabel(n.type) }}</mat-chip>
             </mat-chip-set>
+            @if (n.link) {
+              <span class="notif-go"><mat-icon>arrow_forward</mat-icon> Ir a la tarea</span>
+            }
             @if (!n.read) {
               <span class="unread-dot"></span>
             }

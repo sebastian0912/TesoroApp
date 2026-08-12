@@ -1,8 +1,8 @@
-import { Component, computed, inject, Input, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, computed, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
@@ -16,20 +16,19 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 @Component({
   selector: 'app-gestion-usuarios',
-  standalone: true, // Explicitly standalone
+  standalone: true,
   imports: [
     MatCardModule,
     MatIconModule,
-    MatMenuModule,
     MatButtonModule,
+    MatTooltipModule,
     MatDialogModule,
     StandardFilterTable,
     MatProgressSpinnerModule,
-    // CommonModule implicit in standalone but explicitly good for directives
   ],
   templateUrl: './gestion-usuarios.component.html',
   styleUrl: './gestion-usuarios.component.css',
-  changeDetection: ChangeDetectionStrategy.OnPush // Optimization: OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GestionUsuariosComponent implements OnInit {
   // --- INYECCIÓN DE DEPENDENCIAS ---
@@ -38,11 +37,13 @@ export class GestionUsuariosComponent implements OnInit {
   private readonly dialog = inject(MatDialog);
 
   // --- ESTADO REACTIVO CON SIGNALS ---
-  // Typed signal for better safety
   private users = signal<UsuarioDetail[]>([]);
 
-  // Loading state for UI feedback (replaces tableVisible logic)
+  /** Hay una carga en curso (inicial o recarga tras crear/editar/eliminar). */
   public readonly loading = signal(true);
+
+  /** La última carga falló: distingue "sin usuarios" de "no se pudo cargar". */
+  public readonly loadError = signal(false);
 
   /** Signal computada que transforma los datos para la tabla */
   public readonly rows = computed(() => {
@@ -65,35 +66,35 @@ export class GestionUsuariosComponent implements OnInit {
     { name: 'apellidos', header: 'Apellidos', type: 'text' },
     { name: 'sede', header: 'Sede', type: 'text', width: '140px' },
     { name: 'rol', header: 'Rol', type: 'text', width: '150px' },
-    { name: 'actions', header: 'Acciones', type: 'custom', width: '142px', stickyEnd: true },
+    { name: 'actions', header: 'Acciones', type: 'custom', width: '142px', stickyEnd: true, sortable: false, filterable: false },
   ];
 
   ngOnInit(): void {
     this.reloadUsers(true); // Initial load
   }
 
-  /** 
+  /**
    * Carga/recarga usuarios.
-   * @param silent Si es true, usa loading local. Si es false (por ej. refresh manual), podría usar feedback más notorio.
+   * @param isInitial Carga de arranque: muestra el spinner de bloque completo.
+   *                  En las recargas la tabla permanece montada con su overlay.
    */
   async reloadUsers(isInitial = false): Promise<void> {
     this.loading.set(true);
 
-    // Optional: Show Swal only if likely to take long or purely manual refresh?
-    // For "Managerial Premium", local skeleton/spinner is better than invasive alerts for data fetching.
-    // We'll stick to local loading for UX optimization.
-
     try {
       const usersData = await firstValueFrom(this.utilityService.getAllUsers());
       this.users.set(usersData ?? []);
+      this.loadError.set(false);
     } catch (err) {
       console.error(err);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error de conexión',
-        text: 'No se pudieron cargar los usuarios. Verifique su conexión.',
-        confirmButtonColor: '#21263c'
-      });
+      this.loadError.set(true);
+      // En el arranque no hay nada que conservar; en una recarga se mantiene la
+      // lista anterior en pantalla en vez de vaciar la tabla por un fallo de red.
+      if (isInitial) this.users.set([]);
+      // Con datos en pantalla el estado de error no llega a verse: avisar con toast.
+      if (this.users().length > 0) {
+        this.showErrorToast('No se pudieron recargar los usuarios.');
+      }
     } finally {
       this.loading.set(false);
     }
@@ -140,19 +141,23 @@ export class GestionUsuariosComponent implements OnInit {
 
   /** Elimina un usuario con confirmación */
   async deleteUser(row: { id: string }): Promise<void> {
+    const user = this.users().find(u => u.id === row.id);
+    const nombre = user?.correo_electronico ?? 'este usuario';
+
     const result = await Swal.fire({
-      title: '¿Confirmar eliminación?',
-      text: "Esta acción no se puede deshacer.",
+      title: '¿Eliminar usuario?',
+      html: `Se eliminará <b>${nombre}</b>. Esta acción no se puede deshacer.`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#ef4444', // Tailwind red
+      confirmButtonColor: '#b42318',
       cancelButtonColor: '#64748b',
       confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar'
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      focusCancel: true
     });
 
     if (result.isConfirmed) {
-      // Optimistic UI could be applied here, but safety first: wait for API
       Swal.fire({
         title: 'Eliminando...',
         text: 'Por favor espere',

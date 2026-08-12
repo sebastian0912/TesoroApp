@@ -58,7 +58,7 @@
 
 .recientes-empty {
   text-align: center;
-  color: #64748b;
+  color: var(--slate-500);
   padding: 24px 0;
   margin: 0;
   font-size: 0.95rem;
@@ -67,7 +67,7 @@
 .recientes-table-wrapper {
   width: 100%;
   overflow-x: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--slate-200);
   border-radius: 10px;
   background: #ffffff;
 }
@@ -79,19 +79,19 @@
 }
 
 .recientes-table thead th {
-  background: #f1f5f9;
-  color: #334155;
+  background: var(--slate-100);
+  color: var(--slate-700);
   font-weight: 600;
   text-align: left;
   padding: 6px 10px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--slate-200);
   white-space: nowrap;
 }
 
 .recientes-table tbody td {
   /* Filas más bajas para ver más registros en pantalla. */
   padding: 4px 10px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--slate-100);
   vertical-align: middle;
 }
 
@@ -100,7 +100,7 @@
 }
 
 .recientes-table tbody tr:hover {
-  background: #f8fafc;
+  background: var(--slate-50);
 }
 
 .btn-atender {
@@ -113,6 +113,24 @@
   font-size: 18px;
   height: 18px;
   width: 18px;
+}
+
+/* Acción primaria del sistema (navy + texto lima; el hover invierte).
+   Sólo aporta color: la forma/tamaño la controla la clase de layout de cada
+   botón (.btn-consultar-inline, .btn-atender…), para no pelear con !important. */
+.btn-managerial {
+  background-color: var(--navy) !important;
+  color: var(--lime) !important;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
+}
+
+.btn-managerial:hover:not([disabled]) {
+  background-color: var(--lime) !important;
+  color: var(--navy) !important;
+}
+
+.btn-managerial[disabled] {
+  opacity: 0.5;
 }
 
 /* ─────── Búsqueda inline (slider que se expande junto al botón) ─────── */
@@ -145,8 +163,9 @@
 }
 
 .busqueda-cluster.abierto .btn-buscar {
-  background: #eff6ff;
-  border-color: #1e40af !important;
+  background: var(--slate-100);
+  border-color: var(--navy) !important;
+  color: var(--navy) !important;
 }
 
 /* Slider: arranca colapsado (max-width:0) y se expande al abrir */
@@ -201,10 +220,11 @@
   white-space: nowrap;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--slate-700);
 }
 
 .btn-consultar-inline,
+.btn-carnet-masivo-inline,
 .btn-reportar-inline {
   flex-shrink: 0;
   height: 48px;
@@ -215,6 +235,7 @@
 }
 
 .btn-consultar-inline mat-icon,
+.btn-carnet-masivo-inline mat-icon,
 .btn-reportar-inline mat-icon {
   margin-right: 4px;
   font-size: 18px;
@@ -246,6 +267,7 @@
   }
 
   .btn-consultar-inline,
+.btn-carnet-masivo-inline,
   .btn-reportar-inline {
     flex: 1 1 auto;
   }
@@ -259,9 +281,9 @@
 .observacion-inline {
   margin-top: 12px;
   padding: 16px 18px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  border-left: 4px solid #ea580c;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-left: 4px solid var(--warn-fg);
   border-radius: 12px;
   animation: fadeIn 0.25s ease;
 }
@@ -271,17 +293,17 @@
   align-items: center;
   gap: 8px;
   font-weight: 700;
-  color: #7c2d12;
+  color: var(--warn-fg);
   margin-bottom: 10px;
 }
 
 .observacion-inline-head mat-icon {
-  color: #c2410c;
+  color: var(--warn-fg);
 }
 
 .observacion-inline-close {
   margin-left: auto;
-  color: #9a3412;
+  color: var(--warn-fg);
 }
 
 .observacion-inline-field {
@@ -333,13 +355,15 @@
 }
 
 .badge-sin-iniciar {
-  background: #e5e7eb;
-  color: #4b5563;
+  background: var(--slate-100);
+  color: var(--slate-500);
 }
 
+/* Estado neutro "normal" (Atendido / antecedentes En cola): no es una alarma ni
+   un éxito, así que va en gris pizarra, nunca en azul ni verde. */
 .badge-atendido {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--slate-200);
+  color: var(--slate-700);
 }
 
 /* Celda de experiencia: badge Sí/No + área (en qué tiene experiencia). */
@@ -352,16 +376,17 @@
 
 .exp-area {
   font-size: 12px;
-  color: #334155;
+  color: var(--slate-700);
   font-weight: 600;
   max-width: 180px;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .exp-anios {
-  color: #64748b;
+  color: var(--slate-500);
   font-weight: 500;
 }
 
@@ -400,10 +425,11 @@
   color: #065f46;
 }
 
-/* Consultando ahora mismo. */
+/* Consultando ahora mismo: navy + lima para que "en vivo" resalte (lima sobre
+   navy = 9.89:1). No usar azul (fuera de paleta). */
 .chip-fuente-progreso {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--navy);
+  color: var(--lime);
 }
 
 /* En cola, aún no consultada. */
@@ -420,17 +446,29 @@
 
 /* La cédula no está registrada en la cola del robot. */
 .chip-fuente-na {
-  background: #f1f5f9;
-  color: #94a3b8;
-  border-color: #e2e8f0;
+  background: var(--slate-100);
+  color: var(--slate-400);
+  border-color: var(--slate-200);
 }
 
 /* Fila ya atendida hoy: aspecto tenue, va al final por orden del backend. */
 .fila-atendida {
   opacity: 0.65;
-  background: #f9fafb;
+  background: var(--slate-50);
 }
 
 .fila-atendida td {
   font-style: italic;
+}
+
+/* Botones de solo icono del cluster de búsqueda: mismo alto redondo que el
+   resto, sin el padding que reservaba el texto. */
+.btn-solo-icono {
+  min-width: 48px !important;
+  width: 48px !important;
+  padding: 0 !important;
+}
+
+.btn-solo-icono mat-icon {
+  margin: 0 !important;
 }

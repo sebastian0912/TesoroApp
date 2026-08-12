@@ -19,6 +19,12 @@ export interface ColumnDefinition {
   name: string;
   header: string;
   type: 'text' | 'number' | 'date' | 'select' | 'status' | 'custom';
+  /**
+   * Formato de presentación para columnas numéricas. Sin esto, `type:'number'`
+   * pinta el valor crudo (`1300000`, `12.5`) porque la tabla cae al @default.
+   * Es opcional: quien no lo declare sigue viendo exactamente lo de antes.
+   */
+  format?: 'currency' | 'percent' | 'decimal';
   options?: string[];
   statusConfig?: Record<string, { color: string; background: string }>;
   customClassConfig?: Record<string, { color: string; background: string }>;

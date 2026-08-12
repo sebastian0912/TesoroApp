@@ -511,6 +511,19 @@ function setupIpcHandlers() {
     });
   });
 
+  // Devuelve todas las entradas del caché con URL + timestamp.
+  // Usado por el diálogo de sincronización para mostrar el estado local.
+  ipcMain.handle('db:cache-get-all-entries', (event) => {
+    assertAllowedIpcSender(event);
+    return new Promise((resolve, reject) => {
+      if (!db) return reject('DB no inicializada');
+      db.all('SELECT url, updated_at FROM api_cache ORDER BY updated_at DESC', [], (err, rows) => {
+        if (err) return reject(err.message);
+        resolve(rows || []);
+      });
+    });
+  });
+
   // Invalida entradas del cache cuyo URL contiene el prefix dado. Se usa
   // tras reproducir con éxito un POST/PUT/PATCH/DELETE para que el GET
   // listador del recurso padre se refresque desde el server.

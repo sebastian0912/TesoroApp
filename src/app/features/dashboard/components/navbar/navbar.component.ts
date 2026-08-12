@@ -408,8 +408,23 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return `${base}/${node.ruta}`;
   }
 
+  /**
+   * Fallback de icono por ruta (espejo de la migración V20 de ms-auth-admin).
+   * Solo se aplica cuando la BD trae el placeholder 'widgets' o viene vacío, así
+   * un icono real editado desde Gestión de Módulos siempre gana. Cubre las
+   * variantes de ruta que aliasa nomina.routes.ts (typo 'emepresa' incluido).
+   */
+  private readonly ICON_BY_RUTA: Record<string, string> = {
+    '/dashboard/nomina/emepresa-usuaria': 'business',
+    '/dashboard/nomina/empresas-usuarias': 'business',
+    '/dashboard/nomina/entidades-externas': 'business',
+    '/dashboard/nomina/centros-costo': 'account_balance_wallet',
+  };
+
   private computeIcon(node: PermNode): string {
-    return node?.icono || '';
+    const icono = (node?.icono ?? '').trim();
+    if (icono && icono !== 'widgets') return icono;
+    return this.ICON_BY_RUTA[this.computeRoute(node)] || icono;
   }
 
   private computeCanRead(node: PermNode, decoratedChildren: PermNode[]): boolean {

@@ -1,7 +1,7 @@
 // src/app/shared/services/gestion-parametrizacion.service.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, map, switchMap } from 'rxjs';
+import { Observable, map, switchMap, shareReplay } from 'rxjs';
 import { environment } from '@/environments/environment';
 
 /** === Tipos del backend === */
@@ -201,22 +201,33 @@ export class GestionParametrizacionService {
    *  ===========================
    *  GET /meta/tablas/TIPO_CONTRATO/valores/?activo=true&referencia=XYZ
    */
+  /** Cache de catálogos (por código+filtros): son datos de referencia estáticos y
+   *  form-entrevista los re-pedía en cada apertura de pestaña. shareReplay evita
+   *  el re-fetch dentro de la sesión (servicio singleton providedIn root). */
+  private valoresCodigoCache = new Map<string, Observable<MetaValor[]>>();
+
   listMetaValoresByTablaCodigo(
     codigo: string,
     filters: Omit<MetaValorFilters, 'tablaCodigo'> = {}
   ): Observable<MetaValor[]> {
+    const key = `${codigo}|${filters.activo ?? ''}|${filters.referencia ?? ''}|${filters.page ?? ''}|${filters.page_size ?? ''}`;
+    const cached = this.valoresCodigoCache.get(key);
+    if (cached) return cached;
+
     const params = this.qp({
       referencia: filters.referencia,
       activo: filters.activo,
       page: filters.page,
       page_size: filters.page_size,
     });
-    return this.http
+    const obs = this.http
       .get<MetaValor[] | DRFPaginated<MetaValor>>(
         `${this.base}/meta/tablas/${encodeURIComponent(codigo)}/valores/`,
         { params }
       )
-      .pipe(this.unwrapMaybePaginated<MetaValor>());
+      .pipe(this.unwrapMaybePaginated<MetaValor>(), shareReplay({ bufferSize: 1, refCount: false }));
+    this.valoresCodigoCache.set(key, obs);
+    return obs;
   }
 
   /** ===========================
