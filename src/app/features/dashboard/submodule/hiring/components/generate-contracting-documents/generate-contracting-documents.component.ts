@@ -5339,9 +5339,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8).setFont('helvetica', 'bold');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    // Sin marcar: la plantilla v19 deja la autorización de casino en blanco
-    // para que el trabajador la diligencie. Venía con una "X" fija en SI, es
-    // decir, todo contrato salía autorizando el descuento sin que nadie eligiera.
+    // Siempre SI: el descuento de casino se informa en la inducción.
     doc.text('SI (  X  )', 145, y);
     doc.text('NO(     )', 160, y);
     doc.text('No Aplica (     )', 178, y);
@@ -5788,9 +5786,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8).setFont('helvetica', 'italic');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'bold');
-    // Sin marcar: la plantilla v19 deja la autorización de casino en blanco
-    // para que el trabajador la diligencie. Venía con una "X" fija en SI, es
-    // decir, todo contrato salía autorizando el descuento sin que nadie eligiera.
+    // Siempre SI: el descuento de casino se informa en la inducción.
     doc.text('SI (  X  )', 145, y);
     doc.text('NO (     )', 160, y);
     doc.text('No Aplica(     )', 178, y);
@@ -7074,13 +7070,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // (Ipanema no lleva notas bajo la tabla)
     doc.setFontSize(7).setFont('helvetica', 'normal');
 
-    // Autorización casino. La plantilla TA CO-RE-6 v19 la deja EN BLANCO:
-    // la marca el trabajador a mano. Antes se imprimía 'SI ( X )' ya marcado
-    // y una tercera opción 'No Aplica' que la plantilla no tiene.
+    // Autorización casino: sale marcada en SI, igual que el resto de las
+    // inducciones — el descuento se informa en la inducción. La plantilla
+    // TA CO-RE-6 v19 solo tiene SI/NO, sin la tercera opción 'No Aplica'.
     doc.setFontSize(8).setFont('helvetica', 'italic');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'bold');
-    doc.text('SI (   )', 140, y);
+    doc.text('SI ( X )', 140, y);
     doc.text('NO (   )', 155, y);
 
     // Forma de pago
