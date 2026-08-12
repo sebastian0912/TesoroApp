@@ -7,6 +7,7 @@ import {
   PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees,
   pushGraphicsState, popGraphicsState, moveTo, lineTo, closePath, clip, endPath,
 } from 'pdf-lib';
+import { dibujarImagenPlana, aplanarFormulario } from './pdf-aplanado.util';
 import Swal from 'sweetalert2';
 import { separarReferencias } from './referencias.util';
 import { MatDialog } from '@angular/material/dialog';
@@ -2332,61 +2333,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return false;
     }
 
-    // En modo 'contener' basta la API de pdf-lib. En 'cubrir' se dibuja a mano,
-    // porque setImage siempre encaja la imagen y deja ver el fondo del recuadro.
-    if (modo === 'contener') {
-      try {
-        (form.getButton(nombreUsado) as any).setImage(img);
-        return true;
-      } catch { /* fallback abajo */ }
-    }
-
-    try {
-      const widget = campo.acroField.getWidgets()[0];
-      const rect = widget.getRectangle();
-
-      // La página se ubica comparando la referencia /P del widget; antes esto
-      // estaba fijo en getPages()[3] y solo servía para la firma.
-      const refPagina = widget.P?.();
-      const paginas = pdfDoc.getPages();
-      const pagina = paginas.find((p: any) => refPagina && p.ref === refPagina) ?? paginas[0];
-
-      const dims = img.scale(1);
-      const escala = modo === 'cubrir'
-        ? Math.max(rect.width / dims.width, rect.height / dims.height)
-        : Math.min(rect.width / dims.width, rect.height / dims.height) * 0.95;
-      const w = dims.width * escala;
-      const h = dims.height * escala;
-      const x = rect.x + (rect.width - w) / 2;
-      const y = rect.y + (rect.height - h) / 2;
-
-      if (modo === 'cubrir') {
-        // Fondo blanco: tapa el texto impreso del recuadro antes de la foto.
-        pagina.drawRectangle({
-          x: rect.x, y: rect.y, width: rect.width, height: rect.height,
-          color: rgb(1, 1, 1),
-        });
-        // Recorta el sobrante para que la foto no invada el resto de la hoja.
-        pagina.pushOperators(
-          pushGraphicsState(),
-          moveTo(rect.x, rect.y),
-          lineTo(rect.x + rect.width, rect.y),
-          lineTo(rect.x + rect.width, rect.y + rect.height),
-          lineTo(rect.x, rect.y + rect.height),
-          closePath(),
-          clip(),
-          endPath(),
-        );
-        pagina.drawImage(img, { x, y, width: w, height: h });
-        pagina.pushOperators(popGraphicsState());
-      } else {
-        pagina.drawImage(img, { x, y, width: w, height: h });
-      }
-      return true;
-    } catch (e) {
-      console.error('[pdf] no se pudo inyectar la imagen en', nombreUsado, e);
-      return false;
-    }
+    // Siempre dibujada sobre la PÁGINA, nunca con `setImage`: como apariencia
+    // del widget la imagen desaparece al copiar estas páginas a otro PDF.
+    // El helper también quita el widget y respeta ambos modos.
+    return dibujarImagenPlana(pdfDoc, form, nombreUsado, img, modo);
   }
 
   // --- Hoja de Vida Minerva ---
@@ -2449,7 +2399,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
 
       // Bloquear campos
-      form.getFields().forEach(f => f.enableReadOnly());
+      aplanarFormulario(form);
 
       // Guardar y agregar marca de agua
       const pdfBytes = await pdfDoc.save();
@@ -3856,7 +3806,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         ...capturarRects('firma_administrativa'),
       ];
 
-      form.flatten(); // Evitar que siga siendo editable (ANTES de dibujar firmas)
+      aplanarFormulario(form); // Evitar que siga siendo editable (ANTES de dibujar firmas)
 
       if (rectsFirma.length && this.firma) {
         try {
@@ -11252,12 +11202,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       ) => {
         const img = await embedImageOrNull(pdfDoc, urlOrData);
         if (!img) return false;
-        try {
-          form.getButton(buttonName).setImage(img);
-          return true;
-        } catch {
-          return false;
-        }
+        // Se DIBUJA en la página en vez de `setImage`: así la imagen sobrevive
+        // al copiar estas páginas a otro PDF. Ver pdf-aplanado.util.ts.
+        return dibujarImagenPlana(pdfDoc, form, buttonName, img);
       };
 
       // =========================================================
@@ -11448,47 +11395,16 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // Firmas Biométricas y Administrativas
       this.setText(form, 'Persona que firma', this.safe(`${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim()), customFont);
 
-      // Inyección robusta: si `setImage` falla en el push button, dibujamos la
-      // imagen sobre la página manteniendo el aspect ratio (centrada en el rect).
-      // Pre-capturamos el rect ANTES de cualquier `flatten`/`enableReadOnly`.
+      // La imagen se dibuja sobre la PÁGINA, nunca con `setImage`: como
+      // apariencia del widget desaparece al copiar estas páginas a otro PDF
+      // (Nitro, Acrobat). El helper además quita el widget para que su fondo
+      // no tape lo dibujado. Ver pdf-aplanado.util.ts.
       const inyectarImagenSegura = async (campoBtn: string, urlOrData?: string) => {
         if (!urlOrData) return;
         try {
           const img = await embedImageOrNull(pdfDoc, urlOrData);
           if (!img) return;
-          let okSetImage = false;
-          try {
-            (form.getButton(campoBtn) as any).setImage(img);
-            okSetImage = true;
-          } catch { /* fallback abajo */ }
-          if (okSetImage) return;
-          // Fallback: dibujar manualmente.
-          const field: any = form.getField(campoBtn);
-          const widget = field?.acroField?.getWidgets?.()[0];
-          if (!widget) return;
-          const rect = widget.getRectangle();
-          const dims = img.scale(1);
-          const scale = Math.min(rect.width / dims.width, rect.height / dims.height) * 0.95;
-          const drawW = dims.width * scale;
-          const drawH = dims.height * scale;
-          const offX = (rect.width - drawW) / 2;
-          const offY = (rect.height - drawH) / 2;
-          // Detectar la página del widget: primero por /P y si no, buscando su
-          // ref en los Annots (guardan PDFRef → hay que resolver con lookup).
-          const pages = pdfDoc.getPages();
-          const ctxPdf: any = (pdfDoc as any).context;
-          const refPag = widget.P?.();
-          let pageIdx = pages.findIndex((pg: any) =>
-            (refPag && pg.ref === refPag) ||
-            ((pg as any).node?.Annots?.()?.asArray?.() ?? [])
-              .some((a: any) => a === widget.dict || ctxPdf?.lookup?.(a) === widget.dict));
-          if (pageIdx < 0) pageIdx = 0;
-          pages[pageIdx].drawImage(img, {
-            x: rect.x + offX,
-            y: rect.y + offY,
-            width: drawW,
-            height: drawH,
-          });
+          dibujarImagenPlana(pdfDoc, form, campoBtn, img);
         } catch (e) {
           console.error(`No se pudo inyectar imagen en ${campoBtn}:`, e);
         }
@@ -11510,8 +11426,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // Se dibuja sobre la pagina escalando al MAYOR factor (cubrir), con
       // recorte al rectangulo para que no invada la hoja, y se quita la
       // anotacion del widget para que no vuelva a pintar su fondo encima.
-      // El formulario no se aplana (solo enableReadOnly), asi que sin quitarla
-      // el widget gana.
       if (fotoUrl) {
         // La foto se re-codifica a JPEG con `fotoAlDerecho` (EXIF + giro manual):
         // pdf-lib solo embebe PNG/JPEG y la foto a veces llega en otro formato
@@ -11577,7 +11491,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
 
       // Bloquear campos
-      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+      aplanarFormulario(form);
 
       // Guardar PDF
       const pdfBytes = await pdfDoc.save();
@@ -11828,12 +11742,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       ) => {
         const img = await embedImageOrNull(pdfDoc, urlOrData, opts);
         if (!img) return false;
-        try {
-          form.getButton(buttonName).setImage(img);
-          return true;
-        } catch {
-          return false;
-        }
+        // Se DIBUJA en la página en vez de `setImage`: así la imagen sobrevive
+        // al copiar estas páginas a otro PDF. Ver pdf-aplanado.util.ts.
+        return dibujarImagenPlana(pdfDoc, form, buttonName, img);
       };
 
       // =========================================================
@@ -12243,7 +12154,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       );
 
       // Bloquear campos
-      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+      aplanarFormulario(form);
 
       // Guardar PDF
       const pdfBytes = await pdfDoc.save();
@@ -12383,12 +12294,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       ) => {
         const img = await embedImageOrNull(pdfDoc, urlOrData);
         if (!img) return false;
-        try {
-          form.getButton(buttonName).setImage(img);
-          return true;
-        } catch {
-          return false;
-        }
+        // Se DIBUJA en la página en vez de `setImage`: así la imagen sobrevive
+        // al copiar estas páginas a otro PDF. Ver pdf-aplanado.util.ts.
+        return dibujarImagenPlana(pdfDoc, form, buttonName, img);
       };
 
       // =========================================================
@@ -12845,7 +12753,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       );
 
       // Bloquear campos
-      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+      aplanarFormulario(form);
 
       // Guardar PDF
       const pdfBytes = await pdfDoc.save();
@@ -12920,8 +12828,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       ) => {
         const img = await embedImageOrNull(pdfDoc, urlOrData);
         if (!img) return false;
-        try { form.getButton(buttonName).setImage(img); return true; }
-        catch { return false; }
+        // Se DIBUJA en la página en vez de `setImage`: así la imagen sobrevive
+        // al copiar estas páginas a otro PDF. Ver pdf-aplanado.util.ts.
+        return dibujarImagenPlana(pdfDoc, form, buttonName, img);
       };
       // ── Fin helpers ──
 
@@ -12956,7 +12865,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       await setButtonImageSafe(pdfDoc, form, 'firma_trabajador_af_image', this.firmaPersonalAdministrativo);
 
       // 4) Bloquear campos y guardar
-      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+      aplanarFormulario(form);
 
       const pdfBytes = await pdfDoc.save();
       const ab = this.toSafeArrayBuffer(pdfBytes);
@@ -13027,8 +12936,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       ) => {
         const img = await embedImageOrNull(pdfDoc, urlOrData);
         if (!img) return false;
-        try { form.getButton(buttonName).setImage(img); return true; }
-        catch { return false; }
+        // Se DIBUJA en la página en vez de `setImage`: así la imagen sobrevive
+        // al copiar estas páginas a otro PDF. Ver pdf-aplanado.util.ts.
+        return dibujarImagenPlana(pdfDoc, form, buttonName, img);
       };
       // ── Fin helpers ──
 
@@ -13069,7 +12979,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       await setButtonImageSafe(pdfDoc, form, 'firma_trabajador_af_image', this.firmaPersonalAdministrativo);
 
       // 4) Bloquear campos y guardar
-      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+      aplanarFormulario(form);
 
       const pdfBytes = await pdfDoc.save();
       const ab = this.toSafeArrayBuffer(pdfBytes);
@@ -13183,8 +13093,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       ) => {
         const img = await embedImageOrNull(pdfDoc, urlOrData);
         if (!img) return false;
-        try { form.getButton(buttonName).setImage(img); return true; }
-        catch { return false; }
+        // Se DIBUJA en la página en vez de `setImage`: así la imagen sobrevive
+        // al copiar estas páginas a otro PDF. Ver pdf-aplanado.util.ts.
+        return dibujarImagenPlana(pdfDoc, form, buttonName, img);
       };
       // ── Fin helpers ──
 
@@ -13383,7 +13294,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       await setButtonImageSafe(pdfDoc, form, 'Firma de RRHH_af_image', this.firmaPersonalAdministrativo);
 
       // ── Bloquear campos y guardar ──
-      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+      aplanarFormulario(form);
 
       const pdfBytes = await pdfDoc.save();
       const ab = this.toSafeArrayBuffer(pdfBytes);
