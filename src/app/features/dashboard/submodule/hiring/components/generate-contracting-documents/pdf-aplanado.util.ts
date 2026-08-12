@@ -12,16 +12,21 @@
  * propio `copyPages` de pdf-lib) el AcroForm se queda atrás, los widgets
  * quedan huérfanos y **la foto, la huella y la firma desaparecen**.
  *
- * Medido sobre `Ficha tecnica.pdf`: con `setImage` el documento pegado en otro
- * PDF queda con 0 imágenes y 0 campos; dibujando en la página quedan las 6
- * imágenes intactas antes y después de copiar.
+ * EL ORDEN IMPORTA
+ * ----------------
+ * No basta con dibujar la imagen sobre la página: `form.flatten()` recorre los
+ * campos del AcroForm — NO las anotaciones de la página — y por cada widget
+ * hace `page.pushOperators(...)` con su apariencia, que se añade AL FINAL del
+ * content stream. Como la apariencia de un botón de imagen es su fondo, el
+ * aplanado **pinta encima de la imagen** y la tapa.
  *
- * `form.flatten()` NO resuelve esto por sí solo: pdf-lib aplana los botones de
- * imagen con apariencia vacía y la imagen se pierde igual. Por eso el orden
- * correcto es:
- *   1. llenar los campos de texto,
- *   2. `dibujarImagenPlana(...)` por cada imagen (dibuja y quita el widget),
- *   3. `aplanarFormulario(form)` para el texto restante.
+ * Por eso `dibujarImagenPlana()` no dibuja en el acto: mide el recuadro (hay
+ * que hacerlo antes, porque `flatten()` borra los campos) y **aplaza** el
+ * dibujo. `aplanarFormulario()` aplana primero y ejecuta los dibujos después,
+ * que es el mismo orden que ya usaba a mano la Ficha Social.
+ *
+ * Consecuencia práctica: si un generador llama a `dibujarImagenPlana()` DEBE
+ * llamar después a `aplanarFormulario()`, o las imágenes no se dibujan.
  */
 
 import {
@@ -36,15 +41,24 @@ import {
  */
 export type ModoImagen = 'contener' | 'cubrir';
 
+/** Dibujo aplazado hasta después del `flatten()`. */
+interface DibujoPendiente {
+  dibujar: () => void;
+  /** Saca el widget de la página. Solo hace falta si el flatten falla. */
+  quitarWidget: () => void;
+}
+
+const pendientes = new WeakMap<PDFForm, DibujoPendiente[]>();
+
 /**
- * Dibuja `img` en el rectángulo del campo `campo` como contenido de la página
- * y quita el widget del formulario.
+ * Programa el dibujo de `img` dentro del recuadro del campo `campo`, como
+ * contenido de la página. El dibujo se ejecuta en `aplanarFormulario()`.
  *
  * Recorre TODOS los widgets del campo: en Ficha Social las dos cajas de firma
  * son dos widgets del mismo `firma_af_image`, y con solo el primero una de las
  * dos salía vacía.
  *
- * @returns true si dibujó al menos una vez.
+ * @returns true si encontró al menos un recuadro donde dibujar.
  */
 export function dibujarImagenPlana(
   pdfDoc: PDFDocument,
@@ -65,18 +79,25 @@ export function dibujarImagenPlana(
 
   const ctx: any = (pdfDoc as any).context;
   const paginas = pdfDoc.getPages();
-  let dibujadas = 0;
+  const cola = pendientes.get(form) ?? [];
+  let encolados = 0;
 
   for (const widget of widgets) {
     try {
       const rect = widget.getRectangle();
-      if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+      // `NaN <= 0` es false, así que un rect corrupto pasaría el filtro y
+      // reventaría después en los operadores de recorte.
+      if (!rect ||
+          ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) ||
+          rect.width <= 0 || rect.height <= 0) {
+        continue;
+      }
 
       // Página del widget: primero por su /P, si no buscando su referencia en
       // los /Annots. OJO: Annots guarda PDFRef, hay que resolver con lookup —
       // comparar contra el dict directamente nunca encuentra nada.
       const refPagina = widget.P?.();
-      let pagina =
+      const pagina =
         paginas.find((pg: any) => refPagina && pg.ref === refPagina) ??
         paginas.find((pg: any) => {
           const arr: any[] = (pg as any).node?.Annots?.()?.asArray?.() ?? [];
@@ -93,63 +114,80 @@ export function dibujarImagenPlana(
       const x = rect.x + (rect.width - w) / 2;
       const y = rect.y + (rect.height - h) / 2;
 
-      if (modo === 'cubrir') {
-        // Fondo blanco: tapa el texto impreso del recuadro antes de la foto.
-        pagina.drawRectangle({
-          x: rect.x, y: rect.y, width: rect.width, height: rect.height, color: rgb(1, 1, 1),
-        });
-        pagina.pushOperators(
-          pushGraphicsState(),
-          moveTo(rect.x, rect.y),
-          lineTo(rect.x + rect.width, rect.y),
-          lineTo(rect.x + rect.width, rect.y + rect.height),
-          lineTo(rect.x, rect.y + rect.height),
-          closePath(),
-          clip(),
-          endPath(),
-        );
-        pagina.drawImage(img, { x, y, width: w, height: h });
-        pagina.pushOperators(popGraphicsState());
-      } else {
-        pagina.drawImage(img, { x, y, width: w, height: h });
-      }
-
-      // Fuera el widget: su fondo (/MK /BG) taparía lo recién dibujado.
-      try {
-        const annots = (pagina as any).node?.Annots?.();
-        const arr: any[] = annots?.asArray?.() ?? [];
-        const i = arr.findIndex((a: any) => a === widget.dict || ctx?.lookup?.(a) === widget.dict);
-        if (i >= 0) annots.remove(i);
-      } catch { /* si no se puede quitar, al menos la imagen ya está */ }
-
-      dibujadas++;
+      cola.push({
+        dibujar: () => {
+          if (modo === 'cubrir') {
+            // Fondo blanco: tapa el texto impreso del recuadro antes de la foto.
+            pagina.drawRectangle({
+              x: rect.x, y: rect.y, width: rect.width, height: rect.height, color: rgb(1, 1, 1),
+            });
+            pagina.pushOperators(
+              pushGraphicsState(),
+              moveTo(rect.x, rect.y),
+              lineTo(rect.x + rect.width, rect.y),
+              lineTo(rect.x + rect.width, rect.y + rect.height),
+              lineTo(rect.x, rect.y + rect.height),
+              closePath(),
+              clip(),
+              endPath(),
+            );
+            pagina.drawImage(img, { x, y, width: w, height: h });
+            pagina.pushOperators(popGraphicsState());
+          } else {
+            pagina.drawImage(img, { x, y, width: w, height: h });
+          }
+        },
+        quitarWidget: () => {
+          const annots = (pagina as any).node?.Annots?.();
+          const arr: any[] = annots?.asArray?.() ?? [];
+          const i = arr.findIndex((a: any) => a === widget.dict || ctx?.lookup?.(a) === widget.dict);
+          if (i >= 0) annots.remove(i);
+        },
+      });
+      encolados++;
     } catch (e) {
-      console.error(`[pdf-aplanado] no se pudo dibujar la imagen de "${campo}":`, e);
+      console.error(`[pdf-aplanado] no se pudo preparar la imagen de "${campo}":`, e);
     }
   }
 
-  // NO se llama a `form.removeField()`: en los formularios XFA (minerva.pdf)
-  // revienta con "Unexpected N type: undefined" y deja el documento
-  // inconsistente — el save posterior falla y el PDF sale corrupto. Basta con
-  // haber quitado el widget: el campo queda sin apariencia y `flatten()` lo
-  // ignora.
-  return dibujadas > 0;
+  pendientes.set(form, cola);
+  return encolados > 0;
 }
 
 /**
- * Aplana el formulario para que el texto quede como contenido de la página.
+ * Aplana el formulario y dibuja las imágenes que quedaron pendientes.
  *
- * Si `flatten()` falla (plantilla con campos sin apariencia), cae a dejar los
- * campos en solo lectura: se pierde el aplanado, pero NO el documento — que es
- * el comportamiento que había antes de este cambio.
+ * El orden es deliberado: primero `flatten()` (que además saca de las páginas
+ * los widgets ya aplanados) y después las imágenes, para que nada las tape.
+ *
+ * Si `flatten()` falla (plantilla con campos sin apariencia), se deja el
+ * formulario en solo lectura y se quitan a mano los widgets de las imágenes:
+ * siguen siendo anotaciones, y una anotación se pinta SIEMPRE por encima del
+ * contenido de la página. Se pierde el aplanado, pero no el documento ni las
+ * imágenes — que es el comportamiento que había antes de este cambio.
  */
 export function aplanarFormulario(form: PDFForm): void {
+  let aplanado = true;
   try {
     form.flatten();
   } catch (e) {
+    aplanado = false;
     console.warn('[pdf-aplanado] flatten() falló, se deja el formulario en solo lectura:', e);
     try {
       form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { /* noop */ } });
     } catch { /* noop */ }
+  }
+
+  const cola = pendientes.get(form);
+  if (!cola) return;
+  pendientes.delete(form);
+
+  for (const p of cola) {
+    if (!aplanado) {
+      try { p.quitarWidget(); } catch { /* si no se puede, la imagen igual se dibuja */ }
+    }
+    try { p.dibujar(); } catch (e) {
+      console.error('[pdf-aplanado] no se pudo dibujar una imagen pendiente:', e);
+    }
   }
 }

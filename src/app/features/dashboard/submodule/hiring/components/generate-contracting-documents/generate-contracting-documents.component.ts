@@ -11419,71 +11419,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // un segundo fetch de la foto y si falla (CORS, red) cae en silencio a
       // la imagen sin recortar, que es justo como se veia.
       //
-      // Se dibuja sobre la pagina escalando al MAYOR factor (cubrir), con
-      // recorte al rectangulo para que no invada la hoja, y se quita la
-      // anotacion del widget para que no vuelva a pintar su fondo encima.
+      // Se dibuja sobre la pagina escalando al MAYOR factor (modo 'cubrir'),
+      // con recorte al rectangulo para que no invada la hoja. El dibujo lo
+      // aplaza el helper hasta despues del `flatten()`, o el aplanado pintaria
+      // el fondo del widget encima. Ver pdf-aplanado.util.ts.
       if (fotoUrl) {
         // La foto se re-codifica a JPEG con `fotoAlDerecho` (EXIF + giro manual):
         // pdf-lib solo embebe PNG/JPEG y la foto a veces llega en otro formato
         // (webp, etc.) — el preview en pantalla se veía bien pero la ficha salía
         // SIN foto y sin error. Si la re-codificación falla, se intenta la cruda.
         const fotoParaPdf = (await this.fotoAlDerechoDataUrl(fotoUrl)) ?? fotoUrl;
-        let dibujada = false;
-        try {
-          const img = await embedImageOrNull(pdfDoc, fotoParaPdf);
-          if (!img) console.warn('[ficha] no se pudo decodificar la foto del candidato:', fotoUrl);
-          const field: any = form.getField('Image17_af_image');
-          const widget = field?.acroField?.getWidgets?.()[0];
-          const rect = widget?.getRectangle?.();
-
-          if (img && widget && rect?.width > 0 && rect?.height > 0) {
-            const refPagina = widget.P?.();
-            const paginas = pdfDoc.getPages();
-            const pagina =
-              paginas.find((pg: any) => refPagina && pg.ref === refPagina) ?? paginas[0];
-
-            const dims = img.scale(1);
-            const escala = Math.max(rect.width / dims.width, rect.height / dims.height);
-            const w = dims.width * escala;
-            const h = dims.height * escala;
-
-            pagina.pushOperators(
-              pushGraphicsState(),
-              moveTo(rect.x, rect.y),
-              lineTo(rect.x + rect.width, rect.y),
-              lineTo(rect.x + rect.width, rect.y + rect.height),
-              lineTo(rect.x, rect.y + rect.height),
-              closePath(),
-              clip(),
-              endPath(),
-            );
-            pagina.drawImage(img, {
-              x: rect.x + (rect.width - w) / 2,   // centrado: el recorte se
-              y: rect.y + (rect.height - h) / 2,  // reparte a ambos lados
-              width: w,
-              height: h,
-            });
-            pagina.pushOperators(popGraphicsState());
-
-            // Fuera el widget, o su fondo blanco tapa lo recien dibujado.
-            // OJO: Annots guarda PDFRef (referencias), NO dicts — hay que
-            // resolver cada entrada con context.lookup. Con indexOf(widget.dict)
-            // nunca lo encontraba y el fondo blanco dejaba la ficha SIN foto.
-            try {
-              const annots = (pagina as any).node?.Annots?.();
-              const arr: any[] = annots?.asArray?.() ?? [];
-              const ctxPdf: any = (pdfDoc as any).context;
-              const i = arr.findIndex((a: any) => a === widget.dict || ctxPdf?.lookup?.(a) === widget.dict);
-              if (i >= 0) annots.remove(i);
-            } catch { /* si no se puede quitar, al menos la foto ya esta */ }
-
-            dibujada = true;
-          }
-        } catch (e) {
-          console.warn('[ficha] no se pudo dibujar la foto a sangre:', e);
+        const imgFoto = await embedImageOrNull(pdfDoc, fotoParaPdf);
+        if (imgFoto) {
+          dibujarImagenPlana(pdfDoc, form, 'Image17_af_image', imgFoto, 'cubrir');
+        } else {
+          console.warn('[ficha] no se pudo decodificar la foto del candidato:', fotoUrl);
         }
-        // Ultimo recurso: el camino de siempre, aunque deje aire.
-        if (!dibujada) await inyectarImagenSegura('Image17_af_image', fotoParaPdf);
       }
 
       // Bloquear campos
