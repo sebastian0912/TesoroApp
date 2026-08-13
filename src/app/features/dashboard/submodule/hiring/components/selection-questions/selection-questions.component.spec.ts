@@ -9,9 +9,10 @@
  *     encontraba nada y aun así decía "Todos los documentos se subieron
  *     correctamente".
  *  2. Los valores guardados no coincidían LETRA POR LETRA con el catálogo, y el
- *     `mat-select` los mostraba vacíos ('PROTECCIÓN ' con tilde, 'Sin Buscar'
+ *     `mat-select` los mostraba vacíos ('PROTECCIÓN ' con tilde, 'sin buscar'
  *     en minúsculas). Datos correctos en la base, campo en blanco en pantalla.
- *  3. El campo Barrio estaba duplicado acá y en la pestaña de Entrevista.
+ *  3. El campo Barrio se guarda por su propio endpoint y SOLO si cambió, para
+ *     no crear filas de residencia vacías.
  */
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
@@ -102,11 +103,12 @@ describe('SelectionQuestionsComponent', () => {
       expect(comp.antecedentes.get('sisben')!.value).toBe('CUMPLE');
     });
 
-    it('respeta la escritura mixta del catálogo (no lo pasa todo a MAYÚSCULAS)', () => {
-      // 'Sin Buscar' existe así en el catálogo; convertirlo a 'SIN BUSCAR'
-      // hacía que el mat-select no encontrara la opción.
+    it('un valor con otra caja se alinea con la opción exacta del catálogo', () => {
+      // El backend normaliza algunos valores a caja mixta ('Sin Buscar'); el
+      // catálogo de este formulario está en MAYÚSCULAS y el mat-select compara
+      // con ===, así que hay que devolver la escritura EXACTA de la opción.
       abrirCandidato(candidatoCon([{ nombre: 'AFP', observacion: 'sin buscar' }]));
-      expect(comp.antecedentes.get('afp')!.value).toBe('Sin Buscar');
+      expect(comp.antecedentes.get('afp')!.value).toBe('SIN BUSCAR');
     });
 
     it('un valor que no existe en el catálogo se deja tal cual, sin inventar', () => {
@@ -126,10 +128,10 @@ describe('SelectionQuestionsComponent', () => {
   // ─────────────────────────────────────────────────────────────
   describe('catálogo de AFP', () => {
 
-    it('incluye No Tiene y Sin Buscar', () => {
+    it('incluye NO TIENE y SIN BUSCAR', () => {
       // Sin ellas no había forma de registrar que la persona no cotiza pensión.
-      expect(comp.afpList).toContain('No Tiene' as any);
-      expect(comp.afpList).toContain('Sin Buscar' as any);
+      expect(comp.afpList).toContain('NO TIENE' as any);
+      expect(comp.afpList).toContain('SIN BUSCAR' as any);
     });
 
     it('conserva los cinco fondos', () => {
@@ -205,15 +207,16 @@ describe('SelectionQuestionsComponent', () => {
   });
 
   // ─────────────────────────────────────────────────────────────
-  describe('el barrio ya no vive acá', () => {
+  describe('barrio de residencia', () => {
 
-    it('el formulario no tiene control de barrio', () => {
-      // Se movió a la pestaña de Entrevista, donde está el resto de residencia
-      // y ya tenía su validación.
-      expect(comp.antecedentes.get('barrio')).toBeNull();
+    it('el formulario tiene el control de barrio y se precarga del candidato', () => {
+      abrirCandidato({ ...candidatoCon([]), residencia: { barrio: 'CHAPINERO' } });
+      expect(comp.antecedentes.get('barrio')!.value).toBe('CHAPINERO');
     });
 
-    it('guardar no llama al endpoint de candidato para el barrio', fakeAsync(() => {
+    it('guardar NO llama al endpoint de candidato si el barrio no cambió', fakeAsync(() => {
+      // Mandarlo siempre crearía filas de residencia vacías en candidatos
+      // que no la tienen.
       abrirCandidato(candidatoCon([]));
       comp.antecedentes.get('eps')!.setValue('SURA');
 
@@ -221,6 +224,18 @@ describe('SelectionQuestionsComponent', () => {
       tick();
 
       expect(rpc.upsertCandidatoByDocumento).not.toHaveBeenCalled();
+    }));
+
+    it('guardar manda el barrio por su endpoint cuando SÍ cambió', fakeAsync(() => {
+      abrirCandidato(candidatoCon([]));
+      comp.antecedentes.get('barrio')!.setValue('LA CANDELARIA');
+
+      comp.imprimirVerificacionesAplicacion();
+      tick();
+
+      expect(rpc.upsertCandidatoByDocumento).toHaveBeenCalledTimes(1);
+      const arg = rpc.upsertCandidatoByDocumento.calls.mostRecent().args[0] as any;
+      expect(arg.residencia.barrio).toBe('LA CANDELARIA');
     }));
   });
 });

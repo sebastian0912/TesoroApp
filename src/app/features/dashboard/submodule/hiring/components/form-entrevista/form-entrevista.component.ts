@@ -22,12 +22,13 @@ import {
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { DateAdapter } from '@angular/material/core';
 import { ActivatedRoute } from '@angular/router';
-import { Observable, firstValueFrom, map, startWith, take, filter, of, catchError } from 'rxjs';
+import { Observable, firstValueFrom, map, startWith, take, filter, of, catchError, shareReplay } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
 import colombia from '../../../../../../data/colombia.json';
 import { SharedModule } from '@/app/shared/shared.module';
+import { docParaEnviar } from '@/app/shared/utils/tipo-doc.util';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
@@ -78,6 +79,17 @@ export class FormEntrevistaComponent implements OnInit {
   private readonly ngZone = inject(NgZone);
 
   // ====== Catálogos ======
+  /**
+   * Catálogo con la respuesta compartida entre TODOS los `| async`.
+   *
+   * Sin `shareReplay` cada suscripción del template dispara su propia petición,
+   * porque un observable de HttpClient es frío. `parentescosOpciones$` se usa
+   * en las 4 filas de familiares → salían 4 GET idénticos del mismo catálogo
+   * (y 2 de estado civil, 2 de marketing) cada vez que se abría un candidato.
+   *
+   * `refCount: false` a propósito: el valor queda cacheado aunque se queden en
+   * cero suscriptores, así cambiar de pestaña no vuelve a pedir la lista.
+   */
   private safeCatalog(code: string, label: string): Observable<CatalogValue[]> {
     return this.catalogos.listDatosByTablaCodigo(code, { activo: true }).pipe(
       catchError((err) => {
@@ -89,7 +101,8 @@ export class FormEntrevistaComponent implements OnInit {
           confirmButtonColor: '#3085d6',
         });
         return of([] as CatalogValue[]);
-      })
+      }),
+      shareReplay({ bufferSize: 1, refCount: false }),
     );
   }
 
@@ -149,9 +162,15 @@ export class FormEntrevistaComponent implements OnInit {
   readonly SEED_EXP_COUNT = 0;
 
   readonly sexos = ['M', 'F'] as const;
+  // Toda oficina de esta lista debe tener número de rango en el generador de
+  // codigo_contrato de ms-hr (CodigoContrato.NUMERO_SEDE); si se agrega una
+  // sin rango, el guardado queda sin código con motivo 'sin_oficina'.
+  // ANDES/BOSA/MONTE_VERDE/SOTAQUIRA/USME entraron el 2026-08-13 (números
+  // 21/22/28/84/24, ya existían en el backend). BRIGADA es propia de prod.
   readonly oficinas = [
-    'VIRTUAL',
     'ADMINISTRATIVOS',
+    'ANDES',
+    'BOSA',
     'CARTAGENITA',
     'FACA_PRIMERA',
     'FACA_PRINCIPAL',
@@ -159,10 +178,14 @@ export class FormEntrevistaComponent implements OnInit {
     'FORANEOS',
     'FUNZA',
     'MADRID',
+    'MONTE_VERDE',
     'ROSAL',
     'SOACHA',
+    'SOTAQUIRA',
     'SUBA',
     'TOCANCIPÁ',
+    'USME',
+    'VIRTUAL',
     'ZIPAQUIRÁ',
     'BRIGADA',
   ] as const;
@@ -615,9 +638,14 @@ export class FormEntrevistaComponent implements OnInit {
 
   private buildHijoGroup(): FormGroup {
     return this.fb.group({
+      // Requerido: el backend lo exige (Hijo.numero_de_documento sin blank) y
+      // el servicio filtra las filas sin documento antes de enviar — sin este
+      // required, un hijo con solo fecha pasaba la validación, se descartaba
+      // en silencio y el Swal decía "guardado".
       numero_de_documento: [
         '',
         [
+          Validators.required,
           Validators.pattern(/^\d+$/),
           Validators.minLength(6),
           Validators.maxLength(15),
@@ -627,10 +655,16 @@ export class FormEntrevistaComponent implements OnInit {
     });
   }
 
+  /** Tope duro de filas de hijos: por encima de esto es un error de digitación. */
+  private static readonly MAX_HIJOS = 15;
+
   private setHijosCount(n: number): void {
+    // Sin el tope, teclear "99999" en el número de hijos creaba 99.999
+    // FormGroups síncronos y congelaba la ventana.
+    const objetivo = Math.min(Math.max(0, Math.floor(Number(n) || 0)), FormEntrevistaComponent.MAX_HIJOS);
     const fa = this.hijosFA;
-    while (fa.length < n) fa.push(this.buildHijoGroup());
-    while (fa.length > n) fa.removeAt(fa.length - 1);
+    while (fa.length < objetivo) fa.push(this.buildHijoGroup());
+    while (fa.length > objetivo) fa.removeAt(fa.length - 1);
     this.refreshSteps();
   }
 
@@ -1106,7 +1140,10 @@ export class FormEntrevistaComponent implements OnInit {
     // 1) patchValue sin emitir eventos
     this.formVacante.patchValue(
       {
-        oficina: oficina || '',
+        // Si el servidor no trae oficina se CONSERVA la actual: el query param
+        // `?oficina=` la preasigna en ngOnInit y este patch (que corre después)
+        // la borraba para todos los candidatos nuevos.
+        oficina: oficina || this.formVacante.get('oficina')?.value || '',
         tipo_doc: cand?.tipo_doc || '',
         numero_documento: cand?.numero_documento || '',
         fecha_expedicion: fechaExp,
@@ -1336,9 +1373,17 @@ export class FormEntrevistaComponent implements OnInit {
     return `${y}-${m}-${day}`;
   }
 
+  /**
+   * La `X` marca que el documento NO es cédula de ciudadanía.
+   *
+   * Antes esto comparaba `tipo === 'CC'` contra el valor CRUDO del formulario.
+   * Con `'C.C'` —13793 filas en prod— la comparación fallaba, se enviaba
+   * `X<cédula>` y el backend creaba un Candidato NUEVO para una persona que ya
+   * existía. Era la fábrica activa de duplicados: cada entrevista guardada así
+   * sumaba una fila. Se canoniza antes de comparar (docParaEnviar).
+   */
   private normalizeDocForSubmit(tipo: string, raw: any): string {
-    const digits = String(raw ?? '').replace(/\D+/g, '').trim();
-    return !digits ? digits : tipo === 'CC' ? digits : `X${digits}`;
+    return docParaEnviar(tipo, raw);
   }
 
   // =======================

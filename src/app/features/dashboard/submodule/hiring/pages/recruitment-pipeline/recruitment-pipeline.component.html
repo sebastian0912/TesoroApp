@@ -1,7 +1,5 @@
-<mat-card
-  style="display: flex; flex-direction: column; height: 100%; flex: 1; min-height: 0; overflow: hidden; box-sizing: border-box; border-radius: 0;">
-  <mat-card-content
-    style="display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 10px 12px; box-sizing: border-box;">
+<mat-card class="pipeline-root-card">
+  <mat-card-content class="pipeline-root-content">
 
     <div class="header premium-pipeline-header">
       <div class="info-candidato-titulo candidate-info-badge">
@@ -13,12 +11,15 @@
           [matTooltip]="!candidatoSeleccionado()?.numero_documento ? null : (avatarPhotoUrl() ? 'Ver / actualizar foto' : 'Tomar foto')"
           matTooltipPosition="below"
           (click)="openCamera()">
-          <!-- Foto: SIEMPRE renderizada cuando hay URL. Si falla, queda el gradient azul detrás. -->
+          <!-- Foto: se renderiza cuando hay URL. Si la imagen falla, (error) la
+               descarta y el avatar cae al ícono de persona en vez de quedarse rota. -->
           @if (avatarPhotoUrl()) {
             <img class="avatar-photo-img"
               [src]="avatarPhotoUrl()"
               alt="Foto del candidato"
-              referrerpolicy="no-referrer" />
+              referrerpolicy="no-referrer"
+              (load)="onAvatarPhotoLoad($event)"
+              (error)="onAvatarPhotoError($event)" />
           } @else {
             <mat-icon>{{ candidatoSeleccionado()?.numero_documento ? 'person' : 'person_search' }}</mat-icon>
           }
@@ -154,45 +155,70 @@
           Cerrar contratación
         </button>
 
+        <!-- Estos tres solo dependen de que haya candidato. Van igual envueltos en
+             .tt-wrap: deshabilitados no mostraban ningún tooltip y quedaban grises
+             sin explicar por qué. -->
+
         <!-- Botón enviar correo bienvenida -->
-        <button mat-icon-button matTooltip="Confirmar Correo de Bienvenida" aria-label="Confirmar Correo de Bienvenida"
-          (click)="confirmarCorreoBienvenida()" [disabled]="!candidatoSeleccionado()?.numero_documento"
-          [matBadge]="candidatoSeleccionado()?.contacto?.correo_confirmado ? '✓' : ''"
-          [matBadgeColor]="candidatoSeleccionado()?.contacto?.correo_confirmado ? 'primary' : 'warn'"
-          matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.correo_confirmado">
-          <mat-icon>email</mat-icon>
-        </button>
+        <span class="tt-wrap"
+          [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar Correo de Bienvenida' : 'Selecciona primero un candidato'">
+          <button mat-icon-button aria-label="Confirmar Correo de Bienvenida"
+            (click)="confirmarCorreoBienvenida()" [disabled]="!candidatoSeleccionado()?.numero_documento"
+            [matBadge]="candidatoSeleccionado()?.contacto?.correo_confirmado ? '✓' : ''"
+            [matBadgeColor]="candidatoSeleccionado()?.contacto?.correo_confirmado ? 'primary' : 'warn'"
+            matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.correo_confirmado">
+            <mat-icon>email</mat-icon>
+          </button>
+        </span>
 
         <!-- Botón enviar whatsapp bienvenida -->
-        <button mat-icon-button matTooltip="Confirmar WhatsApp de Bienvenida"
-          aria-label="Confirmar WhatsApp de Bienvenida" (click)="confirmarWhatsAppBienvenida()"
-          [disabled]="!candidatoSeleccionado()?.numero_documento"
-          [matBadge]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? '✓' : ''"
-          [matBadgeColor]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? 'primary' : 'warn'"
-          matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.whatsapp_confirmado">
-          <mat-icon>chat</mat-icon>
-        </button>
+        <span class="tt-wrap"
+          [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar WhatsApp de Bienvenida' : 'Selecciona primero un candidato'">
+          <button mat-icon-button
+            aria-label="Confirmar WhatsApp de Bienvenida" (click)="confirmarWhatsAppBienvenida()"
+            [disabled]="!candidatoSeleccionado()?.numero_documento"
+            [matBadge]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? '✓' : ''"
+            [matBadgeColor]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? 'primary' : 'warn'"
+            matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.whatsapp_confirmado">
+            <mat-icon>chat</mat-icon>
+          </button>
+        </span>
 
-        <!-- Botón generar carnet individual -->
-        <button mat-icon-button matTooltip="Generar Carnet (PDF)" aria-label="Generar Carnet (PDF)"
-          (click)="generarCarnetIndividual()" [disabled]="!candidatoSeleccionado()?.numero_documento"
-          [matBadge]="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado ? '✓' : ''"
-          [matBadgeColor]="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado ? 'primary' : 'warn'"
-          matBadgeOverlap="true"
-          [matBadgeHidden]="!candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado">
-          <mat-icon>badge</mat-icon>
-        </button>
+        <!-- Botón generar carnet individual. El badge lee el proceso del CONTRATO
+             (puede vivir en una entrevista anterior), no entrevistas[0] a ciegas. -->
+        <span class="tt-wrap"
+          [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Generar Carnet (PDF)' : 'Selecciona primero un candidato'">
+          <button mat-icon-button aria-label="Generar Carnet (PDF)"
+            (click)="generarCarnetIndividual()" [disabled]="!candidatoSeleccionado()?.numero_documento"
+            [matBadge]="carnetGeneradoUI() ? '✓' : ''"
+            [matBadgeColor]="carnetGeneradoUI() ? 'primary' : 'warn'"
+            matBadgeOverlap="true"
+            [matBadgeHidden]="!carnetGeneradoUI()">
+            <mat-icon>badge</mat-icon>
+          </button>
+        </span>
 
         <!-- Botón de documentos. Se bloquea hasta que "Pago y Transporte" esté
-             guardado: los documentos se arman con esos datos leídos del backend. -->
-        <button mat-icon-button [matTooltip]="tooltipGenerarDocumentacion()"
-          aria-label="Generar o subir documentación"
-          [routerLink]="[
-    '/dashboard/hiring/generate-contracting-documents',
-    candidatoSeleccionado()?.numero_documento
-  ]" [disabled]="!puedeGenerarDocumentacion()">
-          <mat-icon>description</mat-icon>
-        </button>
+             guardado: los documentos se arman con esos datos leídos del backend.
+
+             El tooltip va en el <span>, NO en el <button>: un botón deshabilitado
+             no emite eventos de puntero, así que el motivo del bloqueo —que es
+             justo cuando hace falta— no se veía nunca. El CSS le quita
+             pointer-events al botón apagado para que el hover llegue al span. -->
+        <span class="tt-wrap" [matTooltip]="tooltipGenerarDocumentacion()"
+          matTooltipClass="tooltip-faltantes" [matTooltipShowDelay]="150">
+          <button mat-icon-button
+            aria-label="Generar o subir documentación"
+            [attr.aria-disabled]="!puedeGenerarDocumentacion()"
+            [routerLink]="[
+      '/dashboard/hiring/generate-contracting-documents',
+      candidatoSeleccionado()?.numero_documento
+    ]"
+            [queryParams]="{ tipo_doc: candidatoSeleccionado()?.tipo_doc || 'CC' }"
+            [disabled]="!puedeGenerarDocumentacion()">
+            <mat-icon>description</mat-icon>
+          </button>
+        </span>
 
         <!-- Finalizar contratación: manda al candidato al reporte del día de su
              oficina (view-reports) reutilizando los documentos ya subidos. Pide
@@ -200,16 +226,22 @@
         <input #arlFileInput type="file" hidden accept=".xls,.xlsx"
           (change)="onArlSeleccionadoYFinalizar($event)">
 
-        <button mat-icon-button [matTooltip]="tooltipFinalizarContratacion()"
-          aria-label="Finalizar contratación"
-          [disabled]="!puedeFinalizarContratacion()"
-          (click)="arlIndex() ? finalizarContratacion() : arlFileInput.click()"
-          [matBadge]="contratacionFinalizada() ? '✓' : ''"
-          [matBadgeColor]="'primary'"
-          matBadgeOverlap="true"
-          [matBadgeHidden]="!contratacionFinalizada()">
-          <mat-icon>{{ finalizando() ? 'hourglass_empty' : 'task_alt' }}</mat-icon>
-        </button>
+        <!-- Mismo motivo que el botón de documentación: el tooltip vive en el span
+             para que se vea con el botón deshabilitado. -->
+        <span class="tt-wrap" [matTooltip]="tooltipFinalizarContratacion()"
+          matTooltipClass="tooltip-faltantes" [matTooltipShowDelay]="150">
+          <button mat-icon-button
+            aria-label="Finalizar contratación"
+            [attr.aria-disabled]="!puedeFinalizarContratacion()"
+            [disabled]="!puedeFinalizarContratacion()"
+            (click)="arlIndex() ? finalizarContratacion() : arlFileInput.click()"
+            [matBadge]="contratacionFinalizada() ? '✓' : ''"
+            [matBadgeColor]="'primary'"
+            matBadgeOverlap="true"
+            [matBadgeHidden]="!contratacionFinalizada()">
+            <mat-icon>{{ finalizando() ? 'hourglass_empty' : 'task_alt' }}</mat-icon>
+          </button>
+        </span>
 
         @if (arlIndex(); as arl) {
           <button mat-icon-button
@@ -329,6 +361,7 @@
           <app-selection-questions [candidatoSeleccionado]="candidatoSeleccionado()"
             [modificacionForzada]="modificacionForzada()"
             [modificadoPor]="usuarioActual()"
+            [consultaSeq]="consultaSeq()"
             (guardado)="recargarCandidato()">
           </app-selection-questions>
         </div>
@@ -345,6 +378,7 @@
           <app-help-information [candidatoSeleccionado]="candidatoSeleccionado()"
             [modificacionForzada]="modificacionForzada()"
             [modificadoPor]="usuarioActual()"
+            [consultaSeq]="consultaSeq()"
             (guardado)="recargarCandidato()">
           </app-help-information>
         </div>
@@ -572,7 +606,11 @@
             </ng-template>
 
             <div class="tab-content-scrollable">
-              <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()">
+              <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()"
+                [modificacionForzada]="modificacionForzada()"
+                [modificadoPor]="usuarioActual()"
+                [consultaSeq]="consultaSeq()"
+                (guardado)="recargarCandidato()">
               </app-hiring-questions>
             </div>
           </mat-tab>

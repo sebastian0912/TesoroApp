@@ -17,6 +17,7 @@ import { of } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { HelpInformationComponent } from './help-information.component';
+import { temporalDeVacante } from './remision-fill';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { GestionParametrizacionService } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
@@ -62,8 +63,9 @@ describe('HelpInformationComponent', () => {
     spyOn(Swal, 'fire').and.resolveTo({ isConfirmed: false } as any);
   });
 
-  const temporalDe = (v: any) => (comp as any).temporalDeVacante(v).temporal;
-  const temporalRaw = (v: any) => (comp as any).temporalDeVacante(v);
+  // temporalDeVacante se extrajo del componente a remision-fill.ts (función pura).
+  const temporalDe = (v: any) => temporalDeVacante(v).temporal;
+  const temporalRaw = (v: any) => temporalDeVacante(v);
   const aFecha = (v: any) => (comp as any).aDDMMAAAA(v);
 
   // ───────────────────────────────────────────────────────────

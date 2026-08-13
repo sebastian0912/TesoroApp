@@ -411,7 +411,7 @@
 /* === TARJETAS / VCARDS VISTA === */
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 20px;
   margin-top: 10px;
 }
@@ -548,5 +548,63 @@
   background: white;
   border-radius: 12px;
   border: 1px dashed #cbd5e1;
+}
+
+@media (max-width: 900px) {
+  /* Botones del header: se pasan a fila completa */
+  .card-header-premium {
+    flex-wrap: wrap;
+    padding: 16px !important;
+  }
+
+  .header-content {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .btn-managerial {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* KPIs: de fila a columna */
+  .stats-overview-container {
+    flex-direction: column;
+  }
+
+  .kpi-cards {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .kpi-card {
+    flex: 1 1 140px;
+    min-width: 140px;
+  }
+
+  .timeline-container {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Filtros */
+  .actions-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filtro {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .view-toggles {
+    align-self: flex-end;
+  }
+
+  /* Cards grid: una columna en mobile */
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .empty-cards mat-icon { font-size: 40px; height: 40px; width: 40px; margin-bottom: 10px; }

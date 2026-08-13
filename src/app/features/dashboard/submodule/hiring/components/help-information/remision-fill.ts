@@ -283,3 +283,20 @@ export function buildRemisionPdf(d: DatosRemision): Blob {
 
   return doc.output('blob');
 }
+
+/**
+ * Decide la temporal del formato a partir de la vacante. `Publicacion.temporal`
+ * solo toma dos valores en prod ('TU ALIANZA SAS' / 'APOYO LABORAL SAS'); la
+ * empresa usuaria queda de respaldo por si la vacante vieja no lo trae.
+ * `porDefecto` marca cuando ninguna de las dos dio señal y 'apoyo' salió por
+ * descarte (hay que avisar: la temporal define el membrete y el código de
+ * calidad de un formato impreso).
+ */
+export function temporalDeVacante(v: any): { temporal: TemporalRemision; porDefecto: boolean } {
+  const temporal = String(v?.temporal ?? '').toUpperCase();
+  if (temporal.includes('ALIANZA')) return { temporal: 'alianza', porDefecto: false };
+  if (temporal.includes('APOYO')) return { temporal: 'apoyo', porDefecto: false };
+  const empresa = String(v?.empresaUsuariaSolicita ?? '').toUpperCase();
+  if (empresa.includes('ALIANZA')) return { temporal: 'alianza', porDefecto: false };
+  return { temporal: 'apoyo', porDefecto: !empresa.includes('APOYO') };
+}

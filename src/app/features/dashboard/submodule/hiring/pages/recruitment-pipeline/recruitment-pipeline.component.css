@@ -11,6 +11,28 @@
   margin: -1.5rem -2rem;
 }
 
+/* Root card: replaces inline styles from the HTML so media queries can override */
+.pipeline-root-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  border-radius: 0;
+}
+
+.pipeline-root-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
 mat-tab-group {
   flex: 1;
   min-height: 0;       /* permite shrink dentro de un flex parent con overflow */
@@ -463,6 +485,35 @@ mat-tab-group {
   color: #64748b;
 }
 
+/* Un botón deshabilitado no emite eventos de puntero y su tooltip jamás explica
+   qué está gris. El tooltip se pone en este <span> envolvente y se le quitan los
+   pointer-events al botón apagado para que el hover atraviese hasta el span. */
+.tt-wrap {
+  display: inline-flex;
+}
+
+.tt-wrap > button[disabled] {
+  pointer-events: none;
+}
+
+/* El span no debe alterar la fila de botones ni tapar el badge del hijo. */
+.premium-toolbar .tt-wrap {
+  border-radius: 10px;
+}
+
+/* El tooltip de faltantes se pinta en el overlay de Material, fuera de este
+   componente (por eso el ::ng-deep). `pre-line` respeta los saltos de línea de
+   textoFaltantes(): sin esto las once etiquetas salían pegadas en un párrafo
+   que nadie leía. */
+::ng-deep .tooltip-faltantes,
+::ng-deep .tooltip-faltantes .mdc-tooltip__surface {
+  max-width: 380px !important;
+  white-space: pre-line !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  text-align: left !important;
+}
+
 .premium-toolbar button mat-icon {
   font-size: 22px;
   width: 22px;
@@ -490,6 +541,18 @@ mat-tab-group {
 
 /* Responsive: stack en pantallas chicas */
 @media (max-width: 900px) {
+  /* On mobile, allow the page itself to scroll instead of using an internal fixed-height flex chain */
+  :host {
+    height: auto;
+    overflow: visible;
+  }
+
+  .pipeline-root-card,
+  .pipeline-root-content {
+    flex: none;
+    overflow: visible;
+  }
+
   .premium-pipeline-header {
     flex-direction: column;
     align-items: flex-start;

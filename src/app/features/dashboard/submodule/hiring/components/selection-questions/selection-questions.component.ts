@@ -15,6 +15,7 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import type { AntecedentesPayload } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { RobotsService } from '../../service/robots/robots.service';
 import type { ResultadosAntecedentes } from '../../service/robots/robots.service';
+import { alinearConCatalogo } from './selection-questions.rules';
 
 /* ===================== Tipos ===================== */
 type UploadedFileInfo = {
@@ -34,6 +35,19 @@ type DocKey =
 
 type ListSource = 'epsList' | 'afpList' | 'categoriasSisben' | 'medidasCorrectivas';
 type FieldType = 'estado' | 'list' | 'number';
+
+/**
+ * PDF adjuntado en la UI y todavía no subido al backend.
+ *
+ * Se captura como snapshot ANTES de cualquier `await`, porque el effect() del
+ * candidato llama resetUploadedFilesAsNew() y borra los File pendientes.
+ */
+interface PendienteUpload {
+  key: DocKey;
+  file: File;
+  fileName: string;
+  typeId: number;
+}
 
 interface FieldDef {
   key: DocKey;
@@ -118,6 +132,8 @@ export class SelectionQuestionsComponent implements OnDestroy {
    */
   modificacionForzada = input<boolean>(false);
   modificadoPor = input<string>('');
+  /** Nº de consulta del buscador: re-consultar re-pide los resultados del robot. */
+  consultaSeq = input<number>(0);
 
   /* -------- Form -------- */
   antecedentes: FormGroup;
@@ -139,7 +155,13 @@ export class SelectionQuestionsComponent implements OnDestroy {
     // recargar y el campo salía en blanco.
     'SANITAS', 'SAVIA SALUD', 'SOS', 'SURA', 'NO TIENE', 'SIN BUSCAR',
   ] as const;
-  readonly afpList = ['PORVENIR', 'COLFONDOS', 'PROTECCION', 'COLPENSIONES'] as const;
+  // 'NO TIENE' y 'SIN BUSCAR' faltaban: sin ellas no había forma de registrar
+  // que la persona no cotiza pensión, ni de dejar el campo como "pendiente".
+  // Van en MAYÚSCULAS, con la misma escritura que EPS y Sisbén.
+  readonly afpList = [
+    'PORVENIR', 'COLFONDOS', 'PROTECCION', 'COLPENSIONES', 'SKANDIA',
+    'NO TIENE', 'SIN BUSCAR',
+  ] as const;
   readonly categoriasSisben = [
     'A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',
     'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18',
@@ -181,6 +203,9 @@ export class SelectionQuestionsComponent implements OnDestroy {
   // con "x" cuando no sea CC. Sin esto, los Documents non-CC colisionarían
   // con los CC del mismo número de cédula.
   tipoDocumento: string | null = null;
+
+  /** Cédula a la que ya se le avisó del fallo de carga de docs (1 toast por persona). */
+  private avisoErrorDocsCed: string | null = null;
 
   /* -------- Cola de antecedentes (para la UI) -------- */
   private colaRaw: ColaRaw | null = null;
@@ -245,13 +270,32 @@ export class SelectionQuestionsComponent implements OnDestroy {
       const candidato = this.candidatoSeleccionado();
       // Fix: proceso (no "processo")
       const proc = candidato?.entrevistas?.[0]?.proceso;
+      const cedulaAnterior = this.cedula;
+      const tipoAnterior = this.tipoDocumento;
       this.cedula = (candidato?.numero_documento ?? candidato?.numeroDocumento ?? null) as string | null;
-      this.tipoDocumento = (candidato?.tipo_documento ?? candidato?.tipoDocumento ?? null) as string | null;
+      // El payload del backend trae `tipo_doc` (así se llama en el modelo
+      // Candidato); leer solo `tipo_documento` dejaba esto SIEMPRE en null,
+      // con lo que los PDFs de personas CE/PPT se guardaban sin el prefijo "x"
+      // — es decir, en el expediente del titular CC con el mismo número.
+      this.tipoDocumento = (candidato?.tipo_doc ?? candidato?.tipo_documento ?? candidato?.tipoDocumento ?? null) as string | null;
+      // El titular cambia también si cambia el TIPO con el mismo número
+      // (CC vs C.C/CE son personas distintas).
+      const cambioPersona = this.cedula !== cedulaAnterior || this.tipoDocumento !== tipoAnterior;
+
+      if (cambioPersona) {
+        // La "procedencia robot" es de la persona anterior: si la consulta del
+        // nuevo falla o demora, sus tarjetas mostrarían los valores del otro.
+        this.resultadosRobot = {};
+        this.camposDesdeRobot.clear();
+      }
 
       // Cola de antecedentes (camelCase o snake_case)
       this.colaRaw = (candidato?.cola_antecedentes ?? candidato?.colaAntecedentes ?? null) as ColaRaw | null;
 
-      this.resetUploadedFilesAsNew();
+      // En recargas de la MISMA persona (tras guardar) se preservan los PDFs
+      // adjuntos que aún no se han subido: resetearlos acá los borraba en
+      // silencio justo cuando la subida había fallado y tocaba reintentar.
+      this.resetUploadedFilesAsNew(!cambioPersona);
       this.patchSeleccion(proc?.antecedentes ?? null);
       this.antecedentes.get('barrio')?.setValue(
         String(candidato?.residencia?.barrio ?? '').trim(), { emitEvent: false });
@@ -267,10 +311,28 @@ export class SelectionQuestionsComponent implements OnDestroy {
           .catch((err) => console.error('[selection] Error cargando documentos:', err));
 
         // Prellenado con lo que ya consultó el robot. Va después del patch de
-        // antecedentes guardados para que estos tengan prioridad.
-        this.prellenarDesdeRobot(ctx);
+        // antecedentes guardados para que estos tengan prioridad. Solo cuando
+        // CAMBIA el titular (o la consulta del buscador): este effect también
+        // corre con cada recarga tras guardar (referencia nueva, misma cédula)
+        // y los resultados del robot no cambian por guardar — re-pedirlos era
+        // una petición por guardado. El sello lo pone prellenarDesdeRobot al
+        // APLICAR la respuesta: sellar acá dejaba la consulta perdida para
+        // siempre si una recarga la interrumpía a mitad de vuelo.
+        if (this.claveRobot() !== this.cedulaRobotConsultada) {
+          this.prellenarDesdeRobot(ctx);
+        }
       }
     });
+  }
+
+  /** Último titular (tipo|número) cuyos resultados de robot ya se aplicaron. */
+  private cedulaRobotConsultada: string | null = null;
+
+  /** Llave del titular actual para la consulta del robot. Incluye el número de
+   *  consulta del buscador: re-consultar a la persona re-pide los resultados. */
+  private claveRobot(): string | null {
+    if (!this.cedula) return null;
+    return `${String(this.tipoDocumento || 'CC').trim().toUpperCase()}|${this.cedula}#${this.consultaSeq()}`;
   }
 
   ngOnDestroy(): void {
@@ -408,9 +470,50 @@ export class SelectionQuestionsComponent implements OnDestroy {
     return 'q-pill q-none';
   }
 
+  /**
+   * Estado GENERAL de un antecedente, para pintar la tarjeta.
+   *
+   * Resume en una palabra las tres señales que hoy hay que leer por separado
+   * (el valor del campo, si llegó el documento y en qué va la cola del robot),
+   * para poder darle un color a la tarjeta y que se vea de un vistazo cuál
+   * falta y cuál está lista.
+   *
+   *   'listo'     verde  — hay valor y documento
+   *   'progreso'  ámbar  — el robot está trabajando o está en cola
+   *   'alerta'    rojo   — dice NO CUMPLE
+   *   'falta'     gris   — sin valor y sin documento
+   */
+  estadoTarjeta(fld: FieldDef): 'listo' | 'progreso' | 'alerta' | 'falta' {
+    const valor = String(this.antecedentes.get(this.controlName(fld))?.value ?? '').trim();
+    if (valor.toUpperCase() === 'NO CUMPLE') return 'alerta';
+
+    const cola = this.queueDetailFor(fld);
+    const tieneDoc = !!this.uploadedFiles[fld.key]?.file;
+
+    if (valor && (tieneDoc || cola?.finalizado)) return 'listo';
+    if (cola?.enProgreso || (cola && !cola.finalizado)) return 'progreso';
+    return valor ? 'listo' : 'falta';
+  }
+
   /* ===================== Carga antecedentes -> form ===================== */
   private patchSeleccion(raw: any): void {
-    const patch = buildPatchFromAntecedentes(raw, this.formPatchBase);
+    const patch = buildPatchFromAntecedentes(raw, this.formPatchBase) as any;
+
+    // Los campos de lista se alinean con SU catálogo antes de entrar al form:
+    // un mat-select solo pinta la opción idéntica (===) y lo guardado no
+    // siempre coincide letra por letra ('PROTECCIÓN ' con tilde, minúsculas).
+    for (const fld of this.fields) {
+      if (fld.type !== 'list') continue;
+      const control = fld.control ?? fld.key;
+      patch[control] = alinearConCatalogo(patch[control], this.getOptions(fld));
+    }
+    // Los de estado comparten el catálogo CUMPLE / NO CUMPLE / SIN BUSCAR.
+    for (const fld of this.fields) {
+      if (fld.type !== 'estado') continue;
+      const control = fld.control ?? fld.key;
+      patch[control] = alinearConCatalogo(patch[control], this.estados);
+    }
+
     this.antecedentes.patchValue(patch, { emitEvent: false });
   }
 
@@ -451,10 +554,11 @@ export class SelectionQuestionsComponent implements OnDestroy {
    * cuando el robot no dejó un veredicto interpretable (`valor === null`),
    * que es el caso de procuraduría/contraloría en estado "Consultado".
    *
-   * Los valores de texto se suben a MAYÚSCULAS antes de aplicarlos: los
-   * catálogos de este formulario están en mayúscula (todo se uppercasea al
-   * guardar) y el backend normaliza algunos a otra caja ('No Tiene'), que el
-   * mat-select —que compara con ===— no reencontraría y dejaría el campo vacío.
+   * Los valores del robot se ALINEAN con el catálogo de su campo antes de
+   * aplicarlos: el robot normaliza a sus propios tokens ("No Tiene",
+   * "PROTECCION"…), que no siempre están escritos igual que la opción del
+   * mat-select —que compara con ===— y el campo quedaba vacío pese a haberse
+   * prellenado.
    */
   private async prellenarDesdeRobot(ctx: number): Promise<void> {
     if (!this.cedula) return;
@@ -469,9 +573,19 @@ export class SelectionQuestionsComponent implements OnDestroy {
       this.resultadosRobot = res?.campos ?? {};
       this.camposDesdeRobot.clear();
       if (!res?.encontrado) {
+        // El robot AÚN no tiene resultados: no sellar, para que el próximo
+        // refresco vuelva a preguntar (sellar acá dejaba las tarjetas en
+        // "Sin consultar" para siempre aunque el robot terminara después).
         this.cdr.markForCheck();
         return;
       }
+
+      // Solo una respuesta CON resultados sella al titular; una vacía o
+      // descartada se vuelve a pedir en el próximo refresco.
+      this.cedulaRobotConsultada = this.claveRobot();
+
+      // Índice control -> campo, para saber contra qué catálogo alinear.
+      const porControl = new Map(this.fields.map(f => [f.control ?? f.key, f]));
 
       const patch: Record<string, string | number> = {};
       for (const [robotKey, control] of Object.entries(this.robotKeyToControl)) {
@@ -480,7 +594,11 @@ export class SelectionQuestionsComponent implements OnDestroy {
         if (valor === null || valor === undefined || valor === '') continue;
         if (!this.estaVacio(control)) continue;
         // Los numéricos (medidas correctivas 0..10) se dejan tal cual.
-        patch[control] = typeof valor === 'string' ? up(valor) : valor;
+        const fld = porControl.get(control);
+        const opciones = fld?.type === 'estado'
+          ? this.estados
+          : (fld ? this.getOptions(fld) : []);
+        patch[control] = alinearConCatalogo(valor, opciones) as string | number;
         this.camposDesdeRobot.add(control);
       }
 
@@ -509,8 +627,13 @@ export class SelectionQuestionsComponent implements OnDestroy {
   }
 
   /* ===================== Documentos (estado/descarga/subida) ===================== */
-  private resetUploadedFilesAsNew(): void {
+  private resetUploadedFilesAsNew(preservarPendientes = false): void {
     (Object.keys(this.typeMap) as DocKey[]).forEach(k => {
+      // Un File adjuntado y aún no guardado sobrevive al reset cuando la
+      // persona es la misma (recarga tras guardar): borrarlo obligaba a
+      // buscar el archivo otra vez en disco tras cualquier fallo de subida.
+      const actual = this.uploadedFiles[k];
+      if (preservarPendientes && actual?.changed && actual.file instanceof File) return;
       this.uploadedFiles[k] = {
         file: undefined,
         fileName: k === 'pensionSemanas' ? 'Sin consultar' : 'Adjuntar documento',
@@ -532,10 +655,27 @@ export class SelectionQuestionsComponent implements OnDestroy {
       const docs: any[] = await firstValueFrom(this.docsSrv.getDocuments(this.cedula));
       if (ctx !== this._ctx || !Array.isArray(docs)) return tocados;
 
+      // Un fetch que sí respondió limpia el rastro de un fallo anterior: lo
+      // que no venga en la respuesta es "sin documento", no "error". Sin esto
+      // el polling exitoso dejaba recuadros diciendo "Error al cargar".
+      (Object.keys(this.uploadedFiles) as DocKey[]).forEach((k) => {
+        const e = this.uploadedFiles[k];
+        if (e?.error) {
+          this.uploadedFiles[k] = {
+            ...e,
+            error: null,
+            ...(e.file ? {} : { fileName: k === 'pensionSemanas' ? 'Sin consultar' : 'Adjuntar documento' }),
+          };
+        }
+      });
+
       // Reset all uploadedFiles to default before populating.
       // En modo polling (resetFirst=false) NO reseteamos: hacemos merge para no
       // borrar/parpadear los documentos que ya estaban cargados.
-      if (resetFirst) this.resetUploadedFilesAsNew();
+      // SIEMPRE preservando pendientes: el barrido por cambio de persona ya lo
+      // hizo el effect; resetear acá sin preservar anulaba esa protección un
+      // tick después y el PDF adjunto se perdía igual.
+      if (resetFirst) this.resetUploadedFilesAsNew(true);
 
       for (const d of docs) {
         if (ctx !== this._ctx) break;
@@ -543,13 +683,10 @@ export class SelectionQuestionsComponent implements OnDestroy {
         const typeKey = (Object.keys(this.typeMap) as DocKey[]).find(k => this.typeMap[k] === d.type);
         if (!typeKey) continue;
 
-        // En modo merge (polling), NO pisar un PDF que el usuario acaba de adjuntar
-        // y aún no ha guardado: el refetch llegaba en la ventana de ~30s y lo
-        // reemplazaba por la URL del servidor, perdiendo el archivo pendiente.
-        if (!resetFirst) {
-          const actual = this.uploadedFiles[typeKey];
-          if (actual?.changed && actual.file instanceof File) continue;
-        }
+        // No pisar un PDF que el usuario ya adjuntó y todavía no ha guardado:
+        // el refresco por polling llegaría a borrarle el archivo pendiente.
+        const pendiente = this.uploadedFiles[typeKey];
+        if (pendiente?.changed && pendiente.file instanceof File) continue;
 
         const nombre = d.original_filename || d.title || 'Documento sin título';
         const fileUrl = d.file_url; // Use URL directly
@@ -571,6 +708,40 @@ export class SelectionQuestionsComponent implements OnDestroy {
       // If 404/Not Found, just means no docs, which is fine.
       if (err?.error?.error !== 'No se encontraron documentos') {
         console.error('Error loading documents:', err);
+
+        // Un error real (500, red caída) dejaba los recuadros girando para
+        // siempre y solo se veía en consola: el operador leía "sin documentos"
+        // donde había un fallo de carga. Se apagan los spinners (sin tocar
+        // PDFs pendientes de subir) y se avisa una vez por cédula — el polling
+        // reintenta cada tanto y no puede convertirse en una lluvia de toasts.
+        if (ctx === this._ctx) {
+          (Object.keys(this.uploadedFiles) as DocKey[]).forEach((k) => {
+            const e = this.uploadedFiles[k];
+            if (e?.loading && !(e.changed && e.file instanceof File)) {
+              this.uploadedFiles[k] = {
+                ...e,
+                loading: false,
+                error: 'No se pudieron cargar los documentos',
+                // Solo si el recuadro no tiene un documento ya cargado: un doc
+                // visible sigue siendo válido aunque el refresco haya fallado.
+                ...(e.file ? {} : { fileName: 'Error al cargar' }),
+              };
+            }
+          });
+          if (this.avisoErrorDocsCed !== this.cedula) {
+            this.avisoErrorDocsCed = this.cedula;
+            Swal.fire({
+              icon: 'warning',
+              title: 'No se pudieron cargar los documentos',
+              text: 'Revisa la conexión y vuelve a intentar; lo que se muestra puede estar incompleto.',
+              toast: true,
+              position: 'top-end',
+              timer: 6000,
+              timerProgressBar: true,
+              showConfirmButton: false,
+            });
+          }
+        }
       }
     }
     // OnPush: la carga es asíncrona; marcamos para que el PDF y la fecha se
@@ -646,9 +817,27 @@ export class SelectionQuestionsComponent implements OnDestroy {
     if (!file) return;
 
     const nameOk = file.name && file.name.length <= 100;
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    if (!nameOk) return void Swal.fire('Error', 'El nombre no debe exceder 100 caracteres', 'error');
-    if (!isPdf) return void Swal.fire('Error', 'Solo se permiten archivos PDF', 'error');
+    if (!nameOk) {
+      return void Swal.fire('Nombre muy largo',
+        'El nombre del archivo no puede pasar de 100 caracteres. Renómbralo y vuelve a intentar.', 'warning');
+    }
+
+    // El navegador reporta el tipo real del archivo en `file.type`. Antes
+    // bastaba con que el NOMBRE terminara en .pdf, así que un .exe renombrado
+    // pasaba el filtro y solo lo frenaba el backend. Si el navegador no sabe
+    // el tipo (`''`, pasa con algunos escáneres), se acepta por extensión.
+    const tipo = (file.type || '').toLowerCase();
+    const terminaEnPdf = file.name.toLowerCase().endsWith('.pdf');
+    const esPdf = tipo === 'application/pdf' || (tipo === '' && terminaEnPdf);
+    if (!esPdf) {
+      return void Swal.fire('Solo se aceptan PDF',
+        'Ese archivo no es un PDF. Si lo tienes en Word o en foto, conviértelo a PDF y súbelo de nuevo.',
+        'warning');
+    }
+    if (file.size === 0) {
+      return void Swal.fire('Archivo vacío',
+        'El archivo no tiene contenido. Revísalo y vuelve a subirlo.', 'warning');
+    }
 
     this.uploadedFiles[key] = {
       file,
@@ -722,6 +911,10 @@ export class SelectionQuestionsComponent implements OnDestroy {
     });
     if (!isConfirmed) return;
 
+    // El robot va a producir resultados nuevos: el próximo refresco de esta
+    // persona debe volver a pedirlos aunque la cédula no haya cambiado.
+    this.cedulaRobotConsultada = null;
+
     this.forzandoFuente = key;
     this.cdr.markForCheck();
     try {
@@ -771,6 +964,14 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
   /* ===================== Guardar selección + subir PDFs ===================== */
   async imprimirVerificacionesAplicacion(): Promise<void> {
+    // Snapshot síncrono: cualquier `await` de aquí en adelante da chance a que
+    // el candidato se recargue y resetUploadedFilesAsNew() borre los adjuntos.
+    const pendientes = this.capturarPendientes(Object.keys(this.typeMap) as DocKey[]);
+    // El DESTINO también se congela acá: si el operador cambia de candidato
+    // mientras el upsert está en vuelo, leer this.cedula al momento de subir
+    // mandaría los PDFs de esta persona al expediente de la otra.
+    const destino = { cedula: this.cedula, tipoDoc: this.tipoDocumento };
+
     if (this.antecedentes.invalid) {
       this.antecedentes.markAllAsTouched();
       await Swal.fire('Campos incompletos', 'Revisa los campos obligatorios.', 'warning');
@@ -841,17 +1042,24 @@ export class SelectionQuestionsComponent implements OnDestroy {
           console.warn('[barrio] no se pudo guardar', e);
         }
       }
+      // Los PDFs van ANTES de `guardado.emit()`. Emitir primero hace que el
+      // padre recargue el candidato -> effect() -> resetUploadedFilesAsNew(),
+      // que borra los File pendientes; la subida quedaba vacía y aun así
+      // reportaba "todo OK". Se notaba sobre todo en sisbén (8) y AFP (11),
+      // que son los únicos que ningún robot vuelve a llenar. Se suben los
+      // PENDIENTES capturados al entrar, con el destino congelado.
+      const res = await this.subirTodosLosArchivos(pendientes, destino);
+
       this.guardado.emit();
-      // Antes salían DOS modales seguidos (guardar antecedentes + subir docs) para
-      // una sola acción del usuario. El primero pasa a toast no bloqueante y el
-      // modal final resume todo.
+      // Un solo toast no bloqueante por el guardado; el modal final (si hay)
+      // resume la subida de documentos.
       Swal.fire({ toast: true, position: 'top-end', icon: 'success', showConfirmButton: false, timer: 1500,
         title: 'Antecedentes actualizados' });
 
-      const res = await this.subirTodosLosArchivos(Object.keys(this.typeMap) as DocKey[]);
-
       if (res.todosOk) {
-        Swal.fire('¡Listo!', 'Antecedentes y documentos guardados correctamente.', 'success');
+        if (res.exitosos.length) {
+          Swal.fire('¡Listo!', 'Todos los documentos se subieron correctamente.', 'success');
+        }
       } else {
         // Build detailed error message
         const listaErrores = res.fallidos.map(f => `<li><b>${f.key}:</b> ${f.error}</li>`).join('');
@@ -883,13 +1091,17 @@ export class SelectionQuestionsComponent implements OnDestroy {
     }
   }
 
-  async subirTodosLosArchivos(
-    keys: DocKey[]
-  ): Promise<{ todosOk: boolean; exitosos: DocKey[]; fallidos: { key: DocKey; error: string }[] }> {
-    const ced = this.cedula;
-    if (!ced) return { todosOk: true, exitosos: [], fallidos: [] };
-
-    const aEnviar = keys
+  /**
+   * Snapshot de los PDFs adjuntados y aún no subidos.
+   *
+   * DEBE llamarse de forma síncrona, antes de cualquier `await`: en cuanto el
+   * padre recarga el candidato (`(guardado)="recargarCandidato()"`), el
+   * effect() de este componente dispara resetUploadedFilesAsNew() y deja
+   * `file: undefined, changed: false`. Si se lee después, no queda nada que
+   * subir y la subida se pierde en silencio.
+   */
+  capturarPendientes(keys: DocKey[]): PendienteUpload[] {
+    return keys
       .filter(k => !!this.uploadedFiles[k]?.changed && this.uploadedFiles[k].file instanceof File)
       .map(k => ({
         key: k,
@@ -897,6 +1109,22 @@ export class SelectionQuestionsComponent implements OnDestroy {
         fileName: this.uploadedFiles[k].fileName ?? 'documento.pdf',
         typeId: this.typeMap[k],
       }));
+  }
+
+  async subirTodosLosArchivos(
+    keysOPendientes: DocKey[] | PendienteUpload[],
+    destino?: { cedula: string | null; tipoDoc: string | null },
+  ): Promise<{ todosOk: boolean; exitosos: DocKey[]; fallidos: { key: DocKey; error: string }[] }> {
+    // `destino` viene congelado desde antes del upsert; sin él (llamadas
+    // directas) se usa el candidato actual.
+    const ced = destino ? destino.cedula : this.cedula;
+    const tipoDoc = destino ? destino.tipoDoc : this.tipoDocumento;
+    if (!ced) return { todosOk: true, exitosos: [], fallidos: [] };
+
+    const aEnviar: PendienteUpload[] =
+      typeof keysOPendientes[0] === 'string' || keysOPendientes.length === 0
+        ? this.capturarPendientes(keysOPendientes as DocKey[])
+        : (keysOPendientes as PendienteUpload[]);
 
     if (!aEnviar.length) return { todosOk: true, exitosos: [], fallidos: [] };
 
@@ -907,7 +1135,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
     const promesas = aEnviar.map(({ key, file, fileName, typeId }) =>
       new Promise<void>((resolve, reject) => {
-        this.docsSrv.guardarDocumento(fileName, ced, typeId, file, undefined, this.tipoDocumento || undefined).subscribe({
+        this.docsSrv.guardarDocumento(fileName, ced, typeId, file, undefined, tipoDoc || undefined).subscribe({
           next: () => {
             const entry = this.uploadedFiles[key];
             if (entry) {

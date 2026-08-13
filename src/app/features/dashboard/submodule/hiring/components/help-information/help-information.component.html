@@ -11,6 +11,7 @@
     <app-form-entrevista [candidatoSeleccionado]="candidatoSeleccionado()"
       [modificacionForzada]="modificacionForzada()"
       [modificadoPor]="modificadoPor()"
+      [consultaSeq]="consultaSeq()"
       (guardado)="guardado.emit()"></app-form-entrevista>
 
   </mat-tab>
@@ -256,7 +257,7 @@
               <button type="button"
                 [class.btn-managerial]="!limpiarVacante()"
                 [class.btn-quitar]="limpiarVacante()"
-                [disabled]="vacantesForm.disabled || bloqueado()"
+                [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
                 (click)="guardarVacantes()">
                 <mat-icon>{{ limpiarVacante() ? 'delete_outline' : 'save' }}</mat-icon>
                 {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}

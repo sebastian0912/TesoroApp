@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
-import { map, Observable, tap } from 'rxjs';
+import { catchError, map, Observable, of, tap } from 'rxjs';
 import { environment } from '@/environments/environment';
 
 type AnyObj = Record<string, any>;
@@ -30,6 +30,29 @@ export class FarmsService {
     // GET /gestion_centros_costos/
     return this.http.get<AnyObj[] | { results: AnyObj[] }>(`${this.base}/`, { params }).pipe(
       map(resp => Array.isArray(resp) ? resp : (resp?.results ?? []))
+    );
+  }
+
+  /**
+   * Resuelve el centro de costo de una vacante.
+   *
+   * `Publicacion.finca` y `CentroCosto.finca` son texto libre escrito por
+   * separado, así que el cruce lo hace el backend normalizando (acentos,
+   * sufijos societarios, direcciones pegadas al nombre) y cayendo a la empresa
+   * usuaria si la finca no da.
+   *
+   * Devuelve `comun` —lo que vale igual en todas las filas que cruzaron, único
+   * que se puede prellenar sin adivinar— y `opciones` con todas ellas. Emite
+   * `null` cuando no hay coincidencia (404), para no romper el flujo.
+   */
+  resolverPorVacante(finca?: string | null, empresa?: string | null): Observable<AnyObj | null> {
+    let params = new HttpParams();
+    if (finca && finca.trim()) params = params.set('finca', finca.trim());
+    if (empresa && empresa.trim()) params = params.set('empresa', empresa.trim());
+    if (!params.keys().length) return of(null);
+
+    return this.http.get<AnyObj>(`${this.base}/resolver/`, { params }).pipe(
+      catchError(() => of(null)),
     );
   }
 

@@ -247,8 +247,8 @@ describe('RecruitmentPipelineComponent', () => {
     }));
 
     it('sin cédula no hace nada', fakeAsync(() => {
+      // numeroDocumento es un computed del candidato: con candidato null queda ''.
       comp.candidatoSeleccionado.set(null as any);
-      comp.numeroDocumento = '';
 
       let resultado: boolean | undefined;
       comp.eliminarProcesoDelHistorial({ id: 1 }).then(r => resultado = r);

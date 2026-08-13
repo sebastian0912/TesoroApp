@@ -1555,6 +1555,40 @@ export class RegistroProcesoContratacion {
   }
 
   /**
+   * POST /gestion_contratacion/procesos/eliminar-proceso/
+   *
+   * Borra la entrevista/proceso del candidato (en cascada: proceso, contrato y
+   * antecedentes). El candidato y su formulario web NO se tocan.
+   *
+   * Sin `procesoId` borra la entrevista más reciente. `forzar` solo hace falta
+   * cuando el contrato está activo (si no, el backend responde 409).
+   */
+  eliminarProceso(
+    numeroDocumento: string,
+    opts?: { procesoId?: number | null; forzar?: boolean },
+  ) {
+    return this.http.post<{
+      message: string;
+      eliminado: {
+        entrevista_id: number;
+        proceso_id: number | null;
+        codigo_contrato: string | null;
+        contrato_activo: boolean;
+        antecedentes: number;
+      };
+      candidato_conservado: {
+        numero_documento: string;
+        formulario_paso: number | null;
+        formulario_completo: boolean | null;
+      };
+    }>(this.url('procesos/eliminar-proceso'), {
+      numero_documento: (numeroDocumento ?? '').trim(),
+      ...(opts?.procesoId != null ? { proceso_id: opts.procesoId } : {}),
+      ...(opts?.forzar ? { forzar: true } : {}),
+    });
+  }
+
+  /**
    * GET /gestion_contratacion/procesos/candidatos-por-vacante/?publicacion=<id>
    * Lista (sin duplicar candidato) las personas asignadas a una vacante, con
    * datos suficientes para mostrarlas, quitarles la vacante y exportarlas.
