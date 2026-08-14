@@ -27,8 +27,8 @@
   margin-bottom: 8px;
 }
 .f-search { width: 300px; max-width: 100%; }
-.f-tipo { width: 210px; }
-.f-estado { width: 160px; }
+.f-tipo { width: 210px; max-width: 100%; }
+.f-estado { width: 160px; max-width: 100%; }
 .ee-count { margin-left: auto; font-size: 13px; color: #666; }
 
 /* Loading / vacío */

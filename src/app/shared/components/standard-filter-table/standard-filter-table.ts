@@ -24,7 +24,9 @@ import {
   ContentChildren,
   QueryList,
   AfterContentInit,
+  inject,
 } from '@angular/core';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -103,9 +105,11 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   private colsDiffer: IterableDiffer<ColumnDefinition>;
 
   // =========================
-  // Toggle vista (desktop)
+  // Toggle vista (tabla / tarjetas)
   // =========================
   viewMode: ViewMode = 'table';
+  private breakpointObserver = inject(BreakpointObserver);
+
   setViewMode(ev: MatSlideToggleChange): void {
     this.viewMode = ev.checked ? 'cards' : 'table';
     this.saveState();
@@ -264,6 +268,14 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
     if (this.storageKey) {
       this.loadState();
     }
+
+    // Auto-switch a cards en mobile, tabla en desktop
+    this.uiSubs.add(
+      this.breakpointObserver.observe('(max-width: 900px)').subscribe(result => {
+        this.viewMode = result.matches ? 'cards' : 'table';
+        this.cdr.detectChanges();
+      })
+    );
 
     this.initializeTable();
     this.applyFilters();

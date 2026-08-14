@@ -14,9 +14,18 @@
           <div class="separador-vertical"></div>
           <div class="columna-info system-info">
             <p class="detalle role-sede">{{ role }} / {{ sede }}</p>
-            <p class="detalle version">Versión: {{ appVersion }}</p>
           </div>
         </div>
+      </div>
+
+      <!-- CHIP VERSIÓN + PLATAFORMA
+           Visible en TODOS los dispositivos (Web, Android, Escritorio): muestra
+           la versión y en cuál se está ejecutando. -->
+      <div class="version-chip" [attr.data-key]="platform.key"
+        [title]="versionTitle" [attr.aria-label]="versionTitle">
+        <mat-icon class="version-chip__icon">{{ platform.icon }}</mat-icon>
+        <span class="version-chip__text">v{{ appVersion || '—' }}</span>
+        <span class="version-chip__platform">{{ platform.label }}</span>
       </div>
 
       <!-- Indicador de conectividad: online / offline / sincronizando + pendientes.
@@ -107,36 +116,6 @@
         </mat-menu>
       </div>
 
-      <div class="botonConfig">
-        <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Configuración" class="icono"
-          (menuOpened)="cargarSedes()">
-          <mat-icon>settings</mat-icon>
-        </button>
-
-        <mat-menu #menu="matMenu">
-          <button mat-menu-item (click)="prueba()">
-            <mat-icon>vpn_key</mat-icon>
-            <span class="spanAux">Cambiar Contraseña</span>
-          </button>
-          <button mat-menu-item [matMenuTriggerFor]="sedeMenu">
-            <mat-icon>location_city</mat-icon>
-            <span class="spanAux">Cambiar Sede</span>
-          </button>
-          <!-- Mostrar la versión de la aplicación -->
-          <button mat-menu-item disabled>
-            <mat-icon>info</mat-icon>
-            <span class="spanAux">Versión: {{appVersion}}</span>
-          </button>
-        </mat-menu>
-
-        <mat-menu #sedeMenu="matMenu">
-          @for (sede of sedes; track sede.id) {
-            <button mat-menu-item (click)="onSedeSeleccionada(sede.id)">
-              {{ sede.nombre }}
-            </button>
-          }
-        </mat-menu>
-      </div>
     </div>
   </div>
 </div>

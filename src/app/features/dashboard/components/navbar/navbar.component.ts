@@ -56,6 +56,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public isSidebarHidden = false;
   public isMobile = false;
   public pinOpen = false;
+  public isMobileCompact = false;
   public currentRoute?: string;
   public isOnline = true;
   public pendingCount = 0;
@@ -477,10 +478,28 @@ export class NavbarComponent implements OnInit, OnDestroy {
       return;
     }
     this.cancelClose();
+
+    // Mobile: tocar el módulo activo de nuevo oculta la tira (toggle)
+    if (this.isMobile && this.activeRoot?.id === root.id) {
+      this.activeRoot = null;
+      this.cdr.markForCheck();
+      this.saveUIState();
+      return;
+    }
+
+    const isNewRoot = this.activeRoot?.id !== root.id;
     this.activeRoot = root;
     (root.hijos ?? []).forEach(h => (this.expanded[h.id] = true));
-    if (this.isMobile) this.isSidebarHidden = false;
+    if (this.isMobile) {
+      this.isSidebarHidden = false;
+      if (isNewRoot) this.isMobileCompact = false;
+    }
     this.saveUIState();
+  }
+
+  public toggleMobileCompact(): void {
+    this.isMobileCompact = !this.isMobileCompact;
+    this.cdr.markForCheck();
   }
 
   public onNodeClick(node: PermNode): void {

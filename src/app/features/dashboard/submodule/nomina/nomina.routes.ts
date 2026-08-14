@@ -15,6 +15,13 @@ export const routes: Routes = [
   { path: 'historial-de-novedades', loadComponent: () => import('./pages/historico-novedades/historico-novedades.component').then(m => m.HistoricoNovedadesComponent) },
   { path: 'historico-novedades', redirectTo: 'historial-de-novedades', pathMatch: 'full' },
   { path: 'parametrizacion-novedades', loadComponent: () => import('./pages/parametrizacion-novedades/parametrizacion-novedades.component').then(m => m.ParametrizacionNovedadesComponent) },
+  // Submódulo "Novedades": registro MANUAL de novedades contra (empresa
+  // usuaria, periodo). Las novedades se generan y ALMACENAN aquí y el cálculo
+  // las consume después — reemplaza la carga por Excel del botón de novedades
+  // para este flujo. Ruta canónica: 'novedades' (coincide con el ítem ya
+  // sembrado en db_admin.modulo → /dashboard/nomina/novedades).
+  { path: 'novedades', loadComponent: () => import('./pages/novedades/novedades.component').then(m => m.NovedadesComponent) },
+  { path: 'registro-de-novedades', redirectTo: 'novedades', pathMatch: 'full' },
   // Submódulo "Entidades Externas" (mantenimiento general con borrado lógico,
   // tipo controlado). Ruta canónica: 'entidades-externas'. Se mantienen los
   // paths 'empresas-usuarias' y 'emepresa-usuaria' (este último es el del menú

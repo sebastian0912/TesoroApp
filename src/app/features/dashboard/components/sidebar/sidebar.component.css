@@ -7,7 +7,8 @@
      se montaban sobre el menú.
      Escala de la app:  navbar 60  >  submenú 50  >  contenido de página. */
   position: relative;
-  z-index: 50;
+  /* Escala: navbar-left 150 > header 110 > CDK-sticky 100 > contenido. */
+  z-index: 110;
 }
 
 /* === TOP HEADER CONTAINER === */
@@ -129,12 +130,59 @@
   color: #475569;
 }
 
-.version {
-  font-size: 0.70rem;
-  color: #94a3b8;
-  font-style: italic;
-  margin-top: 2px;
+/* === CHIP DE VERSIÓN + PLATAFORMA ===
+   Visible en Web, Android y Escritorio. El color indica la plataforma. */
+.version-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  user-select: none;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
 }
+
+.version-chip__icon {
+  font-size: 15px !important;
+  width: 15px !important;
+  height: 15px !important;
+  line-height: 15px !important;
+}
+
+.version-chip__text { font-weight: 800; }
+
+.version-chip__platform {
+  padding-left: 7px;
+  border-left: 1px solid rgba(29, 78, 216, 0.28);
+}
+
+.version-chip[data-key="android"] {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.version-chip[data-key="android"] .version-chip__platform { border-left-color: rgba(4, 120, 87, 0.28); }
+
+.version-chip[data-key="electron"] {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+.version-chip[data-key="electron"] .version-chip__platform { border-left-color: rgba(109, 40, 217, 0.28); }
+
+.version-chip[data-key="ios"] {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+.version-chip[data-key="ios"] .version-chip__platform { border-left-color: rgba(51, 65, 85, 0.28); }
 
 /* === CHIP ESTADO DE RED (online / offline / sync) === */
 .net-status-chip {
@@ -264,24 +312,6 @@
   pointer-events: none;
 }
 
-/* === BOTÓN DE CONFIGURACIÓN === */
-.botonConfig {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-/* Separator */
-.botonConfig::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  height: 32px;
-  width: 1px;
-  background-color: #e2e8f0;
-}
-
 button.mat-icon-button {
   background: #f1f5f9;
   color: #475569;
@@ -332,6 +362,22 @@ button.mat-icon-button:hover {
     flex-direction: row;
     padding: 12px 16px;
     border-radius: 12px;
+    gap: 8px;
+  }
+
+  /* Sin esto, ni el título ni el bloque de perfil encogen: empujan los iconos
+     fuera de la barra y el engranaje queda recortado contra el borde. */
+  .cajontitulo,
+  .perfil,
+  .perfil-container,
+  .perfil-info,
+  .auth-info,
+  .opciones {
+    min-width: 0;
+  }
+
+  .opciones {
+    gap: 8px;
   }
 
   .cajontitulo .titulo {
@@ -353,7 +399,15 @@ button.mat-icon-button:hover {
     font-size: 0.95rem;
   }
 
-  .botonConfig::before {
+  /* El chip de versión se compacta: se conserva icono + "vX.Y.Z", se oculta el
+     nombre largo de la plataforma (queda en el tooltip / aria-label). */
+  .version-chip {
+    padding: 4px 9px;
+    font-size: 0.68rem;
+    gap: 5px;
+  }
+
+  .version-chip__platform {
     display: none;
   }
 
@@ -379,5 +433,31 @@ button.mat-icon-button:hover {
     transform: translate(50%, -50%);
     top: 0;
     right: 0;
+  }
+}
+
+/* En pantallas angostas el saludo "Hola, {nombre}" + 4 iconos no caben junto
+   al título "Bienvenido". Se oculta el título (redundante con el saludo) y se
+   trunca el nombre para que nada se salga de la barra. */
+@media (max-width: 600px) {
+  .cajontitulo {
+    display: none;
+  }
+
+  .opciones {
+    gap: 4px;
+  }
+
+  .username {
+    display: inline-block;
+    max-width: 34vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+
+  button.mat-icon-button {
+    margin-left: 2px;
   }
 }

@@ -17,6 +17,7 @@ export interface UsuarioDetail {
   datos_basicos?: { usuario: string; nombres: string; apellidos: string; celular?: string | null } | null;
   permisos_efectivos?: Array<{ id: string; nombre: string; modulo: string; accion: string }>;
   permisos_tree?: any[];
+  fecha_registro?: string | null;
 }
 
 export interface AuthResponse {
@@ -112,6 +113,13 @@ export class AdminService {
     return this.http.post<{ ok: boolean; otorgados: number; revocados: number; no_encontrados: string[] }>(
       `${this.apiUrl}/gestion_admin/usuarios/${id}/asignar_permisos/`,
       { otorgados: payload.otorgados ?? [], revocados: payload.revocados ?? [] }
+    );
+  }
+
+  cambiarRol(id: string, rolId: string): Observable<void> {
+    return this.http.post<void>(
+      `${this.apiUrl}/gestion_admin/usuarios/${id}/cambiar_rol/`,
+      { rol_id: rolId }
     );
   }
 

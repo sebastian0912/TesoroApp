@@ -1,5 +1,6 @@
-import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, signal, computed } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, signal, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { TableCardService } from './core/services/table-card.service';
 
 
 declare global {
@@ -86,6 +87,8 @@ type UpdaterState = 'idle' | 'checking' | 'available' | 'downloading' | 'ready';
 export class AppComponent implements OnInit, OnDestroy {
   title = 'Tesoreria';
 
+  private readonly tableCard = inject(TableCardService);
+
   // ─── Updater overlay state ───────────────────────────────────────────────
   // Mostrar el overlay desde el segundo cero bloquea login y navegación hasta
   // que el updater confirme si hay actualización pendiente. Sin esto los
@@ -114,6 +117,9 @@ export class AppComponent implements OnInit, OnDestroy {
   private safetyTimer: ReturnType<typeof setTimeout> | null = null;
 
   async ngOnInit() {
+    // Inicializar VCard automático para todas las tablas en mobile
+    this.tableCard.init();
+
     if (typeof window === 'undefined' || !window.electron) {
       // Build web/SSR: nada que hacer.
       return;

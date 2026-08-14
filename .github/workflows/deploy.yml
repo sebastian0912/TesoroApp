@@ -1,0 +1,64 @@
+name: Deploy TesoroApp
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Despliegue continuo de TesoroApp (web + APK Android) sobre el servidor propio.
+# Corre en un RUNNER SELF-HOSTED instalado en el mismo servidor de producción,
+# porque el deploy es a contenedores Docker locales detrás de Caddy (no en la
+# nube). El runner invoca los scripts de /var/www/produccion.
+#
+# Requisitos (una sola vez):
+#   1. Registrar un runner self-hosted en el repo (Settings → Actions → Runners):
+#        ./config.sh --url https://github.com/sebastian0912/TesoroApp --token <TOKEN> --labels tuapo
+#        sudo ./svc.sh install programador && sudo ./svc.sh start
+#      El runner debe correr como 'programador' (tiene sudo sin contraseña).
+#   2. La contraseña del keystore NO va aquí: build-android.sh la lee de
+#        /var/www/produccion/.keystore.env  (root-only, fuera de git).
+#      Si algún día el runner NO está en este servidor, añade el secret
+#      KEYSTORE_PASSWORD y pásalo con:  sudo KEYSTORE_PASSWORD=... ./deploy-tesoro.sh
+#
+# Nota de rama: hoy producción sigue la rama de trabajo actual. Este workflow
+# hace merge --ff-only de la MISMA rama que esté desplegada (falla si no es
+# fast-forward, para no pisar cambios locales). Ajusta 'branches' abajo a la
+# rama desde la que quieras auto-desplegar (recomendado: main).
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Qué desplegar"
+        type: choice
+        options: [web, apk, all]
+        default: all
+
+concurrency:
+  group: deploy-tesoro
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, tuapo]
+    steps:
+      - name: Sincronizar working copy de producción
+        run: |
+          set -euo pipefail
+          cd /var/www/produccion/frontend/TesoroApp
+          BR="$(git rev-parse --abbrev-ref HEAD)"
+          echo "Rama desplegada: $BR"
+          git fetch origin --prune
+          # ff-only: nunca descarta cambios locales; falla si divergió.
+          git merge --ff-only "origin/$BR"
+
+      - name: Desplegar (web + APK)
+        run: |
+          set -euo pipefail
+          cd /var/www/produccion
+          sudo ./deploy-tesoro.sh "${{ github.event.inputs.target || 'all' }}"
+
+      - name: Resumen
+        if: always()
+        run: |
+          echo "Web:  https://tesoro.tuapo.co"
+          echo "APK:  https://tesoro.tuapo.co/downloads/ (latest.json)"

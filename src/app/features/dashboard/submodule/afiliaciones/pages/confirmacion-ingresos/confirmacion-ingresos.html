@@ -320,6 +320,14 @@
                     (click)="abrirDatosAfiliacion(row); $event.stopPropagation()">
               <mat-icon>fact_check</mat-icon>
             </button>
+            <!-- Documento EPS desde plantilla parametrizada -->
+            <button mat-icon-button
+                    matTooltip="Generar documento EPS (plantilla parametrizada)"
+                    [disabled]="docEpsGenerando === row.id"
+                    (click)="generarDocEps(row); $event.stopPropagation()"
+                    style="color: #0891b2;">
+              <mat-icon>{{ docEpsGenerando === row.id ? 'hourglass_top' : 'assignment' }}</mat-icon>
+            </button>
           </td>
         </ng-container>
 

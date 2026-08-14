@@ -37,7 +37,7 @@
 .filter-field { min-width: 160px; }
 
 /* ── Grid ── */
-.ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; }
 .ws-card {
   padding: 20px; cursor: pointer; position: relative; overflow: hidden;
   border-radius: var(--mt-r) !important; border: 1px solid var(--mt-border);

@@ -24,8 +24,8 @@ import { LegalService } from '../../services/legal.service';
 import {
   ProcesoLegal, ActuacionLegal, TerminoLegal, ParteProceso, DocumentoProceso, ProcesoEstado
 } from '../../models/legal.models';
-import { NuevaActuacionDialogComponent } from './nueva-actuacion-dialog.component';
-import { CambiarEstadoDialogComponent } from '../bandeja/cambiar-estado-dialog.component';
+import { NuevaActuacionDialogComponent, NuevaActuacionResult } from './nueva-actuacion-dialog.component';
+import { CambiarEstadoDialogComponent, CambiarEstadoResult } from '../bandeja/cambiar-estado-dialog.component';
 
 @Component({
   selector: 'app-expediente-legal',
@@ -129,16 +129,54 @@ export class ExpedienteComponent implements OnInit {
 
   abrirNuevaActuacion(): void {
     const ref = this.dialog.open(NuevaActuacionDialogComponent, {
-      width: '520px',
+      width: '540px',
+      maxWidth: '95vw',
       data: { procesoId: this.procesoId }
     });
-    ref.afterClosed().subscribe((body: Partial<ActuacionLegal> | null) => {
-      if (!body) return;
-      this.svc.crearActuacion(this.procesoId, body).subscribe({
-        next: () => {
-          this.snack.open('Actuación registrada', 'Cerrar', { duration: 3000 });
-          this.cargarActuaciones();
-          this.cargarProceso();
+    ref.afterClosed().subscribe((result: NuevaActuacionResult | null) => {
+      if (!result) return;
+      const { archivos, ...body } = result;
+      this.svc.crearActuacion(this.procesoId, body as Partial<ActuacionLegal>).subscribe({
+        next: (actuacion: ActuacionLegal) => {
+          const docs = archivos || [];
+          if (docs.length === 0) {
+            this.snack.open('Actuación registrada', 'Cerrar', { duration: 3000 });
+            this.cargarActuaciones();
+            this.cargarProceso();
+            return;
+          }
+          let pendiente = docs.length;
+          let errores = 0;
+          for (const d of docs) {
+            const fd = new FormData();
+            fd.append('file', d.file);
+            fd.append('docTipoId', String(d.docTipoId));
+            if (actuacion?.id) fd.append('actuacionId', String(actuacion.id));
+            this.svc.subirDocumento(this.procesoId, fd).subscribe({
+              next: () => {
+                pendiente--;
+                if (pendiente === 0) {
+                  const msg = errores === 0
+                    ? `Actuación registrada con ${docs.length} documento(s)`
+                    : `Actuación registrada. ${errores} doc(s) fallaron`;
+                  this.snack.open(msg, 'Cerrar', { duration: 4000 });
+                  this.cargarActuaciones();
+                  this.cargarDocumentos();
+                  this.cargarProceso();
+                }
+              },
+              error: () => {
+                errores++;
+                pendiente--;
+                if (pendiente === 0) {
+                  this.snack.open(`Actuación registrada. ${errores} doc(s) no se pudieron subir`, 'Cerrar', { duration: 4000 });
+                  this.cargarActuaciones();
+                  this.cargarDocumentos();
+                  this.cargarProceso();
+                }
+              }
+            });
+          }
         },
         error: () => this.snack.open('Error al registrar actuación', 'Cerrar', { duration: 3000 })
       });
@@ -150,17 +188,53 @@ export class ExpedienteComponent implements OnInit {
     this.svc.getEstados(this.proceso.tipoId).subscribe({
       next: estados => {
         const ref = this.dialog.open(CambiarEstadoDialogComponent, {
-          width: '440px',
+          width: '560px',
+          maxWidth: '95vw',
           data: { proceso: this.proceso, estados }
         });
-        ref.afterClosed().subscribe((result: { estadoId: number; motivo: string } | null) => {
+        ref.afterClosed().subscribe((result: CambiarEstadoResult | null) => {
           if (!result) return;
           this.svc.cambiarEstado(this.procesoId, result).subscribe({
             next: p => {
               this.proceso = p;
-              this.snack.open('Estado actualizado', 'Cerrar', { duration: 3000 });
-              this.cargarActuaciones();
-              this.cdr.markForCheck();
+              const docs = result.archivos || [];
+              if (docs.length === 0) {
+                this.snack.open('Estado actualizado', 'Cerrar', { duration: 3000 });
+                this.cargarActuaciones();
+                this.cdr.markForCheck();
+                return;
+              }
+              let pendiente = docs.length;
+              let errores = 0;
+              for (const d of docs) {
+                const fd = new FormData();
+                fd.append('file', d.file);
+                fd.append('docTipoId', String(d.docTipoId));
+                this.svc.subirDocumento(this.procesoId, fd).subscribe({
+                  next: () => {
+                    pendiente--;
+                    if (pendiente === 0) {
+                      const msg = errores === 0
+                        ? `Estado actualizado y ${docs.length} documento(s) radicado(s)`
+                        : `Estado actualizado. ${errores} doc(s) fallaron`;
+                      this.snack.open(msg, 'Cerrar', { duration: 4000 });
+                      this.cargarActuaciones();
+                      this.cargarDocumentos();
+                      this.cdr.markForCheck();
+                    }
+                  },
+                  error: () => {
+                    errores++;
+                    pendiente--;
+                    if (pendiente === 0) {
+                      this.snack.open(`Estado actualizado. ${errores} doc(s) no se pudieron subir`, 'Cerrar', { duration: 4000 });
+                      this.cargarActuaciones();
+                      this.cargarDocumentos();
+                      this.cdr.markForCheck();
+                    }
+                  }
+                });
+              }
             },
             error: () => this.snack.open('Error al cambiar estado', 'Cerrar', { duration: 3000 })
           });
@@ -170,27 +244,45 @@ export class ExpedienteComponent implements OnInit {
     });
   }
 
-  onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (!input.files?.length) return;
-    const file = input.files[0];
-    const fd = new FormData();
-    fd.append('file', file, file.name);
-    this.subiendoDocumento = true;
-    this.cdr.markForCheck();
-    this.svc.subirDocumento(this.procesoId, fd).subscribe({
-      next: () => {
-        this.snack.open('Documento subido correctamente', 'Cerrar', { duration: 3000 });
-        this.subiendoDocumento = false;
-        this.cargarDocumentos();
-        input.value = '';
-      },
-      error: () => {
-        this.snack.open('Error al subir el documento', 'Cerrar', { duration: 3000 });
-        this.subiendoDocumento = false;
+  abrirSubirDocumento(): void {
+    import('./subir-documento-dialog.component').then(m => {
+      const ref = this.dialog.open(m.SubirDocumentoDialogComponent, {
+        width: '480px',
+        maxWidth: '95vw',
+        data: { procesoId: this.procesoId, actuaciones: this.actuaciones }
+      });
+      ref.afterClosed().subscribe((result: { file: File; docTipoId: number; actuacionId?: number } | null) => {
+        if (!result) return;
+        const fd = new FormData();
+        fd.append('file', result.file);
+        fd.append('docTipoId', String(result.docTipoId));
+        if (result.actuacionId) fd.append('actuacionId', String(result.actuacionId));
+        this.subiendoDocumento = true;
         this.cdr.markForCheck();
-      }
+        this.svc.subirDocumento(this.procesoId, fd).subscribe({
+          next: () => {
+            this.snack.open('Documento subido correctamente', 'Cerrar', { duration: 3000 });
+            this.subiendoDocumento = false;
+            this.cargarDocumentos();
+            this.cargarProceso();
+          },
+          error: () => {
+            this.snack.open('Error al subir el documento', 'Cerrar', { duration: 3000 });
+            this.subiendoDocumento = false;
+            this.cdr.markForCheck();
+          }
+        });
+      });
     });
+  }
+
+  descargarDocumento(id: number): void {
+    window.open(this.svc.urlDescargarDocumento(id), '_blank');
+  }
+
+  actuacionLabel(actuacionId: number): string {
+    const a = this.actuaciones.find(x => x.id === actuacionId);
+    return a ? a.titulo : `Actuación #${actuacionId}`;
   }
 
   analizarConIA(): void {

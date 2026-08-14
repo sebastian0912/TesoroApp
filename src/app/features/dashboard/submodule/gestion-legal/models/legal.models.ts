@@ -104,13 +104,18 @@ export interface ParteProceso {
 export interface DocumentoProceso {
   id: number;
   procesoId: number;
-  documentoTipoId: number;
-  documentoTipoNombre: string;
+  actuacionId?: number | null;
+  docTipoId: number;
+  docTipoNombre: string;
+  docTipoCategoria?: string;
   nombre: string;
-  mime: string;
-  tamanoBytes: number;
+  tamanoByte: number;
+  mimeType: string;
+  version: number;
+  esVersionActual: boolean;
   subidoPor: string;
   createdAt: string;
+  tieneAnalisisIa: boolean;
 }
 
 // ── Paginación genérica ────────────────────────────────────────────────────────

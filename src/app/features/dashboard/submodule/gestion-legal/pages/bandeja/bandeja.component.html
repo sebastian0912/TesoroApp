@@ -8,10 +8,23 @@
         <p>Bandeja de procesos laborales activos</p>
       </div>
     </div>
-    <button mat-flat-button color="primary" class="fab-nuevo" (click)="nuevoProceso()">
-      <mat-icon>add</mat-icon>
-      Nuevo Proceso
-    </button>
+    <div class="header-actions">
+      <!-- Toggle vista tabla / tarjetas -->
+      <div class="view-toggle">
+        <button mat-icon-button [class.toggle-active]="viewMode === 'table'"
+          (click)="setViewMode('table')" matTooltip="Vista tabla" aria-label="Vista tabla">
+          <mat-icon>table_rows</mat-icon>
+        </button>
+        <button mat-icon-button [class.toggle-active]="viewMode === 'cards'"
+          (click)="setViewMode('cards')" matTooltip="Vista tarjetas" aria-label="Vista tarjetas">
+          <mat-icon>grid_view</mat-icon>
+        </button>
+      </div>
+      <button mat-flat-button color="primary" class="fab-nuevo" (click)="nuevoProceso()">
+        <mat-icon>add</mat-icon>
+        Nuevo Proceso
+      </button>
+    </div>
   </div>
 
   <!-- Filtros -->
@@ -59,98 +72,174 @@
     <span>Cargando procesos...</span>
   </div>
 
-  <!-- Tabla -->
-  <div class="tabla-wrapper" *ngIf="!cargando">
-    <table mat-table [dataSource]="procesos" class="tabla-legal">
+  <!-- Tabla / Tarjetas -->
+  @if (!cargando) {
 
-      <!-- Radicado -->
-      <ng-container matColumnDef="radicado">
-        <th mat-header-cell *matHeaderCellDef>Radicado</th>
-        <td mat-cell *matCellDef="let p">
-          <span class="radicado-badge">{{ p.radicado }}</span>
-        </td>
-      </ng-container>
+    @if (viewMode === 'table') {
+      <!-- VISTA TABLA -->
+      <div class="tabla-wrapper">
+        <table mat-table [dataSource]="procesos" class="tabla-legal">
 
-      <!-- Tipo -->
-      <ng-container matColumnDef="tipo">
-        <th mat-header-cell *matHeaderCellDef>Tipo</th>
-        <td mat-cell *matCellDef="let p">
-          <span class="tipo-chip" [style.background]="p.tipoColorHex + '22'" [style.color]="p.tipoColorHex">
-            {{ p.tipoNombre }}
-          </span>
-        </td>
-      </ng-container>
+          <!-- Radicado -->
+          <ng-container matColumnDef="radicado">
+            <th mat-header-cell *matHeaderCellDef>Radicado</th>
+            <td mat-cell *matCellDef="let p">
+              <span class="radicado-badge">{{ p.radicado }}</span>
+            </td>
+          </ng-container>
 
-      <!-- Trabajador -->
-      <ng-container matColumnDef="trabajador">
-        <th mat-header-cell *matHeaderCellDef>Trabajador / Cédula</th>
-        <td mat-cell *matCellDef="let p">
-          <div class="trabajador-cell">
-            <span class="trabajador-nombre">{{ p.trabajadorNombre }}</span>
-            <span class="trabajador-cedula">{{ p.trabajadorCedula }}</span>
+          <!-- Tipo -->
+          <ng-container matColumnDef="tipo">
+            <th mat-header-cell *matHeaderCellDef>Tipo</th>
+            <td mat-cell *matCellDef="let p">
+              <span class="tipo-chip" [style.background]="p.tipoColorHex + '22'" [style.color]="p.tipoColorHex">
+                {{ p.tipoNombre }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Trabajador -->
+          <ng-container matColumnDef="trabajador">
+            <th mat-header-cell *matHeaderCellDef>Trabajador / Cédula</th>
+            <td mat-cell *matCellDef="let p">
+              <div class="trabajador-cell">
+                <span class="trabajador-nombre">{{ p.trabajadorNombre }}</span>
+                <span class="trabajador-cedula">{{ p.trabajadorCedula }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Estado -->
+          <ng-container matColumnDef="estado">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let p">
+              <span class="estado-chip" [ngClass]="colorSemaforoClass(p.colorSemaforo)"
+                [matTooltip]="colorSemaforoLabel(p.colorSemaforo)">
+                {{ p.estadoNombre }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Fecha Inicio -->
+          <ng-container matColumnDef="fechaInicio">
+            <th mat-header-cell *matHeaderCellDef>Fecha inicio</th>
+            <td mat-cell *matCellDef="let p">
+              {{ p.fechaInicio | date:'dd/MM/yyyy' }}
+            </td>
+          </ng-container>
+
+          <!-- Responsable -->
+          <ng-container matColumnDef="responsable">
+            <th mat-header-cell *matHeaderCellDef>Responsable</th>
+            <td mat-cell *matCellDef="let p">
+              <span class="responsable-text">{{ p.responsableId || '—' }}</span>
+            </td>
+          </ng-container>
+
+          <!-- Acciones -->
+          <ng-container matColumnDef="acciones">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let p">
+              <button mat-icon-button color="primary" (click)="irExpediente(p)" matTooltip="Ver expediente">
+                <mat-icon>folder_open</mat-icon>
+              </button>
+              <button mat-icon-button (click)="abrirCambiarEstado(p, $event)" matTooltip="Cambiar estado">
+                <mat-icon>swap_horiz</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="columnasVisibles; sticky: true"></tr>
+          <tr mat-row *matRowDef="let row; columns: columnasVisibles;"
+            class="fila-proceso" (click)="irExpediente(row)"></tr>
+
+          <!-- Fila vacía -->
+          <tr class="mat-row sin-datos" *matNoDataRow>
+            <td [attr.colspan]="columnasVisibles.length">
+              <mat-icon>folder_off</mat-icon>
+              <span>No hay procesos que coincidan con los filtros</span>
+            </td>
+          </tr>
+        </table>
+
+        <mat-paginator
+          [length]="totalElements"
+          [pageSize]="pageSize"
+          [pageIndex]="pageIndex"
+          [pageSizeOptions]="[20, 50, 100]"
+          (page)="onPageChange($event)">
+        </mat-paginator>
+      </div>
+    } @else {
+      <!-- VISTA TARJETAS -->
+      <div class="cards-grid">
+        @for (p of procesos; track p.id) {
+          <div class="proceso-card" (click)="irExpediente(p)">
+            <!-- Encabezado: radicado + semáforo -->
+            <div class="card-top">
+              <span class="radicado-badge">{{ p.radicado }}</span>
+              <span class="estado-chip" [ngClass]="colorSemaforoClass(p.colorSemaforo)"
+                [matTooltip]="colorSemaforoLabel(p.colorSemaforo)">
+                {{ p.estadoNombre }}
+              </span>
+            </div>
+
+            <!-- Tipo -->
+            <div class="card-row">
+              <span class="card-label">Tipo</span>
+              <span class="tipo-chip card-tipo-chip">{{ p.tipoNombre }}</span>
+            </div>
+
+            <!-- Trabajador -->
+            <div class="card-row">
+              <span class="card-label">Trabajador</span>
+              <div class="trabajador-cell">
+                <span class="trabajador-nombre">{{ p.trabajadorNombre }}</span>
+                <span class="trabajador-cedula">{{ p.trabajadorCedula }}</span>
+              </div>
+            </div>
+
+            <!-- Fecha + Responsable -->
+            <div class="card-meta">
+              <div class="card-meta-item">
+                <mat-icon class="card-meta-icon">calendar_today</mat-icon>
+                <span>{{ p.fechaInicio | date:'dd/MM/yyyy' }}</span>
+              </div>
+              @if (p.responsableId) {
+                <div class="card-meta-item">
+                  <mat-icon class="card-meta-icon">person</mat-icon>
+                  <span>{{ p.responsableId }}</span>
+                </div>
+              }
+            </div>
+
+            <!-- Acciones -->
+            <div class="card-actions">
+              <button mat-stroked-button color="primary" (click)="irExpediente(p); $event.stopPropagation()">
+                <mat-icon>folder_open</mat-icon> Expediente
+              </button>
+              <button mat-stroked-button (click)="abrirCambiarEstado(p, $event); $event.stopPropagation()">
+                <mat-icon>swap_horiz</mat-icon> Estado
+              </button>
+            </div>
           </div>
-        </td>
-      </ng-container>
+        }
 
-      <!-- Estado -->
-      <ng-container matColumnDef="estado">
-        <th mat-header-cell *matHeaderCellDef>Estado</th>
-        <td mat-cell *matCellDef="let p">
-          <span class="estado-chip" [ngClass]="colorSemaforoClass(p.colorSemaforo)"
-            [matTooltip]="colorSemaforoLabel(p.colorSemaforo)">
-            {{ p.estadoNombre }}
-          </span>
-        </td>
-      </ng-container>
+        @if (procesos.length === 0) {
+          <div class="cards-empty">
+            <mat-icon>folder_off</mat-icon>
+            <span>No hay procesos que coincidan con los filtros</span>
+          </div>
+        }
+      </div>
 
-      <!-- Fecha Inicio -->
-      <ng-container matColumnDef="fechaInicio">
-        <th mat-header-cell *matHeaderCellDef>Fecha inicio</th>
-        <td mat-cell *matCellDef="let p">
-          {{ p.fechaInicio | date:'dd/MM/yyyy' }}
-        </td>
-      </ng-container>
-
-      <!-- Responsable -->
-      <ng-container matColumnDef="responsable">
-        <th mat-header-cell *matHeaderCellDef>Responsable</th>
-        <td mat-cell *matCellDef="let p">
-          <span class="responsable-text">{{ p.responsableId || '—' }}</span>
-        </td>
-      </ng-container>
-
-      <!-- Acciones -->
-      <ng-container matColumnDef="acciones">
-        <th mat-header-cell *matHeaderCellDef>Acciones</th>
-        <td mat-cell *matCellDef="let p">
-          <button mat-icon-button color="primary" (click)="irExpediente(p)" matTooltip="Ver expediente">
-            <mat-icon>folder_open</mat-icon>
-          </button>
-          <button mat-icon-button (click)="abrirCambiarEstado(p, $event)" matTooltip="Cambiar estado">
-            <mat-icon>swap_horiz</mat-icon>
-          </button>
-        </td>
-      </ng-container>
-
-      <tr mat-header-row *matHeaderRowDef="columnasVisibles; sticky: true"></tr>
-      <tr mat-row *matRowDef="let row; columns: columnasVisibles;"
-        class="fila-proceso" (click)="irExpediente(row)"></tr>
-
-      <!-- Fila vacía -->
-      <tr class="mat-row sin-datos" *matNoDataRow>
-        <td [attr.colspan]="columnasVisibles.length">
-          <mat-icon>folder_off</mat-icon>
-          <span>No hay procesos que coincidan con los filtros</span>
-        </td>
-      </tr>
-    </table>
-
-    <mat-paginator
-      [length]="totalElements"
-      [pageSize]="pageSize"
-      [pageIndex]="pageIndex"
-      [pageSizeOptions]="[20, 50, 100]"
-      (page)="onPageChange($event)">
-    </mat-paginator>
-  </div>
+      <mat-paginator
+        [length]="totalElements"
+        [pageSize]="pageSize"
+        [pageIndex]="pageIndex"
+        [pageSizeOptions]="[20, 50, 100]"
+        (page)="onPageChange($event)">
+      </mat-paginator>
+    }
+  }
 </div>

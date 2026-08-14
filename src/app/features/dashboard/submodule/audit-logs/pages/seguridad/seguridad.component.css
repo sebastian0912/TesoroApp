@@ -142,3 +142,77 @@
   width: 48px;
   height: 48px;
 }
+
+/* ── Mobile cards ─────────────────────────────────────────────────────────── */
+.mobile-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 12px;
+}
+
+.event-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.event-card.card-fail {
+  border-left: 3px solid #e53935;
+  background: rgba(229,57,53,.02);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.card-val {
+  font-size: 13px;
+  color: #333;
+  word-break: break-word;
+}
+
+.card-mono {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .seguridad-container {
+    padding: 12px 12px calc(12px + 60px);
+  }
+  .filtros-bar {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .filtro-field {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+}

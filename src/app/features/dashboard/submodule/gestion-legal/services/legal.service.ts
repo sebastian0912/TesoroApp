@@ -93,4 +93,8 @@ export class LegalService {
   subirDocumento(id: number, formData: FormData): Observable<DocumentoProceso> {
     return this.http.post<DocumentoProceso>(`${this.base}/procesos/${id}/documentos`, formData);
   }
+
+  urlDescargarDocumento(id: number): string {
+    return `${this.base}/documentos/${id}/descargar`;
+  }
 }

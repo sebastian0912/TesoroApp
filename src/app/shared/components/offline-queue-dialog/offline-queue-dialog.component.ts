@@ -131,10 +131,17 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.cdr.detectChanges();
     try {
-      const [pendingRaw, failedRaw, cats] = await Promise.all([
-        this.offlineSync.getPendingRequests(),
-        this.offlineSync.getFailedRequests(),
-        this.offlineSync.getCacheEntriesWithStatus(),
+      const timeoutMs = 8000;
+      const guard = new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error(`reload timeout after ${timeoutMs}ms`)), timeoutMs)
+      );
+      const [pendingRaw, failedRaw, cats] = await Promise.race([
+        Promise.all([
+          this.offlineSync.getPendingRequests(),
+          this.offlineSync.getFailedRequests(),
+          this.offlineSync.getCacheEntriesWithStatus(),
+        ]),
+        guard,
       ]);
       this.pending = await Promise.all((pendingRaw || []).map(r => this.toRow(r)));
       this.failed = await Promise.all((failedRaw || []).map(r => this.toRow(r)));

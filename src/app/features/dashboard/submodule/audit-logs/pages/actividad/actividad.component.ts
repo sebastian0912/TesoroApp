@@ -17,6 +17,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatCardModule } from '@angular/material/card';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { BreakpointObserver } from '@angular/cdk/layout';
 
 import { AuditLogsService } from '../../services/audit-logs.service';
 import {
@@ -51,7 +52,9 @@ export class ActividadComponent implements OnInit {
   private svc = inject(AuditLogsService);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
+  private bp = inject(BreakpointObserver);
 
+  isMobile = false;
   stats: AuditStats | null = null;
 
   // ── Tab 1: Navegación (change_log accion=VIEW) ─────────────────────────────
@@ -92,6 +95,9 @@ export class ActividadComponent implements OnInit {
   readonly accionesList = ['CREATE', 'UPDATE', 'DELETE'];
 
   ngOnInit() {
+    this.bp.observe('(max-width: 768px)').pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(r => { this.isMobile = r.matches; this.cdr.markForCheck(); });
+
     this.cargarStats();
     this.cargarNavegacion();
     this.cargarAcciones();
@@ -191,8 +197,12 @@ export class ActividadComponent implements OnInit {
 
   labelAccion(a: string) { return this.actionLabels[a] ?? a; }
   colorAccion(a: string) { return this.actionColors[a] ?? '#9e9e9e'; }
-  formatDate(epoch: number) {
-    return new Date(epoch * 1000).toLocaleString('es-CO');
+  formatDate(epoch: number | string): string {
+    if (epoch == null) return '—';
+    const d = typeof epoch === 'string'
+      ? new Date(epoch)
+      : new Date(epoch > 3e10 ? epoch : epoch * 1000);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleString('es-CO');
   }
   paginaDesdeDesc(desc: string | null): string {
     if (!desc) return '—';

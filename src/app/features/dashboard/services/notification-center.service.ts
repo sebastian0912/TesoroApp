@@ -27,8 +27,13 @@ export class NotificationCenterService {
 
   constructor(private http: HttpClient) {}
 
-  list(): Observable<NotificationItem[]> {
-    return this.http.get<NotificationItem[]>(`${this.base}/`);
+  list(opts: { tipo?: string; soloNoLeidas?: boolean; page?: number; size?: number } = {}): Observable<NotificationItem[]> {
+    let params: Record<string, string | number | boolean> = {};
+    if (opts.tipo) params['tipo'] = opts.tipo;
+    if (opts.soloNoLeidas) params['soloNoLeidas'] = true;
+    if (opts.page != null) params['page'] = opts.page;
+    if (opts.size != null) params['size'] = opts.size;
+    return this.http.get<NotificationItem[]>(`${this.base}/`, { params: params as any });
   }
 
   unreadCount(): Observable<{ count: number }> {
@@ -41,5 +46,13 @@ export class NotificationCenterService {
 
   markAllRead(): Observable<unknown> {
     return this.http.patch(`${this.base}/read-all/`, {});
+  }
+
+  delete(id: number): Observable<unknown> {
+    return this.http.delete(`${this.base}/${id}`);
+  }
+
+  clearRead(): Observable<{ deleted: number }> {
+    return this.http.delete<{ deleted: number }>(`${this.base}/clear-read/`);
   }
 }

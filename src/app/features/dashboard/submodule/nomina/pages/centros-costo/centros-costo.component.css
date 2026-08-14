@@ -30,7 +30,7 @@
 }
 .f-search { width: 300px; max-width: 100%; }
 .f-empresa { width: 240px; max-width: 100%; }
-.f-estado { width: 160px; }
+.f-estado { width: 160px; max-width: 100%; }
 .cc-filtros .mat-mdc-form-field { margin-bottom: -1.25em; } /* compacta el subscript */
 .cc-count { margin-left: auto; font-size: 13px; color: #666; }
 

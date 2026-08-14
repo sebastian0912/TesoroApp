@@ -6,15 +6,21 @@ import {
 const DB_NAME = 'tesoro-offline-v1';
 const DB_VERSION = 1;
 
+const IDB_OPEN_TIMEOUT_MS = 5000;
+
 /**
  * Envuelve un IDBRequest en una Promise (para operaciones de un solo paso).
  * NO uses esto entre dos operaciones de la misma transacción con await —
  * la transacción puede auto-commitearse en el microtask de espera.
+ * Escucha también tx.onabort para no quedar colgado si la transacción aborta
+ * sin disparar IDBRequest.onerror (e.g. cuota agotada, corrupción de storage).
  */
 function req<T>(r: IDBRequest<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     r.onsuccess = () => resolve(r.result);
     r.onerror = () => reject(r.error);
+    const tx = r.transaction;
+    if (tx) tx.onabort = () => reject(tx.error ?? new Error('IDB transaction aborted'));
   });
 }
 
@@ -22,6 +28,7 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
  * Recorre todos los registros de un cursor SIN cruzar un await entre
  * iteraciones — los callbacks se encadenan sincrónicamente para que
  * la transacción nunca llegue a auto-commitearse.
+ * Escucha tx.onabort para rechazar si la transacción aborta inesperadamente.
  */
 function cursorAll<T>(r: IDBRequest<IDBCursorWithValue | null>): Promise<T[]> {
   return new Promise<T[]>((resolve, reject) => {
@@ -32,11 +39,20 @@ function cursorAll<T>(r: IDBRequest<IDBCursorWithValue | null>): Promise<T[]> {
       else resolve(rows);
     };
     r.onerror = () => reject(r.error);
+    const tx = r.transaction;
+    if (tx) tx.onabort = () => reject(tx.error ?? new Error('IDB transaction aborted'));
   });
 }
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    let done = false;
+    const settle = (fn: () => void) => { if (!done) { done = true; fn(); } };
+    const timer = setTimeout(
+      () => settle(() => reject(new Error(`IDB open timeout after ${IDB_OPEN_TIMEOUT_MS}ms`))),
+      IDB_OPEN_TIMEOUT_MS,
+    );
+
     const open = indexedDB.open(DB_NAME, DB_VERSION);
 
     open.onupgradeneeded = (e) => {
@@ -58,9 +74,9 @@ function openDb(): Promise<IDBDatabase> {
       }
     };
 
-    open.onsuccess = () => resolve(open.result);
-    open.onerror = () => reject(open.error);
-    open.onblocked = () => reject(new Error('IDB bloqueado por otra pestaña'));
+    open.onsuccess = () => { clearTimeout(timer); settle(() => resolve(open.result)); };
+    open.onerror = () => { clearTimeout(timer); settle(() => reject(open.error)); };
+    open.onblocked = () => { clearTimeout(timer); settle(() => reject(new Error('IDB bloqueado por otra pestaña'))); };
   });
 }
 
@@ -68,8 +84,17 @@ const nowStr = () =>
   new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
 
 export class IdbOfflineDb implements IOfflineDb {
-  private dbP: Promise<IDBDatabase> = openDb();
-  private async getDb(): Promise<IDBDatabase> { return this.dbP; }
+  private dbP: Promise<IDBDatabase> | null = null;
+
+  private getDb(): Promise<IDBDatabase> {
+    if (!this.dbP) {
+      this.dbP = openDb().catch(e => {
+        this.dbP = null; // Permite reintentar en el próximo llamado
+        throw e;
+      });
+    }
+    return this.dbP;
+  }
 
   async saveRequestQueue(p: SaveRequestQueuePayload): Promise<OfflineDbResult> {
     try {

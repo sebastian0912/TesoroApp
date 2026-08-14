@@ -37,8 +37,16 @@
   }
 
   /* Sin esto el texto no encoge y empuja los botones fuera de la caja */
-  .card-header-premium .header-content { min-width: 0; }
+  .card-header-premium .header-content {
+    min-width: 0;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
   .card-header-premium .header-text { min-width: 0; }
+
+  /* El espaciador `.grow` en mobile ocupa toda la fila para que los botones
+     bajen al siguiente renglón en lugar de amontonarse junto al título. */
+  .card-header-premium .header-content .grow { flex-basis: 100%; height: 0; }
 
   /* Los grupos de acciones pasan a ocupar la fila completa al envolver */
   .card-header-premium .header-actions { width: 100%; }
@@ -192,6 +200,17 @@
 html,
 body {
   height: 100%;
+  /* Guard contra scroll horizontal "fantasma": los paneles off-canvas
+     (position:fixed + translateX(100%), p.ej. el .slide-panel del home) y otros
+     elementos fijos que quedan a la derecha del viewport ESCAPAN del
+     `overflow:hidden` de .dashboard-container/.dashboard-content e inflan el
+     ancho scrollable del documento -> barra horizontal y contenido recortado.
+     `clip` lo recorta sin crear un contenedor de scroll (a diferencia de
+     `hidden`), así el `position: sticky` de las cabeceras de tabla —que scrollea
+     dentro de .dashboard-page-wrapper— sigue funcionando. El scroll horizontal
+     legítimo de tablas anchas vive en su propio contenedor (overflow-x:auto),
+     no en el root, así que no se ve afectado. */
+  overflow-x: clip;
 }
 
 body {
@@ -486,9 +505,9 @@ mat-card-content p {
 }
 
 .vacante-card {
-  width: 30vw;
+  width: clamp(280px, 30vw, 353px);
   max-width: 353px;
-  min-width: 353px;
+  min-width: min(353px, 100%);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -588,8 +607,9 @@ mat-card-content p {
   }
 
   mat-card {
-    width: 90vw;
-    padding: 15px;
+    /* width: 90vw causaba overflow horizontal en todos los módulos — eliminado */
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .example-full-width {
@@ -1123,8 +1143,8 @@ button {
    El panel se renderiza en un overlay CDK fuera del componente sidebar, por eso
    se estiliza aquí (global) vía la clase `notif-menu-panel` del <mat-menu>. */
 .notif-menu-panel {
-  min-width: 372px !important;
-  max-width: 392px !important;
+  min-width: min(372px, calc(100vw - 24px)) !important;
+  max-width: min(392px, calc(100vw - 16px)) !important;
   border-radius: 16px !important;
   overflow: hidden !important;
   box-shadow: 0 12px 34px rgba(15, 23, 42, .18), 0 2px 8px rgba(15, 23, 42, .08) !important;
@@ -1241,4 +1261,155 @@ button {
 .notif-menu-panel .notif-seeall:hover { background: #f1f5f9 !important; }
 .notif-menu-panel .notif-seeall .mat-icon {
   width: 18px; height: 18px; font-size: 18px; margin-right: 0;
+}
+
+/* SweetAlert2 sobre mat-dialog (z-index del CDK overlay = 1000) */
+.swal-over-dialog { z-index: 99999 !important; }
+
+/* =========================================================
+   RESPONSIVE GLOBAL — patrones comunes en submodulos
+   Estas reglas cubren componentes que no tienen @media propio
+   pero usan las mismas clases en toda la app.
+   ========================================================= */
+
+/* --- Patrón: header de acciones con botones inline --- */
+@media (max-width: 900px) {
+  /* Cualquier fila de acciones que mezcle filtros + botones */
+  .actions-container,
+  .toolbar-bar,
+  .filter-bar,
+  .header-actions-row {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  /* Filtros con min-width fijo ceden el ancho completo en mobile */
+  .actions-container .filtro,
+  .filter-bar .filtro,
+  .toolbar-bar .filtro {
+    min-width: 0 !important;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  /* KPI cards apilan en dos columnas en mobile */
+  .kpi-cards {
+    min-width: 0 !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+
+  /* Grids de stats: mínimo 2 columnas en mobile */
+  .stats-grid,
+  .stats-overview-container {
+    flex-wrap: wrap !important;
+  }
+
+  /* Dialogs: full-width en mobile */
+  .mat-mdc-dialog-panel {
+    max-width: 96vw !important;
+  }
+}
+
+/* =========================================================
+   TABLE → VCARD automático (mobile ≤ 600px)
+   El servicio TableCardService inyecta data-label en cada
+   <td> leyendo el <th> correspondiente. El CSS hace el resto.
+   Para excluir una tabla: añadir data-no-vcard al elemento
+   o a su contenedor.
+   ========================================================= */
+@media (max-width: 600px) {
+
+  /* ── 1. El <table> pasa a display:block para poder apilar las filas ── */
+  table.mat-mdc-table:not([data-no-vcard]) {
+    display: block !important;
+    width: 100%;
+  }
+
+  /* ── 2. Ocultar cabecera (los data-label toman su lugar) ── */
+  table.mat-mdc-table:not([data-no-vcard]) thead {
+    display: none !important;
+  }
+
+  table.mat-mdc-table:not([data-no-vcard]) tbody {
+    display: block;
+  }
+
+  /* ── 3. Cada fila se convierte en una card ── */
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr {
+    display: block !important;
+    margin-bottom: 12px;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 10px 14px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.15s ease;
+  }
+
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.09);
+  }
+
+  /* Fila de estado vacío: ocupa todo el ancho */
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td[colspan] {
+    border-bottom: none !important;
+  }
+
+  /* ── 4. Cada celda es una fila etiqueta + valor ── */
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td {
+    display: flex !important;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 0 !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    font-size: 13px;
+    min-height: 28px;
+    line-height: 1.4;
+    text-align: left;
+  }
+
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td:last-child {
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* ── 5. Etiqueta de columna via data-label ── */
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+    min-width: 88px;
+    max-width: 88px;
+    flex-shrink: 0;
+    padding-top: 2px;
+    line-height: 1.3;
+  }
+
+  /* Columnas sin etiqueta (acciones, checkbox): sin prefijo, centrar */
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td[data-label=""] {
+    justify-content: flex-end;
+    border-bottom: none !important;
+    padding-top: 8px !important;
+  }
+
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td[data-label=""]::before {
+    display: none;
+  }
+
+  /* Ajuste para botones de acción dentro de celdas */
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td .mat-mdc-icon-button,
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td button {
+    min-width: 36px;
+  }
+
+  /* Primera celda (nombre/título): destaca levemente */
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td:first-child {
+    font-weight: 600;
+    color: #1e293b;
+  }
 }

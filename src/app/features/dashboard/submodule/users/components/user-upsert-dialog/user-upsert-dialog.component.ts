@@ -12,8 +12,8 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { AdminService, ActualizarUsuarioPayload, UsuarioDetail, AuthResponse } from '../../services/admin.service';
-import { forkJoin, Observable, of } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { forkJoin, Observable, of, switchMap } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 
 export interface UserUpsertData {
@@ -96,8 +96,8 @@ export class UserUpsertDialogComponent implements OnInit {
     });
 
     if (this.isCreate()) {
-      this.form.get('password')?.addValidators([Validators.required, Validators.minLength(8)]);
-      this.form.get('password2')?.addValidators([Validators.required]);
+      this.form.get('password')?.addValidators([Validators.required, Validators.minLength(12)]);
+      this.form.get('password2')?.addValidators([Validators.required, Validators.minLength(12)]);
       this.form.get('password')?.updateValueAndValidity();
       this.form.get('password2')?.updateValueAndValidity();
     }
@@ -153,8 +153,8 @@ export class UserUpsertDialogComponent implements OnInit {
     const pw = this.form.get('password')!;
     const pw2 = this.form.get('password2')!;
     if (checked) {
-      pw.setValidators([Validators.required, Validators.minLength(8)]);
-      pw2.setValidators([Validators.required]);
+      pw.setValidators([Validators.required, Validators.minLength(12)]);
+      pw2.setValidators([Validators.required, Validators.minLength(12)]);
     } else {
       pw.clearValidators(); pw.reset('');
       pw2.clearValidators(); pw2.reset('');
@@ -206,6 +206,8 @@ export class UserUpsertDialogComponent implements OnInit {
     };
 
     // Unificamos a Observable<UsuarioDetail>
+    const rolId = raw.rol_id as string | null;
+
     const req$: Observable<UsuarioDetail> =
       this.data.mode === 'create'
         ? this.adminService
@@ -217,12 +219,18 @@ export class UserUpsertDialogComponent implements OnInit {
               estado_solicitudes: payload.estado_solicitudes,
               empresa: payload.empresa ?? null,
               sede: payload.sede ?? null,
-              rol: payload.rol ?? null,
               nombres: payload.nombres,
               apellidos: payload.apellidos,
               celular: payload.celular ?? null,
             } as any)
-            .pipe(map((r: AuthResponse) => r.user))
+            .pipe(
+              map((r: AuthResponse) => r.user),
+              switchMap((user: UsuarioDetail) =>
+                rolId
+                  ? this.adminService.cambiarRol(user.id, rolId).pipe(map(() => user), catchError(() => of(user)))
+                  : of(user)
+              )
+            )
         : this.adminService.actualizar(this.data.user!.id, payload, true);
 
     req$.subscribe({
@@ -230,8 +238,28 @@ export class UserUpsertDialogComponent implements OnInit {
         this.saving.set(false);
         this.dialogRef.close({ ok: true, data: detail });
       },
-      error: (err: unknown) => {
-        Swal.fire('Error', 'No fue posible guardar el usuario.', 'error');
+      error: (err: any) => {
+        const errors = err?.error?.errors;
+        const msg = err?.error?.message;
+        let detalle = 'No fue posible guardar el usuario.';
+        if (errors && typeof errors === 'object') {
+          detalle = Object.entries(errors).map(([k, v]) => `${k}: ${v}`).join('\n');
+          Object.entries(errors).forEach(([field, errMsg]) => {
+            const ctrl = this.form.get(field);
+            if (ctrl) { ctrl.setErrors({ serverError: errMsg }); ctrl.markAsTouched(); }
+          });
+        } else if (msg) {
+          detalle = msg;
+          // Cédula o correo duplicados → resaltar ambos campos
+          if (msg.includes('No se puede crear')) {
+            const hint = 'Cédula o correo ya están registrados';
+            ['numero_de_documento', 'correo_electronico'].forEach(f => {
+              const ctrl = this.form.get(f);
+              if (ctrl) { ctrl.setErrors({ serverError: hint }); ctrl.markAsTouched(); }
+            });
+          }
+        }
+        Swal.fire({ title: 'Error', text: detalle, icon: 'error', customClass: { container: 'swal-over-dialog' } });
         this.saving.set(false);
       },
     });

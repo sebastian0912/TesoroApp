@@ -181,8 +181,8 @@
               Filtros
             </button>
 
-            <!-- View Mode (Desktop) -->
-            <div class="sf-view-toggle desktop-only">
+            <!-- View Mode Toggle -->
+            <div class="sf-view-toggle">
               <mat-icon [class.active]="viewMode==='table'">table_rows</mat-icon>
               <mat-slide-toggle [checked]="viewMode === 'cards'" (change)="setViewMode($event)" color="primary">
               </mat-slide-toggle>

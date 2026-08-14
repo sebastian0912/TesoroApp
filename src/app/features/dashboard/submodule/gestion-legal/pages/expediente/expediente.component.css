@@ -315,6 +315,32 @@
   color: #888;
 }
 
+.doc-actuacion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: #1565c0;
+  background: #e3f2fd;
+  border-radius: 10px;
+  padding: 1px 7px;
+  margin-top: 2px;
+}
+
+.doc-actuacion-badge .badge-icon {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+}
+
+.version-badge {
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
 .doc-meta {
   display: flex;
   gap: 8px;
@@ -324,11 +350,14 @@
 }
 
 /* Términos */
+.tabla-terminos-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
 .tabla-terminos {
   width: 100%;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #e0e0e0;
 }
 
 .termino-estado-chip {

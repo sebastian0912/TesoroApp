@@ -795,6 +795,43 @@ export interface TnlSaldoPendiente {
   estado_proyectado: TnlEstado;
 }
 
+// ── Novedades del periodo (registro manual, submódulo "Novedades") ────────
+// Fuente MANUAL de novedades: se generan y almacenan desde la UI contra una
+// (empresa usuaria, periodo) y el cálculo las consumirá después — reemplaza
+// la carga por Excel del botón de novedades para este flujo. Contrato REST:
+// /api/nomina/novedades-periodo (backend en ms-payroll).
+
+export type EstadoNovedadPeriodo = 'PENDIENTE' | 'APLICADA' | 'ANULADA';
+
+export interface NovedadPeriodo {
+  id?: number;
+  id_cliente: number;
+  cliente_nombre?: string | null;
+  id_periodo: number;
+  periodo_descripcion?: string | null;
+  id_persona?: number | null;
+  id_contrato?: number | null;
+  documento: string;
+  nombre_empleado?: string | null;
+  ceco_nombre?: string | null;
+  codigo_concepto: string;
+  descripcion_concepto?: string | null;
+  naturaleza?: string | null;               // DEVENGO | DEDUCCION | OTRO…
+  unidad?: 'HORA' | 'DIA' | 'VALOR' | null;
+  /** Horas o días según la unidad del concepto. */
+  cantidad?: number | null;
+  /** Rango de fechas para novedades de unidad DIA (yyyy-MM-dd). */
+  fecha_inicio?: string | null;
+  fecha_fin?: string | null;
+  /** Monto para novedades de unidad VALOR. */
+  valor?: number | null;
+  observacion?: string | null;
+  estado?: EstadoNovedadPeriodo;
+  creado_por?: string | null;
+  creado_at?: string | null;
+  actualizado_at?: string | null;
+}
+
 /**
  * Fila del histórico de novedades: una novedad aplicada a un empleado en
  * un cierre de nómina. Espejo de HistoricoNovedadDto en ms-payroll.
@@ -1392,6 +1429,38 @@ export class NominaService {
     const params: Record<string, string> = { cliente_id: String(clienteId) };
     if (periodoId) params['periodo_id'] = String(periodoId);
     return this.http.post<TnlRevalidacionResponse>(`${this.baseTnl}/revalidar/`, null, { params });
+  }
+
+  // ── NOVEDADES DEL PERIODO (registro manual desde el submódulo Novedades) ──
+  // Las novedades se generan y almacenan aquí contra (empresa usuaria, periodo);
+  // el cálculo las consume después. El borrado es lógico (estado ANULADA).
+  private baseNovedadesPeriodo = `${environment.apiUrl}/api/nomina/novedades-periodo`;
+
+  /** Novedades registradas para la empresa+periodo (filtro q opcional). */
+  getNovedadesPeriodo(opts: {
+    clienteId: number; periodoId: number; q?: string | null;
+    estado?: EstadoNovedadPeriodo | null;
+  }): Observable<NovedadPeriodo[]> {
+    const params: Record<string, string> = {
+      cliente_id: String(opts.clienteId),
+      periodo_id: String(opts.periodoId),
+    };
+    if (opts.q && opts.q.trim()) params['q'] = opts.q.trim();
+    if (opts.estado) params['estado'] = opts.estado;
+    return this.http.get<NovedadPeriodo[]>(`${this.baseNovedadesPeriodo}/`, { params });
+  }
+
+  crearNovedadPeriodo(data: NovedadPeriodo): Observable<NovedadPeriodo> {
+    return this.http.post<NovedadPeriodo>(`${this.baseNovedadesPeriodo}/`, data);
+  }
+
+  actualizarNovedadPeriodo(id: number, data: Partial<NovedadPeriodo>): Observable<NovedadPeriodo> {
+    return this.http.patch<NovedadPeriodo>(`${this.baseNovedadesPeriodo}/${id}/`, data);
+  }
+
+  /** Anulación lógica: la novedad deja de ser candidata al cálculo. */
+  anularNovedadPeriodo(id: number): Observable<NovedadPeriodo> {
+    return this.http.delete<NovedadPeriodo>(`${this.baseNovedadesPeriodo}/${id}/`);
   }
 
   // ── ENTIDADES EXTERNAS (mantenimiento general con borrado lógico) ─────────

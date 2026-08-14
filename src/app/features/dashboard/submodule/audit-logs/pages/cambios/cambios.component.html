@@ -51,8 +51,71 @@
     <mat-spinner diameter="40"></mat-spinner>
   </div>
 
-  <!-- Tabla -->
-  <div class="tabla-wrapper" *ngIf="!cargando">
+  <!-- Vista tarjetas mobile -->
+  @if (!cargando && isMobile) {
+    <div class="mobile-cards">
+      @for (c of cambios; track c.id) {
+        <div class="cambio-card">
+          <div class="card-top-row">
+            <span class="action-chip" [style.background]="colorAccion(c.accion)+'22'" [style.color]="colorAccion(c.accion)">{{ labelAccion(c.accion) }}</span>
+            <span class="modulo-chip">{{ c.modulo }}</span>
+          </div>
+          <div class="card-field">
+            <span class="card-label">Fecha</span>
+            <span class="card-val">{{ formatDate(c.occurred_at) }}</span>
+          </div>
+          <div class="card-field">
+            <span class="card-label">Usuario</span>
+            <span class="card-val">{{ c.actor_nombre || c.actor_email || '—' }}</span>
+          </div>
+          <div class="card-field">
+            <span class="card-label">Entidad</span>
+            <span class="card-val">{{ c.entidad }}{{ c.entidad_id ? ' · ' + (c.entidad_id | slice:0:12) : '' }}</span>
+          </div>
+          @if (c.campo) {
+            <div class="card-field">
+              <span class="card-label">Campo</span>
+              <span class="card-val card-mono">{{ c.campo }}</span>
+            </div>
+          }
+          @if (c.descripcion) {
+            <div class="card-field">
+              <span class="card-label">Descripción</span>
+              <span class="card-val card-desc">{{ c.descripcion }}</span>
+            </div>
+          }
+          @if (hasDetalle(c)) {
+            <button mat-stroked-button class="detalle-btn" (click)="toggleDetalle(c)">
+              <mat-icon>{{ expandedRow === c ? 'expand_less' : 'expand_more' }}</mat-icon>
+              {{ expandedRow === c ? 'Ocultar' : 'Ver cambio' }}
+            </button>
+            @if (expandedRow === c) {
+              <div class="diff-panel">
+                @if (c.valor_anterior) {
+                  <div class="diff-col before">
+                    <div class="diff-label"><mat-icon>remove_circle</mat-icon> Antes</div>
+                    <pre class="diff-content">{{ c.valor_anterior }}</pre>
+                  </div>
+                }
+                @if (c.valor_nuevo) {
+                  <div class="diff-col after">
+                    <div class="diff-label"><mat-icon>add_circle</mat-icon> Después</div>
+                    <pre class="diff-content">{{ c.valor_nuevo }}</pre>
+                  </div>
+                }
+              </div>
+            }
+          }
+        </div>
+      }
+      @if (cambios.length === 0) {
+        <div class="empty-state"><mat-icon>manage_search</mat-icon><p>Sin cambios con los filtros seleccionados.</p></div>
+      }
+    </div>
+  }
+
+  <!-- Vista tabla desktop -->
+  <div class="tabla-wrapper" *ngIf="!cargando && !isMobile">
     <table mat-table [dataSource]="cambios" class="tabla-cambios mat-elevation-z1" multiTemplateDataRows>
 
       <ng-container matColumnDef="occurredAt">

@@ -24,7 +24,7 @@ import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 import { LegalService } from '../../services/legal.service';
 import { ProcesoLegal, ProcesoTipo, ProcesoEstado } from '../../models/legal.models';
-import { CambiarEstadoDialogComponent } from './cambiar-estado-dialog.component';
+import { CambiarEstadoDialogComponent, CambiarEstadoResult } from './cambiar-estado-dialog.component';
 
 const COLS_DESKTOP = ['radicado', 'tipo', 'trabajador', 'estado', 'fechaInicio', 'responsable', 'acciones'];
 const COLS_MOBILE  = ['trabajador', 'estado', 'acciones'];
@@ -68,6 +68,7 @@ export class BandejaComponent implements OnInit {
 
   // Tabla
   columnasVisibles = COLS_DESKTOP;
+  viewMode: 'table' | 'cards' = 'table';
 
   private bp = inject(BreakpointObserver);
 
@@ -80,8 +81,14 @@ export class BandejaComponent implements OnInit {
 
     this.bp.observe('(max-width: 768px)').pipe(takeUntilDestroyed()).subscribe(r => {
       this.columnasVisibles = r.matches ? COLS_MOBILE : COLS_DESKTOP;
+      this.viewMode = r.matches ? 'cards' : 'table';
       this.cdr.markForCheck();
     });
+  }
+
+  setViewMode(mode: 'table' | 'cards'): void {
+    this.viewMode = mode;
+    this.cdr.markForCheck();
   }
 
   ngOnInit(): void {
@@ -170,15 +177,50 @@ export class BandejaComponent implements OnInit {
     this.svc.getEstados(proceso.tipoId).subscribe({
       next: estados => {
         const ref = this.dialog.open(CambiarEstadoDialogComponent, {
-          width: '440px',
+          width: '560px',
+          maxWidth: '95vw',
           data: { proceso, estados }
         });
-        ref.afterClosed().subscribe((result: { estadoId: number; motivo: string } | null) => {
+        ref.afterClosed().subscribe((result: CambiarEstadoResult | null) => {
           if (!result) return;
           this.svc.cambiarEstado(proceso.id, result).subscribe({
             next: () => {
-              this.snack.open('Estado actualizado correctamente', 'Cerrar', { duration: 3000 });
-              this.cargar();
+              const docs = result.archivos || [];
+              if (docs.length === 0) {
+                this.snack.open('Estado actualizado correctamente', 'Cerrar', { duration: 3000 });
+                this.cargar();
+                return;
+              }
+              let pendiente = docs.length;
+              let errores = 0;
+              for (const d of docs) {
+                const fd = new FormData();
+                fd.append('file', d.file);
+                fd.append('docTipoId', String(d.docTipoId));
+                this.svc.subirDocumento(proceso.id, fd).subscribe({
+                  next: () => {
+                    pendiente--;
+                    if (pendiente === 0) {
+                      const msg = errores === 0
+                        ? `Estado actualizado y ${docs.length} documento(s) radicado(s)`
+                        : `Estado actualizado. ${errores} documento(s) fallaron`;
+                      this.snack.open(msg, 'Cerrar', { duration: 4000 });
+                      this.cargar();
+                    }
+                  },
+                  error: () => {
+                    errores++;
+                    pendiente--;
+                    if (pendiente === 0) {
+                      this.snack.open(
+                        `Estado actualizado. ${errores} documento(s) no se pudieron subir`,
+                        'Cerrar', { duration: 4000 }
+                      );
+                      this.cargar();
+                    }
+                  }
+                });
+              }
             },
             error: () => this.snack.open('Error al cambiar estado', 'Cerrar', { duration: 3000 })
           });

@@ -55,11 +55,15 @@ export class GestionUsuariosComponent implements OnInit {
       apellidos: u.datos_basicos?.apellidos ?? '—',
       sede: u.sede?.nombre ?? '—',
       rol: u.rol?.nombre ?? '—',
+      fecha_registro: u.fecha_registro
+        ? new Date(Number(u.fecha_registro) * 1000).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '—',
     }));
   });
 
   // --- DEFINICIÓN DE COLUMNAS ---
   public readonly columns: ColumnDefinition[] = [
+    { name: 'fecha_registro', header: 'Fecha registro', type: 'text', width: '160px' },
     { name: 'correo', header: 'Correo', type: 'text', width: '260px' },
     { name: 'cedula', header: 'Cédula', type: 'text', width: '140px' },
     { name: 'nombres', header: 'Nombres', type: 'text' },

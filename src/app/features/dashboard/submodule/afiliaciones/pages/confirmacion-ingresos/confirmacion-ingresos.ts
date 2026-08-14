@@ -28,6 +28,7 @@ import { PegadoMasivoDialogComponent } from '../../components/pegado-masivo/pega
 import { DatosAfiliacionDialogComponent } from '../../components/datos-afiliacion/datos-afiliacion-dialog.component';
 import { AfiliacionesGestionService, BaseFechaGestion } from '../../services/afiliaciones-gestion.service';
 import { AfiliacionPdfService } from '../../services/afiliacion-pdf.service';
+import { PlantillaEpsService } from '../../services/plantilla-eps.service';
 import {
   ContratacionRow, CasoDetalle, CedulaDoc, MasivoResult, Validador, Canal,
   Expediente, DocumentoExpediente, GrupoDoc
@@ -73,6 +74,7 @@ interface PreviewDoc {
 export class ConfirmacionIngresos implements OnDestroy {
   private svc = inject(AfiliacionesGestionService);
   private pdf = inject(AfiliacionPdfService);
+  private plantillaSvc = inject(PlantillaEpsService);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private sanitizer = inject(DomSanitizer);
@@ -217,6 +219,40 @@ export class ConfirmacionIngresos implements OnDestroy {
       })
       .catch(() => this.snack.open('No se pudo generar el PDF', 'Cerrar', { duration: 4000 }))
       .finally(() => { this.pdfGenerando = false; this.cdr.markForCheck(); });
+  }
+
+  // ── Generación del documento EPS desde plantilla parametrizada ────────
+
+  docEpsGenerando: number | null = null;
+
+  /**
+   * Genera el documento de afiliación según la plantilla configurada para la EPS/temporal/sexo
+   * del candidato. El PDF lo produce el servidor con flying-saucer y se abre en nueva pestaña.
+   */
+  generarDocEps(row: ContratacionRow) {
+    if (this.docEpsGenerando) return;
+    const procesoId = row.id;
+    this.docEpsGenerando = procesoId;
+    this.cdr.markForCheck();
+
+    this.plantillaSvc.generarPdf(procesoId).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        this.snack.open('Documento EPS generado ✓', 'Cerrar', { duration: 3000 });
+        this.docEpsGenerando = null;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        const msg = err.status === 404
+          ? 'No hay plantilla configurada para esta EPS / temporal / sexo'
+          : 'Error generando el documento';
+        this.snack.open(msg, 'Cerrar', { duration: 5000 });
+        this.docEpsGenerando = null;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   /** Nombre del operador para el pie del PDF; si no se puede leer, el pie va sin él. */

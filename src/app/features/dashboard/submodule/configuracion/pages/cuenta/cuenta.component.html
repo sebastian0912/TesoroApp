@@ -1,0 +1,49 @@
+<div class="cfg-card">
+  <div class="cfg-card__head">
+    <h2 class="cfg-card__title">Perfil</h2>
+    <p class="cfg-card__hint">Información de tu cuenta en la plataforma.</p>
+  </div>
+
+  <div class="profile">
+    <div class="profile__avatar" aria-hidden="true">{{ iniciales }}</div>
+    <div class="profile__main">
+      <p class="profile__name">{{ nombre || 'Usuario' }}</p>
+      @if (rol) { <span class="profile__role">{{ rol }}</span> }
+    </div>
+  </div>
+
+  <dl class="field-list">
+    <div class="field">
+      <dt class="field__label"><mat-icon fontSet="material-symbols-outlined">badge</mat-icon> Documento</dt>
+      <dd class="field__value">{{ documento || '—' }}</dd>
+    </div>
+    <div class="field">
+      <dt class="field__label"><mat-icon fontSet="material-symbols-outlined">location_city</mat-icon> Sede</dt>
+      <dd class="field__value">{{ sede || '—' }}</dd>
+    </div>
+    @if (correo) {
+      <div class="field">
+        <dt class="field__label"><mat-icon fontSet="material-symbols-outlined">mail</mat-icon> Correo</dt>
+        <dd class="field__value">{{ correo }}</dd>
+      </div>
+    }
+  </dl>
+</div>
+
+<div class="cfg-card">
+  <div class="cfg-card__head">
+    <h2 class="cfg-card__title">Seguridad</h2>
+    <p class="cfg-card__hint">Actualiza tu contraseña de acceso.</p>
+  </div>
+
+  <div class="action-row">
+    <div class="action-row__text">
+      <span class="action-row__title">Contraseña</span>
+      <span class="action-row__desc">Cámbiala periódicamente para proteger tu cuenta.</span>
+    </div>
+    <button type="button" class="btn btn--primary" (click)="cambiarContrasena()">
+      <mat-icon fontSet="material-symbols-outlined">vpn_key</mat-icon>
+      Cambiar contraseña
+    </button>
+  </div>
+</div>
