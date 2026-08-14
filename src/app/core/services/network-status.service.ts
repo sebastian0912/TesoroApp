@@ -10,6 +10,11 @@ export class NetworkStatusService {
   public onlineStatus = signal(typeof navigator === 'undefined' ? true : navigator.onLine);
   private heartbeatInterval: ReturnType<typeof setInterval> | undefined;
   private readonly ngZone = inject(NgZone);
+  // Observable derivado creado UNA sola vez aquí (inicializador de campo del servicio
+  // root = corre dentro del injection context). Crearlo perezosamente en el getter
+  // lanzaba NG0203, porque toObservable() exige injection context y el getter se
+  // invocaba desde lifecycle hooks / callbacks async donde ese contexto ya no existe.
+  private readonly onlineStatus$ = toObservable(this.onlineStatus);
 
   // Tolerancia a fallos transitorios: solo marcamos offline después de
   // FAIL_THRESHOLD heartbeats fallidos seguidos. Esto evita que un endpoint
@@ -24,7 +29,7 @@ export class NetworkStatusService {
   }
 
   get isOnline$(): Observable<boolean> {
-    return toObservable(this.onlineStatus);
+    return this.onlineStatus$;
   }
 
   get isOnline(): boolean {

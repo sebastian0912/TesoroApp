@@ -89,6 +89,15 @@ export const offlineInterceptor: HttpInterceptorFn = (
     return next(req);
   }
 
+  // Telemetría fire-and-forget (auditoría de cambios, marcada con X-Skip-Log):
+  // NUNCA encolar ni cachear. Si falla (sin red, o CORS/preflight rechazado) se
+  // descarta y punto — el emisor ya ignora el error. Encolarla generaba una cola
+  // offline que jamás drenaba (el reintento añade X-Offline-Sync, otra cabecera) y
+  // crecía con cada navegación, disparando cientos de POST fallidos.
+  if (req.headers.has('X-Skip-Log')) {
+    return next(req);
+  }
+
   /**
    * Encola una request multipart offline.
    * Convierte cada File a base64 y llama al adaptador, que decide cómo
