@@ -30,6 +30,7 @@ export const routes: Routes = [
       { path: 'merchandise', loadChildren: () => import('./submodule/merchandise/merchandise.routes').then(m => m.routes) },
       { path: 'market', loadChildren: () => import('./submodule/market/market.routes').then(m => m.routes) },
       { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.routes').then(m => m.routes) },
+      { path: 'office-management', loadChildren: () => import('./submodule/office-management/office-management.routes').then(m => m.routes) },
 
       // Redirects para módulos PADRE del menú (db_admin.modulo) cuyas rutas apuntan
       // a paths sin pantalla propia. Antes hacían redirect silencioso al home;
