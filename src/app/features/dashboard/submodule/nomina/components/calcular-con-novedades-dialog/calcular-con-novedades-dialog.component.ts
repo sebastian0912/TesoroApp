@@ -115,9 +115,11 @@ type DialogData = {
           </div>
           <p class="cn-hint cn-explainer">
             Se liquidaron <strong>{{ result()?.contratos_calculados || 0 }}</strong>
-            empleados — solo aquellos con novedades en el Excel y con contrato
-            vigente del cliente en este periodo. La nómina base del resto del
-            cliente <em>no</em> se incluyó.
+            empleados del cliente con contrato vigente en este periodo.
+            Las novedades del Excel se aplicaron únicamente a los
+            <strong>{{ result()?.contratos_con_novedad || 0 }}</strong>
+            empleados que aparecen en él; el resto recibió nómina base
+            (sueldo + auxilio + aportes).
           </p>
 
           <!-- Embudo de cédulas: Excel → en sistema → con contrato del cliente → resueltas -->
@@ -328,6 +330,14 @@ export class CalcularConNovedadesDialogComponent {
     this.ref.close({
       empleados: r?.empleados || [],
       contratos_data: r?.contratos_data || [],
+      // Incremento 2.6: se propaga el snapshot server-side. El cierre usará SOLO
+      // el calculationId; los detalles económicos no son fuente de verdad.
+      calculation_id: r?.calculation_id ?? null,
+      puede_cerrar: r?.puede_cerrar ?? false,
+      conciliacion: r?.conciliacion ?? null,
+      diagnostico_novedades: r?.diagnostico_novedades ?? [],
+      bloqueantes: r?.bloqueantes ?? [],
+      fecha_expiracion: r?.fecha_expiracion ?? null,
     });
   }
 

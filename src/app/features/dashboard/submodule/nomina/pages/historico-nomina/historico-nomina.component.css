@@ -185,3 +185,12 @@ table {
 .mat-mdc-row:hover {
   background-color: #f1f3f4;
 }
+
+/* Clic en cualquier celda de la fila abre el desprendible (excepto en la
+   columna del checkbox, que detiene la propagación). */
+.clickable-row {
+  cursor: pointer;
+}
+.clickable-row:active {
+  background-color: #e8eaed;
+}

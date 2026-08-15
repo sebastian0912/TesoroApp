@@ -26,6 +26,8 @@ import { MatSortModule } from '@angular/material/sort';
 
 import { Subscription } from 'rxjs';
 
+import { ChangeDetectorRef } from '@angular/core';
+
 import {
   PreviewDialogData,
   PreviewDialogResult,
@@ -33,6 +35,7 @@ import {
   PreviewSchema,
   PreviewField,
   PreviewOption,
+  ServerValidateResult,
 } from './../../model/validation-preview';
 
 @Component({
@@ -72,6 +75,9 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
   readonly filterCtrl = new FormControl<string>('', { nonNullable: true });
   showErrorsOnly = false;
 
+  /** Resumen por tipo: cuando es true, solo lista categorías de error. */
+  summaryErrorsOnly = false;
+
   private removedIds = new Set<string>();
 
   // 2 fases
@@ -82,6 +88,11 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
   // summary (para no usar arrow functions en template)
   totalErrors = 0;
   totalWarns = 0;
+
+  // estado del flujo iterativo de "Confirmar Todo" contra servidor
+  private serverValidate?: (items: TItem[]) => Promise<ServerValidateResult>;
+  submitting = false;
+  private lastServerResult: unknown = undefined;
 
   // header texts (sin casts en template)
   titleText = 'Previsualización de validación';
@@ -95,21 +106,22 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
       ValidationPreviewDialogComponent<TItem, TResult>,
       PreviewDialogResult<TResult>
     >,
+    private readonly cdr: ChangeDetectorRef,
     @Inject(MAT_DIALOG_DATA) data: PreviewDialogData<TItem, TResult>,
   ) {
+    this.serverValidate = data.serverValidate;
     this.schema = data.schema;
     this.items = [...(data.items ?? [])];
 
     this.phase = data.phase ?? 'pre';
     this.externalIssues = [...(data.externalIssues ?? [])];
+    this.summaryErrorsOnly = data.summaryErrorsOnly ?? false;
 
     // prioridad: overrides del diálogo > schema > defaults
     this.titleText = data.title ?? this.schema.title ?? this.titleText;
     this.subtitleText = data.subtitle ?? this.schema.subtitle ?? this.subtitleText;
 
     this.uploadHandler = data.uploadHandler;
-
-    this.recomputeIssues();
 
     this.recomputeIssues();
 
@@ -192,10 +204,65 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     return this.totalErrors > 0;
   }
 
+  // Flujo iterativo: ¿hay al menos una fila enviable al servidor?
+  hasSubmittableItems(): boolean {
+    return this.items.some(
+      (it) =>
+        !this.removedIds.has(this.schema.itemId(it)) && this.issueCount(it) === 0,
+    );
+  }
+
+  // Habilita "Confirmar Todo". En modo serverValidate alcanza con que UNA fila
+  // pase la validación cliente: el server se encarga del resto y las rechazadas
+  // vuelven con su motivo para que el usuario las corrija.
+  get canSubmit(): boolean {
+    if (this.submitting) return false;
+    if (this.serverValidate) return this.hasSubmittableItems();
+    return !this.anyBlockingErrors();
+  }
+
   severityIcon(sev: string): string {
     if (sev === 'error') return 'error';
     if (sev === 'warn') return 'warning';
     return 'info';
+  }
+
+  // ----------------------------
+  // Resumen por tipo de issue (opt-in)
+  // ----------------------------
+
+  /** ¿Algún issue trae `category`? Si no, el panel de resumen por tipo se oculta.
+   *  Con summaryErrorsOnly solo cuentan las categorías de error. */
+  hasIssueTypeSummary(): boolean {
+    return this.issues.some(
+      (i) => !!i.category && (!this.summaryErrorsOnly || i.severity === 'error'),
+    );
+  }
+
+  /**
+   * Agrupa los issues con `category` por (severidad, categoría) y cuenta FILAS
+   * distintas afectadas (no issues), para mostrar "12 · Sin equivalencia CECO".
+   * Errores primero, luego advertencias; dentro de cada grupo, mayor conteo arriba.
+   */
+  issueTypeSummary(): { severity: 'error' | 'warn'; category: string; count: number }[] {
+    const groups = new Map<string, { severity: 'error' | 'warn'; category: string; rows: Set<string> }>();
+    for (const iss of this.issues) {
+      if (!iss.category) continue;
+      if (iss.severity !== 'error' && iss.severity !== 'warn') continue;
+      if (this.summaryErrorsOnly && iss.severity !== 'error') continue;
+      const key = `${iss.severity}|${iss.category}`;
+      let g = groups.get(key);
+      if (!g) {
+        g = { severity: iss.severity, category: iss.category, rows: new Set<string>() };
+        groups.set(key, g);
+      }
+      g.rows.add(iss.itemId);
+    }
+    return [...groups.values()]
+      .map((g) => ({ severity: g.severity, category: g.category, count: g.rows.size }))
+      .sort((a, b) =>
+        a.severity === b.severity ? b.count - a.count : a.severity === 'error' ? -1 : 1,
+      );
   }
 
   // ----------------------------
@@ -234,10 +301,14 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
 
     this.form = this.fb.group(group);
 
-    // Live update in-memory + recalcular issues
+    // Live update in-memory + recalcular issues. Solo procesamos los campos
+    // que realmente cambiaron — disparar onChange para todos en cada keystroke
+    // causa efectos colaterales (p.ej. markFkOptimistic marcando FKs no tocadas
+    // como resueltas y enmascarando errores reales).
     this.formSub = this.form.valueChanges.subscribe(() => {
       if (!this.selected) return;
 
+      let changed = false;
       for (const f of this.schema.editFields) {
         const visible = f.visible ? f.visible(this.selected) : true;
         if (!visible) continue;
@@ -247,15 +318,21 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
 
         const v = ctrl.value;
         const nv = f.normalize ? f.normalize(v, this.selected) : v;
+        const old = (this.selected as any)[f.key];
+        if (old === nv) continue;
 
         (this.selected as any)[f.key] = nv;
         if (f.onChange) f.onChange(this.selected);
 
         // si llegó del backend y tocaste el campo, lo marcamos como resuelto
         this.resolveExternalIssuesForField(this.selectedId, f.key);
+        changed = true;
       }
 
-      this.recomputeIssues();
+      if (changed) {
+        this.recomputeIssues();
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -317,6 +394,7 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     }
 
     this.recomputeIssues();
+    this.cdr.markForCheck();
   }
 
   removeSelected(): void {
@@ -325,14 +403,40 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     const id = this.schema.itemId(this.selected);
     this.removedIds.add(id);
 
-    const next = this.filteredItems()[0] ?? null;
-
     this.selected = null;
     this.selectedId = '';
 
-    if (next) this.select(next);
-
     this.recomputeIssues();
+
+    // Si al quitar la fila ya no queda NINGUNA pendiente, terminamos el diálogo.
+    // Sin esto quedaba colgado con la tabla vacía y "Confirmar" deshabilitado,
+    // sin forma de cerrar el flujo (las filas confirmadas antes ya se importaron).
+    if (this.finishWhenEmpty()) return;
+
+    const next = this.filteredItems()[0] ?? null;
+    if (next) this.select(next);
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Si ya no quedan filas pendientes (todas confirmadas o quitadas), cierra el
+   * diálogo. Con resultado del servidor si hubo importaciones previas; si no se
+   * importó nada (solo se quitaron filas) cierra como cancelado para no mostrar
+   * una pantalla de "éxito" engañosa. Devuelve true si cerró.
+   */
+  private finishWhenEmpty(): boolean {
+    const pending = this.items.filter(
+      (it) => !this.removedIds.has(this.schema.itemId(it)),
+    );
+    if (pending.length > 0) return false;
+    this.submitting = false;
+    this.cdr.markForCheck();
+    if (this.lastServerResult !== undefined) {
+      this.ref.close({ accepted: true, result: this.lastServerResult as TResult, items: [] });
+    } else {
+      this.ref.close({ accepted: false });
+    }
+    return true;
   }
 
   // ----------------------------
@@ -379,7 +483,14 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
 
   private resolveExternalIssuesForField(itemId: string, fieldKey: string): void {
     for (const iss of this.externalIssues) {
-      if (iss.itemId === itemId && iss.field === fieldKey) {
+      if (iss.itemId !== itemId) continue;
+      // Limpiamos el error externo (del servidor) cuando el usuario toca su campo
+      // asociado, O cuando es un rechazo de fila COMPLETA sin `field` (p. ej.
+      // "Servidor rechazó la fila: …"): al editar cualquier campo de esa fila el
+      // veredicto previo del servidor queda obsoleto y debe re-validarse en el
+      // próximo envío. Sin esto, un rechazo sin `field` se quedaba pegado y dejaba
+      // la fila siempre en error → "Confirmar" deshabilitado de forma permanente.
+      if (iss.field === fieldKey || !iss.field) {
         this.resolvedExternalIssueIds.add(iss.id);
       }
     }
@@ -431,6 +542,11 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     // summary para template
     this.totalErrors = this.issues.filter((i) => i.severity === 'error').length;
     this.totalWarns = this.issues.filter((i) => i.severity === 'warn').length;
+
+    // Si ya no hay errores, apagamos el filtro "solo errores": de lo contrario la
+    // tabla se queda vacía ("No se encontraron registros") ocultando las filas
+    // correctas y el operador no encuentra qué confirmar.
+    if (this.totalErrors === 0) this.showErrorsOnly = false;
   }
 
   // ----------------------------
@@ -444,16 +560,86 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
 
   accept(): void {
     this.applyEdits();
+    if (this.submitting) return;
+
+    const activeItems = this.items.filter(
+      (it) => !this.removedIds.has(this.schema.itemId(it)),
+    );
+
+    // Flujo iterativo contra servidor: enviamos SOLO las filas sin errores
+    // cliente. Las filas con errores se quedan en el diálogo para que el
+    // usuario las siga corrigiendo. El dialog cierra cuando ya no queda
+    // ninguna pendiente.
+    if (this.serverValidate) {
+      const submittable = activeItems.filter((it) => this.issueCount(it) === 0);
+      if (submittable.length === 0) return;
+      void this.submitToServer(submittable);
+      return;
+    }
+
+    // Flujo clásico: gateamos el submit completo.
     if (this.anyBlockingErrors()) return;
+    const result = this.schema.buildResult(activeItems);
+    this.ref.close({ accepted: true, result, items: activeItems });
+  }
 
-    const finalItems = this.items.filter((it) => !this.removedIds.has(this.schema.itemId(it)));
-    const result = this.schema.buildResult(finalItems);
+  private async submitToServer(itemsToSend: TItem[]): Promise<void> {
+    if (!this.serverValidate) return;
 
-    this.ref.close({
-      accepted: true,
-      result,
-      items: finalItems,
-    });
+    this.submitting = true;
+    this.cdr.markForCheck();
+
+    let resp: ServerValidateResult;
+    try {
+      resp = await this.serverValidate(itemsToSend);
+    } catch (e) {
+      this.submitting = false;
+      this.cdr.markForCheck();
+      // No marcamos issues por fila (el server no respondió estructurado): el
+      // llamador maneja el error global via toast/snackbar. El dialog queda
+      // abierto para reintentar.
+      console.error('serverValidate falló', e);
+      return;
+    }
+
+    // Acumular resultado del servidor por si todo termina OK.
+    this.lastServerResult = resp.serverResult;
+
+    // Quitar de la lista las filas que el servidor aceptó.
+    for (const id of resp.acceptedItemIds ?? []) {
+      this.removedIds.add(id);
+    }
+
+    // Limpiar errores externos previos (de intentos anteriores) y empujar los
+    // nuevos del servidor. Los marcamos como resueltos si el itemId quedó
+    // aceptado (defensa por si el server devolviera ambos por error).
+    this.externalIssues = (resp.errors ?? []).filter(
+      (iss) => !this.removedIds.has(iss.itemId),
+    );
+    this.resolvedExternalIssueIds.clear();
+
+    this.recomputeIssues();
+
+    // Si ya no quedan items pendientes, cerrar el dialog.
+    const pending = this.items.filter((it) => !this.removedIds.has(this.schema.itemId(it)));
+    if (pending.length === 0) {
+      this.submitting = false;
+      this.cdr.markForCheck();
+      this.ref.close({
+        accepted: true,
+        result: this.lastServerResult as TResult,
+        items: [],
+      });
+      return;
+    }
+
+    // Re-seleccionar primera fila con error para que el usuario continúe.
+    const nextInvalid =
+      pending.find((it) => this.issueCount(it) > 0) ?? pending[0] ?? null;
+    if (nextInvalid) this.select(nextInvalid);
+
+    this.submitting = false;
+    this.cdr.markForCheck();
   }
 
   // ----------------------------

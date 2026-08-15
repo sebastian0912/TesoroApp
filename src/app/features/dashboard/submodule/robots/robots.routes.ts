@@ -3,6 +3,7 @@ import { RobotsComponent } from './pages/robots/robots.component';
 
 
 export const routes: Routes = [
+  { path: '', redirectTo: 'dashboard-robots', pathMatch: 'full' },
     { path: 'dashboard-robots', component: RobotsComponent }
 ];
 

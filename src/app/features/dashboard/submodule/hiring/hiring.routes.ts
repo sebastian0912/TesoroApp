@@ -15,6 +15,7 @@ import { AbsencesNew } from './pages/absences-new/absences-new';
 import { ManageContractsComponent } from './pages/manage-contracts/manage-contracts.component';
 
 export const routes: Routes = [
+  { path: '', redirectTo: 'absences', pathMatch: 'full' },
   { path: 'absences', component: AbsencesComponent },
   { path: 'hiring-report', component: HiringReportComponent },
   { path: 'recruitment-pipeline', component: RecruitmentPipelineComponent },

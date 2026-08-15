@@ -10,6 +10,8 @@ export interface PreviewIssue {
   field?: string; // clave del campo editable si aplica
   meta?: any; // opcional: rowIndex, code, etc.
   resolutionAction?: string; // 'upload-pdf' | etc.
+  category?: string; // tipo/categoría del issue (p.ej. 'Sin equivalencia CECO').
+                     // Si los issues la traen, el diálogo muestra un resumen por tipo.
 }
 
 export interface PreviewColumn<T = any> {
@@ -79,8 +81,29 @@ export interface PreviewDialogData<TItem = any, TResult = any> {
   title?: string;
   subtitle?: string;
 
+  // Si es true, el bloque "Resumen por tipo de caso" lista SOLO categorías de
+  // error (oculta las advertencias). Opt-in por pantalla; por defecto muestra
+  // errores y advertencias.
+  summaryErrorsOnly?: boolean;
+
   // Handlers opcionales
   uploadHandler?: (file: File, itemId: string) => Promise<void> | void;
+
+  // Validación contra servidor al apretar "Confirmar Todo". Si se define, el
+  // dialog NO cierra de inmediato: llama al handler, marca como removidas las
+  // filas que el servidor aceptó (acceptedItemIds) y empuja a externalIssues
+  // los motivos del servidor para las filas rechazadas. El usuario corrige y
+  // reintenta hasta que la lista esté vacía. El dialog cierra automáticamente
+  // cuando ya no quedan filas pendientes.
+  serverValidate?: (items: TItem[]) => Promise<ServerValidateResult>;
+}
+
+export interface ServerValidateResult {
+  acceptedItemIds: string[];
+  errors: PreviewIssue[];
+  // Resultado acumulado del servidor (lo que normalmente regresaría la HTTP),
+  // se devuelve al llamador en PreviewDialogResult.result cuando todo pasó.
+  serverResult?: unknown;
 }
 
 export interface PreviewDialogResult<TResult = any> {

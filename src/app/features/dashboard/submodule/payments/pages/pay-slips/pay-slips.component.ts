@@ -91,21 +91,39 @@ export class PaySlipsComponent implements OnInit {
     // Convertir todo en mayúsculas
     cleanedCedula = cleanedCedula.toUpperCase();
 
+    if (!cleanedCedula) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Información',
+        text: 'Ingresa un número de cédula válido para buscar.'
+      });
+      return;
+    }
+
     this.paymentsService.buscarDesprendibles(cleanedCedula).subscribe(
       (response: any) => {
-        if (response.message == 'No se encontró el número de cédula') {
+        // El backend puede responder con un array directo [...] o con un
+        // objeto { desprendibles: [...] }. Normalizamos a un array siempre
+        // para no romper si la cédula no existe (antes lanzaba
+        // "Cannot read properties of undefined (reading 'sort')").
+        const lista: any[] = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.desprendibles)
+            ? response.desprendibles
+            : [];
+
+        if (lista.length === 0) {
+          this.dataList = [];
           Swal.fire({
             icon: 'info',
             title: 'Información',
-            text: 'No se encontraron formas de pago para la cédula ingresada'
+            text: 'No se encontraron desprendibles para la cédula ingresada'
           });
           return;
         }
 
-        const desprendibles = response.desprendibles
-          .sort((a: any, b: any) => b.id - a.id);
-
-
+        const desprendibles = [...lista]
+          .sort((a: any, b: any) => (b?.id ?? 0) - (a?.id ?? 0));
 
         // Mapear datos para las columnas type_
         this.dataList = desprendibles.map((item: any) => ({
@@ -116,10 +134,19 @@ export class PaySlipsComponent implements OnInit {
           type_carta_cesantias: item.carta_cesantias,
           type_entrevista_retiro: item.entrevista_retiro
         }));
-
-
       },
       (error: any) => {
+        // Algunas versiones del backend responden 404 cuando no hay registros;
+        // eso no es un error real, es "no encontrado".
+        if (error?.status === 404) {
+          this.dataList = [];
+          Swal.fire({
+            icon: 'info',
+            title: 'Información',
+            text: 'No se encontraron desprendibles para la cédula ingresada'
+          });
+          return;
+        }
         Swal.fire({
           icon: 'error',
           title: 'Error',

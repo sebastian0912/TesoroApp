@@ -259,6 +259,29 @@ tr.mat-row:hover {
   border: 1px solid #bee3f8;
 }
 
+.dias-incap-pill {
+  background-color: #fffaf0;
+  color: #c05621;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border: 1px solid #feebc8;
+}
+
+.dias-extra {
+  display: inline-block;
+  margin-left: 4px;
+  color: #a0aec0;
+  font-weight: 500;
+}
+
+::ng-deep .dias-tooltip {
+  white-space: pre-line !important;
+  font-size: 0.78rem !important;
+  max-width: 220px !important;
+}
+
 .deduction-val {
   color: #e53e3e;
   font-weight: 500;

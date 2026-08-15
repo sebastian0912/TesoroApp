@@ -3,6 +3,7 @@ import { ManageWorkersComponent } from './pages/manage-workers/manage-workers.co
 import { UploadTreasuryComponent } from './pages/upload-treasury/upload-treasury.component';
 
 export const routes: Routes = [
+  { path: '', redirectTo: 'manage-workers', pathMatch: 'full' },
   { path: 'manage-workers', component: ManageWorkersComponent },
   { path: 'upload-treasury', component: UploadTreasuryComponent }
 ];

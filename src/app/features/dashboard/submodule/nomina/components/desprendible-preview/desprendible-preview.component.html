@@ -1,0 +1,370 @@
+<div class="dialog-toolbar">
+  <span class="dialog-title">Desprendible de Nómina</span>
+  <span class="spacer"></span>
+  <button mat-stroked-button color="primary"
+          [disabled]="!desprendible() || downloading()"
+          (click)="descargarPdf()">
+    @if (downloading()) {
+      <mat-icon class="spin">progress_activity</mat-icon> Generando…
+    } @else {
+      <mat-icon>download</mat-icon> Descargar PDF
+    }
+  </button>
+  <button mat-icon-button (click)="cerrar()" aria-label="Cerrar">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<div class="dialog-body"
+     [style.--accent]="accent()"
+     [style.--secondary]="secondary()">
+
+  @if (loading()) {
+    <div class="state state-loading">
+      <mat-spinner diameter="48"></mat-spinner>
+      <p>Cargando desprendible…</p>
+    </div>
+  } @else if (error()) {
+    <div class="state state-error">
+      <mat-icon>error_outline</mat-icon>
+      <p>{{ error() }}</p>
+    </div>
+  } @else if (desprendible(); as d) {
+
+    <div class="stage">
+      <article class="page" #pageRef>
+
+        <!-- BANNER -->
+        <header class="banner">
+          <div class="banner-grid">
+            <div class="logo-slot has-logo">
+              <img [src]="logoSrc()" alt="Logo empresa emisora" />
+            </div>
+            <div class="banner-title">
+              <div class="eyebrow">{{ d.empresa.razon_social ?? 'Empresa de Servicios Temporales' }}</div>
+              <h1>Desprendible <span class="light">de</span> Nómina</h1>
+            </div>
+            <div class="status-pill">
+              <span class="led"></span>
+              <span>{{ d.nomina.estado_pago ?? 'PENDIENTE' }}</span>
+            </div>
+          </div>
+        </header>
+
+        <!-- META STRIP -->
+        <div class="meta-strip">
+          <div class="cell">
+            <div class="label">Período de Nómina</div>
+            <div class="value">{{ d.nomina.periodo_texto || '—' }}</div>
+          </div>
+          <div class="cell">
+            <div class="label">Fecha de Pago</div>
+            <div class="value">
+              {{ (d.nomina.fecha_pago | date:'d MMM yyyy':'':'es-CO') ?? '—' }}
+            </div>
+          </div>
+          <div class="cell">
+            <div class="label">Documento de Identidad</div>
+            <div class="value">
+              {{ d.empleado.tipo_documento || 'CC' }}
+              <span>{{ d.empleado.numero_documento || '—' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="body">
+
+          <!-- EMPLOYEE HERO -->
+          <section class="employee-hero">
+            <div class="employee-name-row">
+              <h2 class="employee-name">{{ d.empleado.nombre_completo || '—' }}</h2>
+            </div>
+            <div class="employee-grid">
+              <div class="field">
+                <div class="label">Contrato</div>
+                <div class="value mono">{{ d.contrato.codigo_contrato || '—' }}</div>
+              </div>
+              <div class="field">
+                <div class="label">Fecha de Ingreso</div>
+                <div class="value">
+                  {{ (d.contrato.fecha_ingreso | date:'d MMM yyyy':'':'es-CO') || '—' }}
+                </div>
+              </div>
+              <div class="field">
+                <div class="label">Salario Base</div>
+                <div class="value mono">
+                  $ {{ (d.contrato.salario_base ?? 0) | number:'1.0-0':'es-CO' }}
+                </div>
+              </div>
+              @if (d.empleado.cargo) {
+                <div class="field">
+                  <div class="label">Cargo</div>
+                  <div class="value">{{ d.empleado.cargo }}</div>
+                </div>
+              }
+              @if (d.empleado.ceco_nombre) {
+                <div class="field">
+                  <div class="label">Centro de Costo</div>
+                  <div class="value">{{ d.empleado.ceco_nombre }}</div>
+                </div>
+              }
+              @if (d.empleado.empresa_usuaria) {
+                <div class="field">
+                  <div class="label">Empresa Usuaria</div>
+                  <div class="value">{{ d.empleado.empresa_usuaria }}</div>
+                </div>
+              }
+            </div>
+          </section>
+
+          <!-- CONCEPTOS -->
+          <section>
+            <div class="section-head">
+              <span class="num">1</span>
+              <span class="title">Detalle de Conceptos</span>
+              <span class="subtitle">— devengos y deducciones del período</span>
+              <span class="rule"></span>
+            </div>
+
+            <div class="concepts-split">
+
+              <!-- DEVENGOS -->
+              <div class="concept-block devengo-block">
+                <div class="concept-block-head">
+                  <span class="dot"></span>
+                  <span class="title">Devengos</span>
+                </div>
+                <table class="concept-table">
+                  <thead>
+                    <tr>
+                      <th>Concepto</th>
+                      <th class="num">Cant.</th>
+                      <th class="num">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (dev of d.devengos; track trackConcepto($index, dev)) {
+                      <tr>
+                        <td class="concept">{{ dev.nombre_concepto }}</td>
+                        <td class="num">{{ formatCantidad(dev.cantidad) }}</td>
+                        <td class="num val">$ {{ (dev.valor ?? 0) | number:'1.0-0':'es-CO' }}</td>
+                      </tr>
+                    } @empty {
+                      <tr class="empty-row">
+                        <td colspan="3">Sin devengos para este período.</td>
+                      </tr>
+                    }
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td>Total Devengos</td>
+                      <td class="num"></td>
+                      <td class="num total">
+                        $ {{ (d.totales.total_devengos ?? 0) | number:'1.0-0':'es-CO' }}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <!-- DEDUCCIONES -->
+              <div class="concept-block deduccion-block">
+                <div class="concept-block-head">
+                  <span class="dot"></span>
+                  <span class="title">Deducciones</span>
+                </div>
+                <table class="concept-table">
+                  <thead>
+                    <tr>
+                      <th>Concepto</th>
+                      <th class="num">Cant.</th>
+                      <th class="num">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (ded of d.deducciones; track trackConcepto($index, ded)) {
+                      <tr>
+                        <td class="concept">{{ ded.nombre_concepto }}</td>
+                        <td class="num">{{ formatCantidad(ded.cantidad) }}</td>
+                        <td class="num val">$ {{ (ded.valor ?? 0) | number:'1.0-0':'es-CO' }}</td>
+                      </tr>
+                    } @empty {
+                      <tr class="empty-row">
+                        <td colspan="3">Sin deducciones para este período.</td>
+                      </tr>
+                    }
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td>Total Deducciones</td>
+                      <td class="num"></td>
+                      <td class="num total">
+                        $ {{ (d.totales.total_deducciones ?? 0) | number:'1.0-0':'es-CO' }}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- NETO HERO -->
+          <div class="neto-hero">
+            <div class="left">
+              <div class="label">Neto a Pagar</div>
+              <div class="sub">
+                <span class="pay-dot"></span>
+                @if (d.contrato.banco) {
+                  <span>Consignado a <b>{{ d.contrato.banco }}{{ d.contrato.numero_cuenta_enmascarado ? ' ' + d.contrato.numero_cuenta_enmascarado : '' }}</b></span>
+                } @else {
+                  <span>Por consignación bancaria</span>
+                }
+              </div>
+            </div>
+            <div class="amount">
+              <span class="currency">COP</span>
+              $ {{ (d.totales.neto_pagar ?? 0) | number:'1.0-0':'es-CO' }}
+            </div>
+          </div>
+
+          <!-- PRÉSTAMOS / SALDOS -->
+          <section>
+            <div class="section-head">
+              <span class="num">2</span>
+              <span class="title">Préstamos y Saldos</span>
+              <span class="subtitle">— información adicional</span>
+              <span class="rule"></span>
+            </div>
+
+            <div class="balances">
+
+              <!-- Saldos vigentes (préstamo efectivo + bono mercado) -->
+              <div class="balance-card">
+                <div class="head">
+                  <span class="dot"></span>
+                  <h4>Saldos vigentes</h4>
+                </div>
+                <div class="rows">
+                  <div class="row">
+                    <span>Saldo anterior préstamo</span>
+                    <span class="v" [class.muted]="!d.prestamos.efectivo.saldo_anterior">
+                      {{ d.prestamos.efectivo.saldo_anterior
+                          ? ('$ ' + (d.prestamos.efectivo.saldo_anterior | number:'1.0-0':'es-CO'))
+                          : '—' }}
+                    </span>
+                  </div>
+                  <div class="row">
+                    <span>Nuevo desembolso</span>
+                    <span class="v" [class.muted]="!d.prestamos.efectivo.nuevo_desembolso">
+                      {{ d.prestamos.efectivo.nuevo_desembolso
+                          ? ('$ ' + (d.prestamos.efectivo.nuevo_desembolso | number:'1.0-0':'es-CO'))
+                          : '—' }}
+                    </span>
+                  </div>
+                  <div class="row">
+                    <span>Saldo bono mercado</span>
+                    <span class="v" [class.muted]="!d.prestamos.mercado.nuevo_saldo">
+                      {{ d.prestamos.mercado.nuevo_saldo
+                          ? ('$ ' + (d.prestamos.mercado.nuevo_saldo | number:'1.0-0':'es-CO'))
+                          : '—' }}
+                    </span>
+                  </div>
+                </div>
+                <div class="total">
+                  <span class="lbl">Deuda total</span>
+                  <span class="amt">
+                    $ {{ (d.prestamos.total_deuda_actual ?? 0) | number:'1.0-0':'es-CO' }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Descuentos del período -->
+              <div class="balance-card">
+                <div class="head">
+                  <span class="dot danger"></span>
+                  <h4>Descuentos del período</h4>
+                </div>
+                <div class="rows">
+                  <div class="row">
+                    <span>Abono préstamo</span>
+                    <span class="v" [class.muted]="!d.prestamos.efectivo.abono_periodo">
+                      {{ d.prestamos.efectivo.abono_periodo
+                          ? ('$ ' + (d.prestamos.efectivo.abono_periodo | number:'1.0-0':'es-CO'))
+                          : '—' }}
+                    </span>
+                  </div>
+                  <div class="row">
+                    <span>Abono bono mercado</span>
+                    <span class="v" [class.muted]="!d.prestamos.mercado.abono_periodo">
+                      {{ d.prestamos.mercado.abono_periodo
+                          ? ('$ ' + (d.prestamos.mercado.abono_periodo | number:'1.0-0':'es-CO'))
+                          : '—' }}
+                    </span>
+                  </div>
+                  <div class="row">
+                    <span>Cuotas restantes</span>
+                    <span class="v" [class.muted]="!d.prestamos.efectivo.numero_cuotas">
+                      {{ d.prestamos.efectivo.numero_cuotas ?? '—' }}
+                    </span>
+                  </div>
+                </div>
+                <div class="total">
+                  <span class="lbl">Saldo final</span>
+                  <span class="amt">
+                    $ {{ (d.prestamos.efectivo.nuevo_saldo ?? 0) | number:'1.0-0':'es-CO' }}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- OBSERVACIONES -->
+          <section class="observations">
+            <div class="section-head">
+              <span class="num">3</span>
+              <span class="title">Observaciones</span>
+              <span class="subtitle">— notas o aclaraciones del período</span>
+              <span class="rule"></span>
+            </div>
+            <div class="observations-box">
+              @if (d.observaciones) {
+                {{ d.observaciones }}
+              } @else {
+                <div class="placeholder">Sin observaciones registradas para este período.</div>
+              }
+            </div>
+          </section>
+
+        </div>
+
+        <!-- FOOTER -->
+        <footer class="footer">
+          <div class="signature">
+            <div class="line"></div>
+            <div class="label">Firma del empleado</div>
+            <div class="name">{{ d.firma.nombre_empleado || d.empleado.nombre_completo }}</div>
+          </div>
+          <div class="signature">
+            <div class="line"></div>
+            <div class="label">{{ d.empresa.nombre_comercial || 'Empresa' }}</div>
+            <div class="name">{{ d.firma.area_responsable || d.empresa.area_emisora || 'Dpto. de Nómina' }}</div>
+          </div>
+          <div class="brand-block">
+            <div class="brand-mark">
+              <span class="dot-o"></span><span class="dot-b"></span>
+              <span>{{ d.empresa.razon_social || 'Empresa de Servicios Temporales' }}</span>
+            </div>
+            <div class="doc-meta">
+              Emitido el {{ (d.nomina.fecha_emision | date:'d MMM yyyy':'':'es-CO') }}<br />
+              {{ d.empresa.texto_pie || 'Este documento es soporte de pago de nómina' }}
+            </div>
+          </div>
+        </footer>
+
+      </article>
+    </div>
+
+  }
+</div>

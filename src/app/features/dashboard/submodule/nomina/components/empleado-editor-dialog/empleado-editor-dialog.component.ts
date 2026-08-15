@@ -1,7 +1,7 @@
 import {
   Component, ChangeDetectionStrategy, OnInit, Inject, signal, inject, computed,
 } from '@angular/core';
-
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogModule } from '@angular/material/dialog';
@@ -31,23 +31,13 @@ type DialogData = { id_persona: number | null };
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FormsModule,
-    MatDialogModule,
-    MatTabsModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatCheckboxModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressBarModule,
-    MatTooltipModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatCardModule,
-    MatChipsModule,
-    MatDividerModule
-],
+    CommonModule, FormsModule,
+    MatDialogModule, MatTabsModule, MatFormFieldModule, MatInputModule,
+    MatSelectModule, MatCheckboxModule, MatButtonModule, MatIconModule,
+    MatProgressBarModule, MatTooltipModule,
+    MatDatepickerModule, MatNativeDateModule,
+    MatCardModule, MatChipsModule, MatDividerModule,
+  ],
   templateUrl: './empleado-editor-dialog.component.html',
   styleUrl: './empleado-editor-dialog.component.css',
 })
@@ -82,7 +72,7 @@ export class EmpleadoEditorDialogComponent implements OnInit {
     this.isNew.set(this.data.id_persona == null);
 
     // Cargar catálogos en paralelo (no bloquean la carga del empleado)
-    this.svc.getEntidadesPorTipo('CLIENTE').subscribe(x => this.clientes.set(x || []));
+    this.svc.getEntidadesPorTipo('EMPRESA_USUARIA').subscribe(x => this.clientes.set(x || []));
     this.svc.getEntidadesPorTipo('BANCO').subscribe(x => this.bancos.set(x || []));
     this.svc.getEntidadesPorTipo('EPS').subscribe(x => this.epss.set(x || []));
     this.svc.getEntidadesPorTipo('AFP').subscribe(x => this.afps.set(x || []));

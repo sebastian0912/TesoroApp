@@ -15,8 +15,19 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Observable, startWith, map } from 'rxjs';
-import { NominaService, Client, CostCenter } from '../../service/nomina/nomina.service';
+import {
+  NominaService,
+  Client,
+  CostCenter,
+  EstadoPagoNomina,
+  ESTADOS_PAGO_NOMINA,
+} from '../../service/nomina/nomina.service';
+import {
+  DesprendiblePreviewComponent,
+  DesprendiblePreviewData,
+} from '../../components/desprendible-preview/desprendible-preview.component';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 
@@ -40,7 +51,8 @@ import Swal from 'sweetalert2';
     MatProgressSpinnerModule,
     MatAutocompleteModule,
     MatDividerModule,
-    MatCheckboxModule
+    MatCheckboxModule,
+    MatDialogModule
   ],
   templateUrl: './historico-nomina.component.html',
   styleUrls: ['./historico-nomina.component.css']
@@ -67,10 +79,16 @@ export class HistoricoNominaComponent implements OnInit {
   
   historicoDataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
-    'identificacion', 'nombre_completo', 'ceco_nombre', 
-    'total_devengado', 'total_deducido', 'neto_pagar', 
+    'select',
+    'identificacion', 'nombre_completo', 'ceco_nombre',
+    'total_devengado', 'total_deducido', 'neto_pagar',
     'estado_pago', 'liquidado_at'
   ];
+
+  /** IDs (id_nomina_emp) seleccionados para acción masiva. */
+  selectedIds = new Set<number>();
+  /** Estados permitidos para el cambio de estado_pago. */
+  readonly estadosPermitidos: EstadoPagoNomina[] = ESTADOS_PAGO_NOMINA;
 
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
@@ -80,7 +98,28 @@ export class HistoricoNominaComponent implements OnInit {
   constructor(
     private nominaService: NominaService,
     private cdr: ChangeDetectorRef,
+    private dialog: MatDialog,
   ) {}
+
+  /**
+   * Click sobre una fila del histórico → abre el preview del desprendible.
+   * El click en el checkbox de selección masiva se maneja aparte para que
+   * marcar una fila no dispare la apertura del dialog.
+   */
+  abrirDesprendible(row: any): void {
+    if (row?.id_nomina_emp == null) return;
+    this.dialog.open<DesprendiblePreviewComponent, DesprendiblePreviewData>(
+      DesprendiblePreviewComponent,
+      {
+        data: { idNominaEmp: row.id_nomina_emp },
+        panelClass: 'desprendible-preview-dialog',
+        maxWidth: '95vw',
+        width: '900px',
+        maxHeight: '95vh',
+        autoFocus: false,
+      },
+    );
+  }
 
   ngOnInit(): void {
     this.cargarDatosMaestros();
@@ -192,18 +231,17 @@ export class HistoricoNominaComponent implements OnInit {
       params.cliente_id = this.clientControl.value.id_entidad;
     }
 
-    if (this.selectedCecoIds.length > 0) {
-      this.selectedCecoIds.forEach(id => {
-        params['cecos[]'] = params['cecos[]'] || [];
-        params['cecos[]'].push(id);
-      });
+    if (this.selectedCecoIds.length > 0 && !this.isAllCecosSelected()) {
+      params.cecos = this.selectedCecoIds;
     }
 
-    if (this.queryControl.value) {
-      params.query = this.queryControl.value;
+    const q = this.queryControl.value?.trim();
+    if (q) {
+      params.query = q;
     }
 
     this.isLoading = true;
+    this.selectedIds.clear();
     this.cdr.markForCheck();
     this.nominaService.getHistorico(params).subscribe({
       next: (data) => {
@@ -221,9 +259,101 @@ export class HistoricoNominaComponent implements OnInit {
     });
   }
 
-  applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.historicoDataSource.filter = filterValue.trim().toLowerCase();
+  // ── Selección masiva ────────────────────────────────────────────────────
+  isRowSelected(row: any): boolean {
+    return this.selectedIds.has(row.id_nomina_emp);
+  }
+
+  toggleRow(row: any, checked: boolean): void {
+    if (checked) this.selectedIds.add(row.id_nomina_emp);
+    else this.selectedIds.delete(row.id_nomina_emp);
+  }
+
+  isAllRowsSelected(): boolean {
+    const data = this.historicoDataSource.data;
+    return data.length > 0 && data.every(r => this.selectedIds.has(r.id_nomina_emp));
+  }
+
+  isSomeRowsSelected(): boolean {
+    return this.selectedIds.size > 0 && !this.isAllRowsSelected();
+  }
+
+  toggleAllRows(checked: boolean): void {
+    if (checked) {
+      this.historicoDataSource.data.forEach(r => this.selectedIds.add(r.id_nomina_emp));
+    } else {
+      this.historicoDataSource.data.forEach(r => this.selectedIds.delete(r.id_nomina_emp));
+    }
+  }
+
+  /**
+   * Abre un diálogo para elegir el nuevo estado y aplica el cambio a los
+   * registros seleccionados. Funciona igual para uno solo o varios.
+   */
+  cambiarEstadoSeleccion(): void {
+    const ids = Array.from(this.selectedIds);
+    if (ids.length === 0) {
+      Swal.fire('Atención', 'Seleccione al menos una nómina para cambiar el estado.', 'info');
+      return;
+    }
+
+    const opciones = this.estadosPermitidos
+      .map(e => `<option value="${e}">${e}</option>`)
+      .join('');
+
+    Swal.fire({
+      title: `Cambiar estado de ${ids.length} nómina${ids.length === 1 ? '' : 's'}`,
+      html: `
+        <p style="margin-top:0">Selecciona el nuevo estado a aplicar:</p>
+        <select id="swal-estado-select" class="swal2-select" style="display:flex;margin:0 auto;">
+          ${opciones}
+        </select>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Aplicar',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const sel = document.getElementById('swal-estado-select') as HTMLSelectElement | null;
+        const val = sel?.value as EstadoPagoNomina | undefined;
+        if (!val) {
+          Swal.showValidationMessage('Debe seleccionar un estado');
+          return false;
+        }
+        return val;
+      },
+    }).then(result => {
+      if (!result.isConfirmed || !result.value) return;
+      const nuevoEstado = result.value as EstadoPagoNomina;
+      this.aplicarCambioEstado(ids, nuevoEstado);
+    });
+  }
+
+  private aplicarCambioEstado(ids: number[], estado: EstadoPagoNomina): void {
+    this.isLoading = true;
+    this.cdr.markForCheck();
+    this.nominaService.cambiarEstadoNomina(ids, estado).subscribe({
+      next: (resp) => {
+        // Refleja el cambio localmente sin recargar
+        this.historicoDataSource.data = this.historicoDataSource.data.map(r =>
+          this.selectedIds.has(r.id_nomina_emp) ? { ...r, estado_pago: resp.estado || estado } : r
+        );
+        this.selectedIds.clear();
+        this.isLoading = false;
+        this.cdr.markForCheck();
+        Swal.fire(
+          'Estado actualizado',
+          `${resp.actualizados} de ${resp.solicitados} nómina(s) cambiadas a ${resp.estado}.`,
+          'success',
+        );
+      },
+      error: (err) => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+        const msg = err?.error?.error || 'No se pudo cambiar el estado.';
+        Swal.fire('Error', msg, 'error');
+      },
+    });
   }
 
   exportarExcel(): void {
