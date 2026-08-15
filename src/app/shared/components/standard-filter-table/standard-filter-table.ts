@@ -957,13 +957,136 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
     }
   }
 
+  /** Días entre 1899-12-30 (epoch de Excel) y 1970-01-01 (epoch de JS). */
+  private static readonly EXCEL_EPOCH_OFFSET = 25569;
+
+  /**
+   * Exporta lo que se ve: columnas visibles, encabezados de la tabla y valores
+   * con el mismo formato de pantalla.
+   *
+   * Las fechas se escriben como serial de Excel calculado a mano a partir de la
+   * hora LOCAL. SheetJS 0.18.5 desplaza los Date de JS al convertirlos: una
+   * fecha `2026-07-28T05:00:00+00:00` (= 28/07 00:00 en Colombia) terminaba
+   * escrita como `27/07/2026 23:59`. Armando el serial nosotros, Excel muestra
+   * la misma hora que la tabla y la celda sigue siendo fecha real
+   * (ordenable y filtrable), no texto.
+   */
   private exportToExcel(): void {
-    // Basic implementation
-    const data = this.dataSource.filteredData.length ? this.dataSource.filteredData : this.data;
-    const ws: XLSX.WorkSheet = XLSX.utils.json_to_sheet(data);
+    const data = this.dataSource.filteredData?.length ? this.dataSource.filteredData : (this.data || []);
+
+    const cols = (this.visibleColumns?.length ? this.visibleColumns : this.columnDefinitions) || [];
+    const exportables = cols.filter(
+      (c) => c.type !== 'custom' && !['actions', 'attachment', 'semaforo'].includes(c.name),
+    );
+
     const wb: XLSX.WorkBook = XLSX.utils.book_new();
+
+    // Sin definición de columnas no hay nada que formatear: volcado crudo.
+    if (exportables.length === 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Datos');
+      XLSX.writeFile(wb, this.buildExportFileName());
+      return;
+    }
+
+    const aoa: any[][] = [exportables.map((c) => c.header || c.name)];
+    for (const row of data) {
+      aoa.push(exportables.map((c) => this.toExcelValue(row?.[c.name], c)));
+    }
+
+    const ws: XLSX.WorkSheet = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Los valores de fecha ya van como número (serial); aquí solo se les pone
+    // el formato de visualización que corresponda a la columna.
+    exportables.forEach((c, colIdx) => {
+      if (c.type !== 'date') return;
+      const z = this.excelDateFormat(c.dateFormat);
+      for (let r = 1; r < aoa.length; r++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c: colIdx })];
+        if (cell && cell.t === 'n') cell.z = z;
+      }
+    });
+
+    ws['!cols'] = exportables.map((c) => ({
+      wch: Math.min(45, Math.max(12, String(c.header || c.name).length + 4)),
+    }));
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: exportables.length - 1 } }) };
+
     XLSX.utils.book_append_sheet(wb, ws, 'Datos');
-    XLSX.writeFile(wb, 'export.xlsx');
+    XLSX.writeFile(wb, this.buildExportFileName());
+  }
+
+  /** Convierte el valor de una celda al tipo que corresponde en Excel. */
+  private toExcelValue(value: any, col: ColumnDefinition): any {
+    if (value === null || value === undefined || value === '') return '';
+
+    if (col.type === 'date') {
+      const serial = this.toExcelSerial(value);
+      return serial === null ? String(value) : serial;
+    }
+
+    if (col.type === 'number') {
+      const n = Number(value);
+      return isNaN(n) ? String(value) : n;
+    }
+
+    if (Array.isArray(value)) {
+      const planos = value.filter((v) => v === null || typeof v !== 'object');
+      return planos.length === value.length ? planos.join(', ') : `${value.length} elemento(s)`;
+    }
+    if (typeof value === 'object') return '';
+
+    return value;
+  }
+
+  /**
+   * Serial de Excel usando la hora LOCAL del valor.
+   * Un string `YYYY-MM-DD` se interpreta como fecha local a propósito: `new Date()`
+   * lo trataría como UTC y en Colombia se correría al día anterior.
+   */
+  private toExcelSerial(value: any): number | null {
+    let d: Date;
+    if (value instanceof Date) {
+      d = value;
+    } else {
+      const s = String(value).trim();
+      const soloFecha = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+      d = soloFecha
+        ? new Date(Number(soloFecha[1]), Number(soloFecha[2]) - 1, Number(soloFecha[3]))
+        : new Date(s);
+    }
+    if (isNaN(d.getTime())) return null;
+
+    const wall = Date.UTC(
+      d.getFullYear(),
+      d.getMonth(),
+      d.getDate(),
+      d.getHours(),
+      d.getMinutes(),
+      d.getSeconds(),
+      d.getMilliseconds(),
+    );
+    return StandardFilterTable.EXCEL_EPOCH_OFFSET + wall / 86400000;
+  }
+
+  /** Traduce el formato del DatePipe a un numFmt de Excel (con o sin hora). */
+  private excelDateFormat(dateFormat?: string): string {
+    const f = dateFormat || 'dd/MM/yyyy';
+    return /[Hhms]/.test(f) ? 'dd/mm/yyyy hh:mm' : 'dd/mm/yyyy';
+  }
+
+  /** `consolidado_por_oficina_20260728_1930.xlsx` */
+  private buildExportFileName(): string {
+    const base =
+      (this.tableTitle || 'export')
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/[^a-zA-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toLowerCase() || 'export';
+
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${base}_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
   }
 
   // =========================

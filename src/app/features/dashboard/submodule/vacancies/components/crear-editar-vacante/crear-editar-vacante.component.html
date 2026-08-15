@@ -50,7 +50,8 @@
 
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('finca')}">
       <mat-label>Centro de Costo</mat-label>
-      <input type="text" matInput formControlName="finca" [matAutocomplete]="autoCentroCosto">
+      <input type="text" matInput formControlName="finca" [matAutocomplete]="autoCentroCosto"
+             (blur)="onFincaBlur()">
       <mat-autocomplete #autoCentroCosto="matAutocomplete" (optionSelected)="onCentroCostoSelected($event)">
         @for (centro of (filteredCentrosCostos | async) ?? []; track centro) {
           <mat-option [value]="centro">
@@ -62,6 +63,18 @@
         <mat-error>
           El centro de costo es obligatorio.
         </mat-error>
+      }
+      <!-- Hay nombres de finca que existen en las dos temporales y son sitios
+           distintos (SAN CARLOS). Se pide elegir la opción con la empresa entre
+           paréntesis en vez de escoger una: cambia empresa, dirección, temporal
+           y pago. -->
+      @if (vacanteForm.get('finca')?.hasError('fincaAmbigua')) {
+        <mat-error>
+          Ese nombre existe en más de una empresa. Elige del listado: {{ fincaAmbiguaOpciones.join(' · ') }}
+        </mat-error>
+      }
+      @if (!vacanteForm.get('finca')?.hasError('fincaAmbigua')) {
+        <mat-hint>Al elegirlo se llenan empresa, dirección, temporal, salario y auxilio.</mat-hint>
       }
     </mat-form-field>
 
@@ -131,23 +144,14 @@
             Ingrese un valor mayor o igual a 0.
           </mat-error>
         }
+        <mat-hint>Viene del centro de costo. Puede modificarlo.</mat-hint>
       </mat-form-field>
 
-      <!-- ===================== Fecha de ingreso (condicional) ===================== -->
-      <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tieneFechaIngreso')}">
-        <mat-label>Tiene Fecha de Ingreso</mat-label>
-        <mat-select formControlName="tieneFechaIngreso">
-          <mat-option value="Si">Sí</mat-option>
-          <mat-option value="No">No</mat-option>
-        </mat-select>
-        @if (vacanteForm.get('tieneFechaIngreso')?.hasError('required')) {
-          <mat-error>
-            Indique si tiene fecha de ingreso.
-          </mat-error>
-        }
-      </mat-form-field>
-
-      @if (vacanteForm.get('tieneFechaIngreso')?.value === 'Si') {
+      <!-- ===================== Fecha de ingreso (solo Contratación inmediata) =====================
+           El toggle "Tiene Fecha de Ingreso" se maneja automáticamente y NO se muestra:
+           la fecha de ingreso aparece y es obligatoria solo cuando la vacante es de
+           Contratación inmediata; al cambiar de opción el dato se borra. -->
+      @if (vacanteForm.get('pruebaOContratacion')?.value === 'Contratación') {
         <mat-form-field
           [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
           <mat-label>Fecha de Ingreso</mat-label>
@@ -172,6 +176,9 @@
           <mat-error>
             Indique si incluye auxilio de transporte.
           </mat-error>
+        }
+        @if (!vacanteForm.get('auxilioTransporte')?.hasError('required')) {
+          <mat-hint>Viene del centro de costo. Puede modificarlo.</mat-hint>
         }
       </mat-form-field>
 

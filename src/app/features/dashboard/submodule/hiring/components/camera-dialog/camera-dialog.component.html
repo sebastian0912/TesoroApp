@@ -64,6 +64,12 @@
           <button mat-flat-button color="warn" (click)="clearSelection()">
             <mat-icon>refresh</mat-icon> {{ isUploadMode ? 'Otra' : 'Repetir' }}
           </button>
+          <!-- El dialogo abre en previsualizacion cuando ya hay foto, y antes
+               esta era la unica barra visible: no habia forma de llegar a
+               "Adjuntar" sin pulsar Repetir primero. -->
+          <button mat-stroked-button (click)="adjuntarDesdePreview()">
+            <mat-icon>attach_file</mat-icon> Adjuntar
+          </button>
           <button mat-flat-button color="primary" (click)="confirm()">
             <mat-icon>check</mat-icon> Confirmar
           </button>

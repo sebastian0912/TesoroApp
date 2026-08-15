@@ -1,0 +1,161 @@
+<div class="carnet-masivo">
+  <header class="cm-head">
+    <div class="cm-head-icon"><mat-icon>badge</mat-icon></div>
+    <div class="cm-head-text">
+      <h2>Generación masiva de carnets</h2>
+      <p>Se imprimen 9 por hoja. Solo se genera quien tenga TODOS los datos completos.</p>
+    </div>
+    <button mat-icon-button (click)="cerrar()" matTooltip="Cerrar"><mat-icon>close</mat-icon></button>
+  </header>
+
+  @if (cargando() || generando()) {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  }
+  @if (progreso()) {
+    <p class="cm-progreso">{{ progreso() }}</p>
+  }
+
+  <div mat-dialog-content class="cm-body">
+    <div class="cm-entrada">
+      <mat-form-field appearance="outline" class="cm-cedulas" subscriptSizing="dynamic">
+        <mat-label>Cédulas</mat-label>
+        <textarea matInput rows="2" [(ngModel)]="cedulasTexto"
+          placeholder="Una por línea, o separadas por coma"></textarea>
+        <mat-hint>Se ignoran repetidas. Si el documento no es cédula, conserva la X inicial.</mat-hint>
+      </mat-form-field>
+      <button mat-flat-button color="primary" class="cm-revisar"
+        (click)="revisar()" [disabled]="cargando() || generando()">
+        <mat-icon>fact_check</mat-icon> Revisar
+      </button>
+    </div>
+
+    @if (total() > 0) {
+      <div class="cm-acciones-top">
+        <button mat-stroked-button (click)="soloPendientes()" [disabled]="generando()"
+          matTooltip="Marcar solo a quienes aún no tienen carnet">
+          <mat-icon>filter_alt</mat-icon> Solo pendientes
+        </button>
+        <button mat-stroked-button (click)="marcarTodas(true)" [disabled]="generando()">
+          <mat-icon>done_all</mat-icon> Marcar todos
+        </button>
+        <button mat-stroked-button (click)="marcarTodas(false)" [disabled]="generando()">
+          <mat-icon>remove_done</mat-icon> Desmarcar
+        </button>
+      </div>
+    }
+
+    @if (total() > 0) {
+      <div class="cm-resumen">
+        <span><b>{{ total() }}</b> revisados</span>
+        <span class="cm-ok"><b>{{ seleccionadas().length }}</b> a generar</span>
+        <span class="cm-warn"><b>{{ bloqueadas() }}</b> con datos incompletos</span>
+        @if (regenerando() > 0) {
+          <span class="cm-regen"><b>{{ regenerando() }}</b> se van a regenerar</span>
+        }
+        <!-- Apoyo y Alianza nunca comparten hoja: el desglose explica por qué
+             pueden salir 2 hojas con pocas personas marcadas. -->
+        @if (porTemporal().apoyo > 0) {
+          <span class="chip chip-apoyo"><b>{{ porTemporal().apoyo }}</b> Apoyo</span>
+        }
+        @if (porTemporal().alianza > 0) {
+          <span class="chip chip-alianza"><b>{{ porTemporal().alianza }}</b> Tu Alianza</span>
+        }
+        <span><b>{{ hojas() }}</b> hoja(s)</span>
+      </div>
+
+      <div class="cm-tabla-wrap">
+        <table class="cm-tabla">
+          <thead>
+            <tr>
+              <th class="col-check"></th>
+              <th>Documento</th>
+              <th>Nombre</th>
+              <th class="col-temporal">Temporal</th>
+              <th class="col-estado">Carnet</th>
+              <th>Estado de los datos</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (f of filas(); track f.cedula) {
+              <tr [class.fila-bloqueada]="!puedeGenerar(f)">
+                <td class="col-check">
+                  <mat-checkbox
+                    [checked]="estaMarcada(f)"
+                    [disabled]="!puedeGenerar(f) || generando()"
+                    (change)="marcar(f, $event.checked)"
+                    [matTooltip]="puedeGenerar(f)
+                      ? (f.yaGenerado ? 'Ya tiene carnet: márcalo para regenerarlo' : 'Se generará')
+                      : 'No se puede generar: faltan datos'">
+                  </mat-checkbox>
+                </td>
+                <td class="col-doc">{{ f.cedula }}</td>
+                <td>{{ f.nombre || '—' }}</td>
+                <td class="col-temporal">
+                  <span class="chip"
+                    [class.chip-apoyo]="f.temporal === 'apoyo'"
+                    [class.chip-alianza]="f.temporal === 'alianza'"
+                    [matTooltip]="f.temporal === 'alianza'
+                      ? 'Tu Alianza: carnet con QR, logo TA y coordinador 3152306148'
+                      : 'Apoyo Laboral: carnet CR80 con código de barras, logo AL y coordinador 3102518013'">
+                    {{ f.temporal === 'alianza' ? 'Tu Alianza' : 'Apoyo' }}
+                  </span>
+                </td>
+                <td class="col-estado">
+                  @if (f.yaGenerado) {
+                    <span class="chip chip-generado"><mat-icon>check_circle</mat-icon> Generado</span>
+                  } @else {
+                    <span class="chip chip-pendiente"><mat-icon>schedule</mat-icon> Pendiente</span>
+                  }
+                </td>
+                <td>
+                  @if (f.error) {
+                    <span class="cm-error"><mat-icon>error</mat-icon> {{ f.error }}</span>
+                  } @else if (f.faltantes.length) {
+                    <span class="cm-error"><mat-icon>warning</mat-icon> Falta: {{ f.faltantes.join(', ') }}</span>
+                  } @else {
+                    <span class="cm-completo"><mat-icon>task_alt</mat-icon> Completo</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- El volteo NO se puede adivinar (depende de la impresora) y encima se
+           llama distinto en cada formato, porque Apoyo imprime en hoja
+           horizontal y Tu Alianza en vertical. Por eso se elige acá. -->
+      <app-carnet-impresion class="cm-impresion" [formato]="formatoImpresion()"></app-carnet-impresion>
+    } @else if (!cargando()) {
+      <!-- Sin esto el diálogo abre con un textarea gigante y medio cuerpo en
+           blanco, que es lo que se veía a medio hacer. -->
+      <div class="cm-vacio">
+        <mat-icon>badge</mat-icon>
+        <p class="cm-vacio-titulo">Aún no has revisado ninguna cédula</p>
+        <p class="cm-vacio-texto">
+          Pega las cédulas arriba y dale <b>Revisar</b>. Te mostramos quién
+          tiene los datos completos antes de generar nada.
+        </p>
+      </div>
+    }
+  </div>
+
+  <div mat-dialog-actions class="cm-actions">
+    @if (seleccionadas().length > 0) {
+      <span class="cm-actions-info">
+        <b>{{ seleccionadas().length }}</b> carnet(s) en <b>{{ hojas() }}</b> hoja(s)
+      </span>
+    }
+    <span class="cm-spacer"></span>
+    <button mat-button (click)="cerrar()">Cancelar</button>
+    <button mat-stroked-button (click)="previsualizar()"
+      [disabled]="generando() || cargando() || seleccionadas().length === 0">
+      <mat-icon>visibility</mat-icon> Previsualizar
+    </button>
+    <button mat-flat-button color="primary" (click)="generar()"
+      [disabled]="generando() || cargando() || seleccionadas().length === 0">
+      <mat-icon>badge</mat-icon>
+      Generar
+    </button>
+  </div>
+</div>

@@ -12,51 +12,6 @@
 
 <mat-tab-group class="tab-group" [class.bloqueado-espera]="bloqueado()">
 
-  <!-- TAB ▸ Datos de obra / empresa (para documentos) -->
-  <mat-tab>
-    <ng-template mat-tab-label>
-      <div class="tab"><mat-icon>engineering</mat-icon> Datos de obra</div>
-    </ng-template>
-
-    <ng-template matTabContent>
-      <div class="tab-content-scrollable" [formGroup]="datosObraForm">
-        <p class="obra-hint">
-          <mat-icon>info</mat-icon>
-          Se prellenan con los datos de la vacante. Puedes editarlos y guardarlos en el
-          contrato; los documentos usarán estos valores en lugar de los de la vacante.
-        </p>
-
-        <div class="grid-managerial">
-          <mat-form-field appearance="outline" class="example-full-width">
-            <mat-label>Empresa usuaria</mat-label>
-            <input matInput formControlName="empresaUsuaria">
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="example-full-width">
-            <mat-label>Centro de costo</mat-label>
-            <input matInput formControlName="centroCosto">
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="example-full-width">
-            <mat-label>Dirección</mat-label>
-            <input matInput formControlName="direccion">
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="example-full-width obra-descripcion">
-            <mat-label>Descripción de la obra</mat-label>
-            <textarea matInput rows="3" formControlName="descripcionObra"></textarea>
-          </mat-form-field>
-        </div>
-
-        <div class="obra-actions">
-          <button mat-flat-button color="primary" (click)="guardarDatosObra()">
-            <mat-icon>save</mat-icon> Guardar datos de obra
-          </button>
-        </div>
-      </div>
-    </ng-template>
-  </mat-tab>
-
   <!-- TAB 1 ▸ Pago y Transporte -->
   <mat-tab>
     <ng-template mat-tab-label>
@@ -156,7 +111,40 @@
 
         <mat-form-field appearance="outline" class="example-full-width">
           <mat-label>Ccostos</mat-label>
-          <input matInput formControlName="Ccostos">
+          <input matInput formControlName="Ccostos" (blur)="autollenarDesdeCentroCosto()">
+          <mat-hint>Al salir del campo se prellenan empresa, ciudad y sublabor.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Centro de costo carnet</mat-label>
+          <input matInput formControlName="carnetCentroCosto">
+          <mat-hint>Es el que se imprime en el carnet. Si se deja vacío, se usa Ccostos.</mat-hint>
+        </mat-form-field>
+
+        <!-- Datos de nómina: se prellenan desde el centro de costo y quedan editables -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Empresa grupo Elite</mat-label>
+          <input matInput formControlName="empresaGrupoElite">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Código compañía</mat-label>
+          <input matInput formControlName="codigoCompania">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Sucursal</mat-label>
+          <input matInput formControlName="sucursal">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Ciudad de labor</mat-label>
+          <input matInput formControlName="ciudadLabor">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Clasificador 4 · Sublabor</mat-label>
+          <input matInput formControlName="sublabor">
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="example-full-width">
@@ -179,7 +167,7 @@
           <mat-hint>Asignado según el cargo. Puede modificarlo.</mat-hint>
         </mat-form-field>
 
-        <!-- Cesantías PORVENIR, FONDO NACIONAL DEL AHORRO, PROTECCIÓN -->
+        <!-- Cesantías PORVENIR, FONDO NACIONAL DEL AHORRO, PROTECCIÓN, SKANDIA, COLFONDOS -->
         <mat-form-field appearance="outline" class="example-full-width">
           <mat-label>Cesantías</mat-label>
           <mat-select formControlName="cesantias">
@@ -187,6 +175,8 @@
             <mat-option value="FONDO NACIONAL DEL AHORRO">FONDO NACIONAL DEL
             AHORRO</mat-option>
             <mat-option value="PROTECCIÓN">PROTECCIÓN</mat-option>
+            <mat-option value="SKANDIA">SKANDIA</mat-option>
+            <mat-option value="COLFONDOS">COLFONDOS</mat-option>
           </mat-select>
         </mat-form-field>
 
@@ -204,13 +194,13 @@
 
         <!-- CATEGORIA -->
         <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Categoría</mat-label>
+          <mat-label>Clasificador 2 · Categoría</mat-label>
           <input matInput formControlName="categoria">
         </mat-form-field>
 
         <!-- OPERACION -->
         <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Operación</mat-label>
+          <mat-label>Clasificador 3 · Operación</mat-label>
           <input matInput formControlName="operacion">
         </mat-form-field>
 
@@ -247,6 +237,60 @@
     </ng-template>
   </mat-tab>
 
+  <!-- TAB ▸ Datos de obra / empresa (para documentos) -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <div class="tab"><mat-icon>engineering</mat-icon> Datos de obra</div>
+    </ng-template>
+
+    <ng-template matTabContent>
+      <div class="tab-content-scrollable" [formGroup]="datosObraForm">
+        <p class="obra-hint">
+          <mat-icon>info</mat-icon>
+          Vienen de la vacante y no se pueden modificar aquí. La descripción se ajusta
+          sola según el mes de ingreso y el cargo, igual que la base de contratación;
+          los documentos usarán estos valores.
+        </p>
+
+        <div class="grid-managerial">
+          <mat-form-field appearance="outline" class="example-full-width">
+            <mat-label>Empresa usuaria</mat-label>
+            <input matInput formControlName="empresaUsuaria" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="example-full-width">
+            <mat-label>Centro de costo</mat-label>
+            <input matInput formControlName="centroCosto" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="example-full-width">
+            <mat-label>Dirección</mat-label>
+            <input matInput formControlName="direccion" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="example-full-width obra-descripcion">
+            <mat-label>Descripción de la obra</mat-label>
+            <textarea matInput rows="3" formControlName="descripcionObra" readonly></textarea>
+            <mat-hint>Se ajusta sola al mes de la fecha de ingreso de "Pago y Transporte".</mat-hint>
+          </mat-form-field>
+
+          @if (avisoDescripcionObra) {
+            <p class="obra-aviso">
+              <mat-icon>warning</mat-icon>
+              {{ avisoDescripcionObra }}
+            </p>
+          }
+        </div>
+
+        <div class="obra-actions">
+          <button mat-flat-button color="primary" (click)="guardarDatosObra()">
+            <mat-icon>save</mat-icon> Guardar datos de obra
+          </button>
+        </div>
+      </div>
+    </ng-template>
+  </mat-tab>
+
   <!-- TAB 2 ▸ Referencias (familiares, personales, laborales) -->
   <mat-tab>
     <ng-template mat-tab-label>
@@ -269,6 +313,7 @@
               </button>
             </mat-form-field>
             <mat-menu #menuF1="matMenu">
+              <button mat-menu-item (click)="generarReferencia('familiar1')">Generar</button>
               <button mat-menu-item (click)="verArchivo('familiar1')">Ver
               PDF</button>
               <button mat-menu-item>
@@ -297,7 +342,8 @@
                   </button>
                 </mat-form-field>
                 <mat-menu #menuF2="matMenu">
-                  <button mat-menu-item (click)="verArchivo('familiar2')">Ver
+                  <button mat-menu-item (click)="generarReferencia('familiar2')">Generar</button>
+              <button mat-menu-item (click)="verArchivo('familiar2')">Ver
                   PDF</button>
                   <button mat-menu-item>
                     <label for="familiar2File">
@@ -325,7 +371,8 @@
                       </button>
                     </mat-form-field>
                     <mat-menu #menuP1="matMenu">
-                      <button mat-menu-item (click)="verArchivo('personal1')">Ver
+                      <button mat-menu-item (click)="generarReferencia('personal1')">Generar</button>
+              <button mat-menu-item (click)="verArchivo('personal1')">Ver
                       PDF</button>
                       <button mat-menu-item>
                         <label for="personal1File">
@@ -353,7 +400,8 @@
                           </button>
                         </mat-form-field>
                         <mat-menu #menuP2="matMenu">
-                          <button mat-menu-item (click)="verArchivo('personal2')">Ver
+                          <button mat-menu-item (click)="generarReferencia('personal2')">Generar</button>
+              <button mat-menu-item (click)="verArchivo('personal2')">Ver
                           PDF</button>
                           <button mat-menu-item>
                             <label for="personal2File">
@@ -626,3 +674,22 @@
                           </div>
                         </div>
                       }
+
+<!-- Visor de documentos: se ve dentro de la app, sin descargar ni abrir pestaña. -->
+@if (visorSrc) {
+  <div class="visor-overlay" (click)="cerrarVisor()">
+    <div class="visor-caja" (click)="$event.stopPropagation()">
+      <div class="visor-header">
+        <span class="visor-titulo">{{ visorTitulo }}</span>
+        <span class="visor-spacer"></span>
+        <button mat-icon-button matTooltip="Descargar" (click)="descargarDelVisor()">
+          <mat-icon>download</mat-icon>
+        </button>
+        <button mat-icon-button matTooltip="Cerrar" (click)="cerrarVisor()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <iframe [src]="visorSrc" class="doc-iframe" frameborder="0" title="Documento"></iframe>
+    </div>
+  </div>
+}

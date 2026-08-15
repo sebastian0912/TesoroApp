@@ -44,27 +44,78 @@
 
               <span class="meta-divider" aria-hidden="true"></span>
 
-              <!-- Contrato activo / inactivo. El pill verde es clickable y abre el flujo de baja. -->
-              @if (candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato; as contrato) {
-                @if (contrato.contrato_activo) {
-                  <span class="pill pill-success pill-action"
-                    role="button"
-                    tabindex="0"
-                    matTooltip="Click para dar de baja el contrato"
-                    (click)="darDeBajaManual()"
-                    (keydown.enter)="darDeBajaManual()"
-                    (keydown.space)="$event.preventDefault(); darDeBajaManual()">
-                    <mat-icon>verified</mat-icon> Contrato activo
-                  </span>
-                } @else {
-                  <span class="pill pill-danger"
-                        [matTooltip]="contrato.fecha_retiro ? 'Baja: ' + (contrato.fecha_retiro | date:'dd/MM/yyyy') : 'Sin contrato activo'">
-                    <mat-icon>cancel</mat-icon>
-                    Sin contrato
-                    @if (contrato.fecha_retiro) {
-                      <span class="pill-meta">· {{ contrato.fecha_retiro | date:'dd/MM/yyyy' }}</span>
-                    }
-                  </span>
+              <!-- Prueba técnica: solo si la vacante remitida es de ese tipo.
+                   Es un marcador de resultado; no bloquea Contratación. -->
+              @if (esPruebaTecnica()) {
+                <span class="pill pill-action"
+                  [class.pill-danger]="noPasoPrueba()"
+                  [class.pill-success]="pasoPrueba()"
+                  [class.pill-warning]="noSePresentoPrueba()"
+                  [class.pill-info]="resultadoPrueba() === 'sin_resultado'"
+                  role="button"
+                  tabindex="0"
+                  [matTooltip]="tooltipPrueba()"
+                  (click)="registrarResultadoPrueba()"
+                  (keydown.enter)="registrarResultadoPrueba()"
+                  (keydown.space)="$event.preventDefault(); registrarResultadoPrueba()">
+                  <mat-icon>{{ noPasoPrueba() ? 'thumb_down' : (pasoPrueba() ? 'thumb_up' : (noSePresentoPrueba() ? 'person_off' : 'assignment_ind')) }}</mat-icon>
+                  {{ etiquetaPrueba() }}
+                </span>
+
+                <span class="meta-divider" aria-hidden="true"></span>
+              }
+
+              <!-- Examen médico: resultado (pasó / no pasó / no se presentó).
+                   Marcador independiente de la carga de exámenes; no bloquea. -->
+              <span class="pill pill-action"
+                [class.pill-danger]="resultadoExamen() === 'no_paso'"
+                [class.pill-success]="resultadoExamen() === 'paso'"
+                [class.pill-warning]="resultadoExamen() === 'no_se_presento'"
+                [class.pill-info]="resultadoExamen() === 'sin_resultado'"
+                role="button"
+                tabindex="0"
+                [matTooltip]="tooltipExamen()"
+                (click)="registrarResultadoExamen()"
+                (keydown.enter)="registrarResultadoExamen()"
+                (keydown.space)="$event.preventDefault(); registrarResultadoExamen()">
+                <mat-icon>{{ resultadoExamen() === 'no_paso' ? 'thumb_down' : (resultadoExamen() === 'paso' ? 'thumb_up' : (resultadoExamen() === 'no_se_presento' ? 'person_off' : 'medical_information')) }}</mat-icon>
+                {{ etiquetaExamen() }}
+              </span>
+
+              <span class="meta-divider" aria-hidden="true"></span>
+
+              <!-- Contrato: activo real (clickable → baja) / retirado / en trámite.
+                   Una fila con solo el código reservado (generar_codigo) NO es un
+                   contrato activo: se muestra "En trámite" y no bloquea nada. -->
+              @if (contratoHeader(); as contrato) {
+                @switch (contratoPill()) {
+                  @case ('activo') {
+                    <span class="pill pill-success pill-action"
+                      role="button"
+                      tabindex="0"
+                      matTooltip="Click para dar de baja el contrato"
+                      (click)="darDeBajaManual()"
+                      (keydown.enter)="darDeBajaManual()"
+                      (keydown.space)="$event.preventDefault(); darDeBajaManual()">
+                      <mat-icon>verified</mat-icon> Contrato activo
+                    </span>
+                  }
+                  @case ('retirado') {
+                    <span class="pill pill-danger"
+                          [matTooltip]="contrato.fecha_retiro ? 'Baja: ' + (contrato.fecha_retiro | date:'dd/MM/yyyy') : 'Sin contrato activo'">
+                      <mat-icon>cancel</mat-icon>
+                      Sin contrato
+                      @if (contrato.fecha_retiro) {
+                        <span class="pill-meta">· {{ contrato.fecha_retiro | date:'dd/MM/yyyy' }}</span>
+                      }
+                    </span>
+                  }
+                  @case ('en_tramite') {
+                    <span class="pill pill-neutral"
+                          [matTooltip]="'Código ' + (contrato.codigo_contrato || 'de contrato') + ' reservado · aún no contratado'">
+                      <mat-icon>pending</mat-icon> Contrato en trámite
+                    </span>
+                  }
                 }
               }
 
@@ -94,45 +145,123 @@
       </div>
 
       <div class="botones premium-toolbar">
-        <!-- Botón enviar correo bienvenida -->
-        <button mat-icon-button matTooltip="Confirmar Correo de Bienvenida" aria-label="Confirmar Correo de Bienvenida"
-          (click)="confirmarCorreoBienvenida()" [disabled]="!candidatoSeleccionado()?.numero_documento"
-          [matBadge]="candidatoSeleccionado()?.contacto?.correo_confirmado ? '✓' : ''"
-          [matBadgeColor]="candidatoSeleccionado()?.contacto?.correo_confirmado ? 'primary' : 'warn'"
-          matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.correo_confirmado">
-          <mat-icon>email</mat-icon>
+        <!-- Cerrar contratación del día: SIEMPRE visible y habilitado (no
+             depende del candidato seleccionado). Lleva al Reporte de
+             Contratación, donde se cierra el día con TODAS las personas
+             contratadas hoy (cruce, cédulas, ARL, traslados...). -->
+        <button mat-flat-button color="primary" class="btn-cerrar-contratacion"
+          matTooltip="Cerrar la contratación de HOY: reporte con todas las personas contratadas en el día"
+          (click)="irACerrarContratacion()">
+          <mat-icon>done_all</mat-icon>
+          Cerrar contratación
         </button>
+
+        <!-- Estos tres solo dependen de que haya candidato. Van igual envueltos en
+             .tt-wrap: deshabilitados no mostraban ningún tooltip y quedaban grises
+             sin explicar por qué. -->
+
+        <!-- Botón enviar correo bienvenida -->
+        <span class="tt-wrap"
+          [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar Correo de Bienvenida' : 'Selecciona primero un candidato'">
+          <button mat-icon-button aria-label="Confirmar Correo de Bienvenida"
+            (click)="confirmarCorreoBienvenida()" [disabled]="!candidatoSeleccionado()?.numero_documento"
+            [matBadge]="candidatoSeleccionado()?.contacto?.correo_confirmado ? '✓' : ''"
+            [matBadgeColor]="candidatoSeleccionado()?.contacto?.correo_confirmado ? 'primary' : 'warn'"
+            matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.correo_confirmado">
+            <mat-icon>email</mat-icon>
+          </button>
+        </span>
 
         <!-- Botón enviar whatsapp bienvenida -->
-        <button mat-icon-button matTooltip="Confirmar WhatsApp de Bienvenida"
-          aria-label="Confirmar WhatsApp de Bienvenida" (click)="confirmarWhatsAppBienvenida()"
-          [disabled]="!candidatoSeleccionado()?.numero_documento"
-          [matBadge]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? '✓' : ''"
-          [matBadgeColor]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? 'primary' : 'warn'"
-          matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.whatsapp_confirmado">
-          <mat-icon>chat</mat-icon>
-        </button>
+        <span class="tt-wrap"
+          [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar WhatsApp de Bienvenida' : 'Selecciona primero un candidato'">
+          <button mat-icon-button
+            aria-label="Confirmar WhatsApp de Bienvenida" (click)="confirmarWhatsAppBienvenida()"
+            [disabled]="!candidatoSeleccionado()?.numero_documento"
+            [matBadge]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? '✓' : ''"
+            [matBadgeColor]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? 'primary' : 'warn'"
+            matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.whatsapp_confirmado">
+            <mat-icon>chat</mat-icon>
+          </button>
+        </span>
 
         <!-- Botón generar carnet individual -->
-        <button mat-icon-button matTooltip="Generar Carnet (PDF)" aria-label="Generar Carnet (PDF)"
-          (click)="generarCarnetIndividual()" [disabled]="!candidatoSeleccionado()?.numero_documento"
-          [matBadge]="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado ? '✓' : ''"
-          [matBadgeColor]="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado ? 'primary' : 'warn'"
-          matBadgeOverlap="true"
-          [matBadgeHidden]="!candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado">
-          <mat-icon>badge</mat-icon>
-        </button>
+        <span class="tt-wrap"
+          [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Generar Carnet (PDF)' : 'Selecciona primero un candidato'">
+          <button mat-icon-button aria-label="Generar Carnet (PDF)"
+            (click)="generarCarnetIndividual()" [disabled]="!candidatoSeleccionado()?.numero_documento"
+            [matBadge]="carnetGeneradoUI() ? '✓' : ''"
+            [matBadgeColor]="carnetGeneradoUI() ? 'primary' : 'warn'"
+            matBadgeOverlap="true"
+            [matBadgeHidden]="!carnetGeneradoUI()">
+            <mat-icon>badge</mat-icon>
+          </button>
+        </span>
 
-        <!-- Botón de documentos -->
-        <button mat-icon-button matTooltip="Generar o subir documentación" aria-label="Generar o subir documentación"
-          [routerLink]="[
-    '/dashboard/hiring/generate-contracting-documents',
-    candidatoSeleccionado()?.numero_documento
-  ]" [disabled]="!candidatoSeleccionado()?.numero_documento">
-          <mat-icon>description</mat-icon>
-        </button>
+        <!-- Botón de documentos. Se bloquea hasta que "Pago y Transporte" esté
+             guardado: los documentos se arman con esos datos leídos del backend.
+
+             El tooltip va en el <span>, NO en el <button>: un botón deshabilitado
+             no emite eventos de puntero, así que el motivo del bloqueo —que es
+             justo cuando hace falta— no se veía nunca. El CSS le quita
+             pointer-events al botón apagado para que el hover llegue al span. -->
+        <span class="tt-wrap" [matTooltip]="tooltipGenerarDocumentacion()"
+          matTooltipClass="tooltip-faltantes" [matTooltipShowDelay]="150">
+          <button mat-icon-button
+            aria-label="Generar o subir documentación"
+            [attr.aria-disabled]="!puedeGenerarDocumentacion()"
+            [routerLink]="[
+      '/dashboard/hiring/generate-contracting-documents',
+      candidatoSeleccionado()?.numero_documento
+    ]"
+            [queryParams]="{ tipo_doc: candidatoSeleccionado()?.tipo_doc || 'CC' }"
+            [disabled]="!puedeGenerarDocumentacion()">
+            <mat-icon>description</mat-icon>
+          </button>
+        </span>
+
+        <!-- Finalizar contratación: manda al candidato al reporte del día de su
+             oficina (view-reports) reutilizando los documentos ya subidos. Pide
+             el Excel del ARL la primera vez y lo cachea para toda la jornada. -->
+        <input #arlFileInput type="file" hidden accept=".xls,.xlsx"
+          (change)="onArlSeleccionadoYFinalizar($event)">
+
+        <!-- Mismo motivo que el botón de documentación: el tooltip vive en el span
+             para que se vea con el botón deshabilitado. -->
+        <span class="tt-wrap" [matTooltip]="tooltipFinalizarContratacion()"
+          matTooltipClass="tooltip-faltantes" [matTooltipShowDelay]="150">
+          <button mat-icon-button
+            aria-label="Finalizar contratación"
+            [attr.aria-disabled]="!puedeFinalizarContratacion()"
+            [disabled]="!puedeFinalizarContratacion()"
+            (click)="arlIndex() ? finalizarContratacion() : arlFileInput.click()"
+            [matBadge]="contratacionFinalizada() ? '✓' : ''"
+            [matBadgeColor]="'primary'"
+            matBadgeOverlap="true"
+            [matBadgeHidden]="!contratacionFinalizada()">
+            <mat-icon>{{ finalizando() ? 'hourglass_empty' : 'task_alt' }}</mat-icon>
+          </button>
+        </span>
+
+        @if (arlIndex(); as arl) {
+          <button mat-icon-button
+            [matTooltip]="'ARL cargado: ' + arl.nombreArchivo + ' (' + arl.totalFilas + ' filas). Click para descartarlo y subir otro.'"
+            aria-label="Descartar Excel de ARL"
+            (click)="limpiarArl()">
+            <mat-icon>backup_table</mat-icon>
+          </button>
+        }
 
         <!-- Dar de baja: ahora se hace haciendo click sobre el pill "Contrato activo" del header. -->
+
+        <!-- Forzar consulta de antecedentes: re-abre las 8 fuentes del robot
+             (SIN_CONSULTAR) sin esperar a que la fila venza. Pide confirmación
+             porque dispara una pasada completa de la flota. -->
+        <button mat-icon-button matTooltip="Forzar consulta de antecedentes (robots)"
+          aria-label="Forzar consulta de antecedentes"
+          (click)="forzarConsultaAntecedentes()" [disabled]="!candidatoSeleccionado()?.numero_documento">
+          <mat-icon>fact_check</mat-icon>
+        </button>
 
         <!-- Botón de tabla -->
         <button mat-icon-button matTooltip="Ver tabla de registros" aria-label="Ver tabla de registros"
@@ -171,7 +300,42 @@
       </div>
     </div>
 
-    <mat-tab-group class="tab-group">
+    <!-- Bloqueo: el candidato consultado tiene un CONTRATO ACTIVO. No puede
+         avanzar al resto del pipeline hasta dar de baja ese contrato. -->
+    @if (contratoActivo()) {
+      <div class="contrato-activo-banner" [class.cab-override]="modificacionForzada()">
+        <mat-icon>{{ modificacionForzada() ? 'edit_note' : 'lock' }}</mat-icon>
+        <div class="cab-text">
+          @if (!modificacionForzada()) {
+            <strong>{{ nombreCandidato || 'El candidato' }} tiene un contrato activo.</strong>
+            No puede continuar con el proceso hasta dar de baja el contrato vigente.
+          } @else {
+            <strong>Edición forzada habilitada.</strong>
+            Puedes modificar sin dar de baja el contrato. Los cambios se guardan como
+            edición pura (no reinician el proceso ni abren uno nuevo).
+            @if (overrideAuditNombre()) {
+              <div class="cab-audit">
+                Modificado por <strong>{{ overrideAuditNombre() }}</strong>@if (overrideAuditFecha()) { el {{ overrideAuditFecha() | date:'dd/MM/yyyy HH:mm' }}}.
+              </div>
+            }
+          }
+        </div>
+        @if (!modificacionForzada()) {
+          <div class="cab-actions">
+            <button type="button" class="cab-action" (click)="darDeBajaManual()">
+              <mat-icon>logout</mat-icon> Dar de baja
+            </button>
+            <button type="button" class="cab-action cab-action--override" (click)="activarModificacionForzada()">
+              <mat-icon>edit</mat-icon> Modificar de todas formas
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    <mat-tab-group class="tab-group"
+      [selectedIndex]="tabIndex()"
+      (selectedIndexChange)="tabIndex.set($event)">
       <mat-tab>
         <ng-template mat-tab-label>
           <div class="tab">
@@ -180,41 +344,50 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-search-for-candidate (candidatoSeleccionado)="onCandidatoSeleccionado($event)">
+          <app-search-for-candidate (candidatoSeleccionado)="onCandidatoSeleccionado($event)"
+            (carnetMasivo)="abrirCarnetMasivo($event)">
           </app-search-for-candidate>
         </div>
       </mat-tab>
 
-      <mat-tab>
+      <mat-tab [disabled]="bloqueoContratoTabs()">
         <ng-template mat-tab-label>
-          <div class="tab">
+          <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
             <mat-icon>thumb_up</mat-icon>
             ANTECEDENTES
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-selection-questions [candidatoSeleccionado]="candidatoSeleccionado()">
+          <app-selection-questions [candidatoSeleccionado]="candidatoSeleccionado()"
+            [modificacionForzada]="modificacionForzada()"
+            [modificadoPor]="usuarioActual()"
+            [consultaSeq]="consultaSeq()"
+            (guardado)="recargarCandidato()">
           </app-selection-questions>
         </div>
       </mat-tab>
 
-      <mat-tab>
+      <mat-tab [disabled]="bloqueoContratoTabs()">
         <ng-template mat-tab-label>
-          <div class="tab">
+          <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
             <mat-icon>rate_review</mat-icon>
             Selección
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-help-information [candidatoSeleccionado]="candidatoSeleccionado()">
+          <app-help-information [candidatoSeleccionado]="candidatoSeleccionado()"
+            [modificacionForzada]="modificacionForzada()"
+            [modificadoPor]="usuarioActual()"
+            [consultaSeq]="consultaSeq()"
+            (guardado)="recargarCandidato()">
           </app-help-information>
         </div>
       </mat-tab>
 
       <!-- ─────────── TAB 3 • EXAMEN DE SALUD OCUPACIONAL ─────────── -->
-      <mat-tab>
+      <mat-tab [disabled]="bloqueoContratoTabs()">
         <ng-template mat-tab-label>
-          <div class="tab">
+          <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
             @if (examenesYaCargados()) {
               <mat-icon style="color:#2E7D32">check_circle</mat-icon>
             } @else {
@@ -420,9 +593,9 @@
 
           <!-- ─────────── TAB • CONTRATACIÓN ───────────    [disabled]="deshabilitarContratacion()"       [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">-->
 
-          <mat-tab>
+          <mat-tab [disabled]="bloqueoContratoTabs()">
             <ng-template mat-tab-label>
-              <div class="tab">
+              <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
 
                 <mat-icon>how_to_reg</mat-icon>
                 Contratación
@@ -430,7 +603,11 @@
             </ng-template>
 
             <div class="tab-content-scrollable">
-              <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()">
+              <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()"
+                [modificacionForzada]="modificacionForzada()"
+                [modificadoPor]="usuarioActual()"
+                [consultaSeq]="consultaSeq()"
+                (guardado)="recargarCandidato()">
               </app-hiring-questions>
             </div>
           </mat-tab>

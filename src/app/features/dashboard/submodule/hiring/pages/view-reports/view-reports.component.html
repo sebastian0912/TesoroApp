@@ -16,8 +16,8 @@
       <button
         mat-stroked-button
         class="vr-filter-chip"
-        matTooltip="Cambiar rango de fechas"
-        (click)="openDateRangeDialog('filterTables')">
+        matTooltip="Cambiar rango de fechas (aplica a las tablas y a TODAS las descargas)"
+        (click)="openDateRangeDialog()">
         <mat-icon>calendar_today</mat-icon>
         <span class="vr-filter-chip__label">{{ activeRangeLabel() }}</span>
       </button>
@@ -25,7 +25,7 @@
       <button
         mat-flat-button
         class="btn-managerial"
-        matTooltip="Descargar ZIP con cédulas por oficina"
+        [matTooltip]="'Descargar ZIP con las cédulas del rango ' + activeRangeLabel()"
         [disabled]="isExporting()"
         (click)="descargarDocumentosZip('cedulas')">
         <mat-icon>folder_zip</mat-icon>
@@ -35,7 +35,7 @@
       <button
         mat-flat-button
         class="btn-managerial"
-        matTooltip="Descargar ZIP con los traslados (EPS) del rango"
+        [matTooltip]="'Descargar ZIP con los traslados (EPS) del rango ' + activeRangeLabel()"
         [disabled]="isExporting()"
         (click)="descargarDocumentosZip('traslados')">
         <mat-icon>swap_horiz</mat-icon>
@@ -45,7 +45,7 @@
       <button
         mat-flat-button
         class="btn-managerial"
-        matTooltip="Descargar ZIP con los documentos SST del rango"
+        [matTooltip]="'Descargar ZIP con los documentos SST del rango ' + activeRangeLabel()"
         [disabled]="isExporting()"
         (click)="descargarDocumentosZip('sst')">
         <mat-icon>health_and_safety</mat-icon>
@@ -55,11 +55,14 @@
       <button
         mat-flat-button
         class="btn-managerial btn-managerial--alt"
-        matTooltip="Combinar cruces en un Excel: hoja Tu Alianza y hoja Apoyo Laboral"
+        [matTooltip]="
+          'Unir las bases del rango ' + activeRangeLabel() +
+          ' en un Excel: hoja Tu Alianza y hoja Apoyo Laboral, con la oficina en la última columna'
+        "
         [disabled]="isExporting() || reportes().length === 0"
         (click)="descargarCrucesCombinados()">
         <mat-icon>merge</mat-icon>
-        Cruces combinados
+        Bases unidas
       </button>
 
       @if (isAdminReportUser) {
@@ -107,15 +110,19 @@
   <mat-card-content class="card-content">
     @if (isAdminReportUser) {
       <mat-menu #menu="matMenu" class="vr-menu">
-        <button mat-menu-item (click)="openDateRangeDialog('exportContratacion')">
+        <div class="vr-menu-hint">
+          <mat-icon>event</mat-icon>
+          <span>Rango aplicado: <b>{{ activeRangeLabel() }}</b></span>
+        </div>
+        <button mat-menu-item [disabled]="isExporting()" (click)="exportContratacion()">
           <mat-icon>description</mat-icon>
           <span>Base contratación por código de contrato</span>
         </button>
-        <button mat-menu-item (click)="openDateRangeDialog('generateCentroCostoTable')">
+        <button mat-menu-item [disabled]="isExporting()" (click)="generateCentroCostoTable()">
           <mat-icon>account_tree</mat-icon>
           <span>Generar reporte centro de costos</span>
         </button>
-        <button mat-menu-item (click)="openDateRangeDialog('exportFincas')">
+        <button mat-menu-item [disabled]="isExporting()" (click)="exportFincas()">
           <mat-icon>agriculture</mat-icon>
           <span>Generar reporte fincas</span>
         </button>
@@ -283,11 +290,34 @@
                       <mat-icon>health_and_safety</mat-icon>
                     </button>
                   }
+                  @if (isArray(row.contrataciones) && row.contrataciones.length > 0) {
+                    <button
+                      mat-icon-button
+                      class="vr-doc-btn vr-doc-btn--primary"
+                      [matTooltip]="'Ver contrataciones finalizadas (' + row.contrataciones.length + ')'"
+                      (click)="$event.stopPropagation(); openContratacionesDialog(row)">
+                      <mat-icon>task_alt</mat-icon>
+                      <span class="vr-doc-badge">{{ row.contrataciones.length }}</span>
+                    </button>
+                  }
                 } @else {
                   <span class="vr-docs-empty">
                     <mat-icon>inbox</mat-icon>
                     Sin documentos
                   </span>
+                }
+
+                <!-- SST GRUPAL + nota del día. Lo individual de cada persona se
+                     enlaza solo al finalizar su contratación; esto es lo que no
+                     sale del pipeline. -->
+                @if (row.id) {
+                  <button
+                    mat-icon-button
+                    class="vr-doc-btn"
+                    [matTooltip]="row.sst_document?.file_url ? 'Reemplazar SST grupal / editar nota' : 'Adjuntar SST grupal / nota'"
+                    (click)="$event.stopPropagation(); abrirAdjuntos(row)">
+                    <mat-icon>attach_file</mat-icon>
+                  </button>
                 }
               </div>
             </ng-template>
@@ -389,12 +419,13 @@
               <div class="vr-empty-state">
                 <mat-icon>insights</mat-icon>
                 <h3>Sin datos de fincas</h3>
-                <p>Genera el reporte desde el menú superior (<mat-icon inline>more_vert</mat-icon> → "Generar reporte fincas") seleccionando un rango de fechas.</p>
+                <p>Genera el reporte desde el menú superior (<mat-icon inline>more_vert</mat-icon> → "Generar reporte fincas"). Se usa el rango de fechas activo: <b>{{ activeRangeLabel() }}</b>.</p>
                 @if (isAdminReportUser) {
                   <button
                     mat-flat-button
                     class="btn-managerial"
-                    (click)="openDateRangeDialog('generateCentroCostoTable')">
+                    [disabled]="isExporting()"
+                    (click)="generateCentroCostoTable()">
                     <mat-icon>calendar_month</mat-icon>
                     Generar reporte por centro de costo
                   </button>

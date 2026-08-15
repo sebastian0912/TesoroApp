@@ -8,7 +8,11 @@
     </ng-template>
 
     <!-- HelpInformationComponent.html -->
-    <app-form-entrevista [candidatoSeleccionado]="candidatoSeleccionado()"></app-form-entrevista>
+    <app-form-entrevista [candidatoSeleccionado]="candidatoSeleccionado()"
+      [modificacionForzada]="modificacionForzada()"
+      [modificadoPor]="modificadoPor()"
+      [consultaSeq]="consultaSeq()"
+      (guardado)="guardado.emit()"></app-form-entrevista>
 
   </mat-tab>
 
@@ -39,7 +43,7 @@
         <mat-form-field class="example-full-width" appearance="outline" style="width: 100%;">
           <mat-label>Vacante (Empresa - Finca - Cargo)</mat-label>
           <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
-            [disabled]="(isRemisionReadOnly() && isPreloadedVacancy()) || bloqueado()" [disableOptionCentering]="true"
+            [disabled]="bloqueado()" [disableOptionCentering]="true"
             panelClass="custom-select-panel">
 
             <mat-select-trigger>
@@ -53,7 +57,7 @@
                     <span class="pill pill-warn">Falt {{ falt(v) }}</span>
                     <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
                     <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
-                    <span class="pill pill-neutral">Auto {{ auto(v) }}</span>
+                    <span class="pill pill-neutral" matTooltip="Contratación inmediata">Auto {{ auto(v) }}</span>
                     <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
                     <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                   </div>
@@ -113,7 +117,7 @@
                             <span class="pill pill-warn">Falt {{ falt(v) }}</span>
                             <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
                             <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
-                            <span class="pill pill-neutral">Auto {{ auto(v) }}</span>
+                            <span class="pill pill-neutral" matTooltip="Contratación inmediata">Auto {{ auto(v) }}</span>
                             <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
                             <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                           </div>
@@ -145,7 +149,10 @@
         <mat-form-field class="example-full-width" appearance="outline">
           <mat-label>Tipo</mat-label>
           <mat-select formControlName="tipo" (selectionChange)="onTipoChange($event.value)">
-            <mat-option value="Autorización de ingreso">Autorización de ingreso</mat-option>
+            <!-- El value se conserva ("Autorización de ingreso") porque es lo que se
+                 guarda en vacante_tipo y con lo que compara isAutorizacion(); solo
+                 cambia el rótulo visible a "Contratación inmediata". -->
+            <mat-option value="Autorización de ingreso">Contratación inmediata</mat-option>
             <mat-option value="Prueba técnica">Prueba técnica</mat-option>
           </mat-select>
         </mat-form-field>
@@ -205,15 +212,57 @@
             }
           </div>
 
-          @if (!(isRemisionReadOnly() && isPreloadedVacancy())) {
-            <div class="actions">
-              <button mat-flat-button [color]="limpiarVacante() ? 'warn' : 'primary'"
-                [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
-                (click)="guardarVacantes()">
-                {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}
-              </button>
+          <!-- ═══ Resultado de la prueba técnica: "No pasó" ═══ -->
+          @if (isPrueba()) {
+            <div class="no-paso-block">
+              @if (noPasoPrueba()) {
+                <div class="no-paso-banner">
+                  <mat-icon>cancel</mat-icon>
+                  <div class="no-paso-info">
+                    <strong>No pasó la prueba técnica.</strong>
+                    @if (noPasoPruebaAt()) {
+                      <span class="no-paso-fecha">Fecha: {{ formatShortDate(noPasoPruebaAt()) }}</span>
+                    }
+                    @if (motivoNoPaso()) {
+                      <div class="no-paso-motivo">Motivo: {{ motivoNoPaso() }}</div>
+                    }
+                  </div>
+                </div>
+              }
+
+              <div class="no-paso-actions">
+                <button mat-stroked-button color="warn" type="button"
+                  [disabled]="vacantesForm.disabled || bloqueado()"
+                  (click)="marcarNoPasoPrueba()">
+                  <mat-icon>thumb_down</mat-icon>
+                  {{ noPasoPrueba() ? 'Editar motivo (no pasó)' : 'No pasó la prueba técnica' }}
+                </button>
+                @if (noPasoPrueba()) {
+                  <button mat-button type="button" [disabled]="bloqueado()" (click)="quitarNoPasoPrueba()">
+                    Quitar marca
+                  </button>
+                }
+              </div>
             </div>
           }
+
+          <div class="actions">
+            <!-- Formato de calidad para llevar a la empresa. No guarda nada:
+                 solo arma el PDF con lo que ya está en pantalla. -->
+            <button mat-stroked-button type="button"
+              [disabled]="bloqueado() || !candidatoSeleccionado()?.numero_documento"
+              matTooltip="Genera el formato de remisión (Apoyo o Tu Alianza) para imprimir"
+              (click)="generarRemision()">
+              <mat-icon>assignment</mat-icon>
+              Remisión
+            </button>
+
+            <button mat-flat-button [color]="limpiarVacante() ? 'warn' : 'primary'"
+              [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
+              (click)="guardarVacantes()">
+              {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}
+            </button>
+          </div>
         </form>
       </mat-tab>
     </mat-tab-group>

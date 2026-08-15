@@ -1,7 +1,7 @@
 // src/app/shared/services/gestion-parametrizacion.service.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, map, switchMap } from 'rxjs';
+import { Observable, map, switchMap, shareReplay } from 'rxjs';
 import { environment } from '@/environments/environment';
 
 /** === Tipos del backend === */
@@ -211,12 +211,38 @@ export class GestionParametrizacionService {
       page: filters.page,
       page_size: filters.page_size,
     });
-    return this.http
-      .get<MetaValor[] | DRFPaginated<MetaValor>>(
-        `${this.base}/meta/tablas/${encodeURIComponent(codigo)}/valores/`,
-        { params }
-      )
-      .pipe(this.unwrapMaybePaginated<MetaValor>());
+    // Los catálogos son listas de dominio (parentescos, estados civiles,
+    // escolaridad…) que no cambian durante una sesión, y varios componentes
+    // piden los mismos. Se cachea la PETICIÓN, no el resultado: si dos
+    // componentes suscriben a la vez, comparten el mismo GET en vuelo.
+    const clave = `${codigo}|${params.toString()}`;
+    let cacheada = this.cacheValores.get(clave);
+    if (!cacheada) {
+      cacheada = this.http
+        .get<MetaValor[] | DRFPaginated<MetaValor>>(
+          `${this.base}/meta/tablas/${encodeURIComponent(codigo)}/valores/`,
+          { params }
+        )
+        .pipe(
+          this.unwrapMaybePaginated<MetaValor>(),
+          shareReplay({ bufferSize: 1, refCount: false }),
+        );
+      // Un error no se cachea: si el backend falló, el próximo debe reintentar.
+      this.cacheValores.set(clave, cacheada);
+      cacheada.subscribe({ error: () => this.cacheValores.delete(clave) });
+    }
+    return cacheada;
+  }
+
+  /** Catálogos ya pedidos, por (código + filtros). Ver `listMetaValoresByTablaCodigo`. */
+  private readonly cacheValores = new Map<string, Observable<MetaValor[]>>();
+
+  /** Vacía el cache de catálogos (tras editarlos en parametrización). */
+  invalidarCacheCatalogos(codigo?: string): void {
+    if (!codigo) { this.cacheValores.clear(); return; }
+    for (const k of [...this.cacheValores.keys()]) {
+      if (k.startsWith(`${codigo}|`)) this.cacheValores.delete(k);
+    }
   }
 
   /** ===========================

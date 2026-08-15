@@ -86,6 +86,10 @@
       <app-info-card matIcon="upload_file" title="Cargar solicitudes robots paquete"
         description="Sube un Excel con las solicitudes para robots" (click)="triggerFileInput()">
       </app-info-card>
+      <app-info-card matIcon="autorenew" title="Cargar solicitudes robots — solo actualizar ADRES"
+        description="Re-consulta ADRES para refrescar datos SIN cambiar el documento vigente (las consultas siguen mostrando la versión anterior)"
+        (click)="triggerFileInputSoloActualizar()">
+      </app-info-card>
       <app-info-card matIcon="download" title="Descargar ADRES por rango de fechas"
         description="Genera un Excel con los registros ADRES procesados en un rango"
         (click)="descargarAdressPorRango()">
@@ -93,6 +97,10 @@
       <app-info-card matIcon="upload_file" title="Descargar ADRES por lista de cedulas"
         description="Sube un Excel con cedulas y descarga sus datos ADRES (incluye PDF)"
         (click)="triggerFileInputAdresCedulas()">
+      </app-info-card>
+      <app-info-card matIcon="picture_as_pdf" title="Descargar ADRES (modo actualizar) por lista de cedulas"
+        description="Igual que el anterior, pero el PDF es la última versión generada en modo solo actualizar"
+        (click)="triggerFileInputAdresCedulasActualizar()">
       </app-info-card>
     }
 
@@ -132,6 +140,8 @@
 
 <!-- Hidden file inputs -->
 <input #fileInput type="file" (change)="cargarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputSoloActualizar type="file" (change)="cargarExcelSoloActualizar($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputAdresCedulasActualizar type="file" (change)="descargarAdressPorCedulasActualizarDesdeExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
 <input #fileInputResetContratado type="file" (change)="cargarExcelResetContratado($event)" accept=".xlsx, .xls"
   class="hidden-input" />
 <input #fileInputExcelCandidatos type="file" (change)="cargarExcelParaExportarCandidatos($event)" accept=".xlsx, .xls"

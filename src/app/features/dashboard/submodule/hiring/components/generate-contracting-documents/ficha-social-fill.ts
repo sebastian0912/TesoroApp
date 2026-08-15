@@ -9,19 +9,23 @@
  * (snake_case nativo). Si un campo del candidato no existe se deja en blanco;
  * NUNCA lanza error.
  *
- * Las firmas (image embeds en `firma_af_image` y `firma_administrativa`) se
- * manejan fuera de este helper porque dependen de servicios del componente.
+ * Las firmas (2 widgets del mismo /Btn `firma_af_image`: autorización y
+ * trabajador, ambas del candidato) se manejan fuera de este helper porque
+ * dependen de servicios del componente.
  */
 
 import type { PDFForm } from 'pdf-lib';
+import { esReferenciaFamiliar } from './referencias.util';
+import { sanitizedString } from './winansi.util';
 
 type Cand = any;
 
-const s = (v: any): string => (v === null || v === undefined ? '' : String(v).trim());
+const s = (v: any): string => sanitizedString(v);
 
 const upper = (v: any): string => s(v).toUpperCase();
 
-const norm = (v: any): string => s(v).normalize('NFC');
+/** Ya normaliza `s()`; se mantiene por los call sites que lo usan explícito. */
+const norm = (v: any): string => s(v);
 
 /** Devuelve "X" si `value` (o cualquier elemento del array) contiene alguna keyword. */
 function mark(value: any, ...keywords: string[]): string {
@@ -120,7 +124,7 @@ export function fillFichaSocialPdf(
   const conyuge = getFamiliar(familiares, 'CONYUGUE');
   const emergencia =
     getFamiliar(familiares, 'EMERGENCIA') ||
-    referencias.find(r => upper(r?.tipo) === 'FAMILIAR') ||
+    referencias.find(r => esReferenciaFamiliar(r?.tipo)) ||
     null;
 
   // Personas que conviven (texto libre, hacemos contains case-insensitive).

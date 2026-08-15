@@ -14,10 +14,13 @@
  */
 
 import type { PDFForm, PDFFont } from 'pdf-lib';
+import { esReferenciaFamiliar, separarReferencias } from './referencias.util';
+import { sanitizedString } from './winansi.util';
+import { tituloOUltimoGrado } from './escolaridad.util';
 
 type Cand = any;
 
-const s = (v: any): string => (v === null || v === undefined ? '' : String(v).trim());
+const s = (v: any): string => sanitizedString(v);
 const upper = (v: any): string => s(v).toUpperCase();
 const norm = (v: any): string => s(v).normalize('NFC');
 
@@ -54,6 +57,12 @@ export interface FichaTecnicaContext {
   sedeNombre: string;
   /** Empresa usuaria (cliente) — `vacante.empresaUsuariaSolicita`. */
   empUsuaria: string;
+  /**
+   * Temporal empleadora — `vacante.temporal` (Apoyo Laboral / Tu Alianza).
+   * La autorización de estudios de seguridad cubre a las DOS empresas: quien
+   * contrata y donde se presta el servicio.
+   */
+  temporal: string;
   /** Nombre de quien firma como representante administrativo (verificador refs). */
   personaQueFirma: string;
   /** Resultado de getRutaInfo del componente: `usaRuta` (texto) y demás. */
@@ -138,7 +147,7 @@ export function fillFichaTecnicaPdf(
   const madre = getFamiliar(familiares, 'MADRE');
   const emergencia =
     getFamiliar(familiares, 'EMERGENCIA') ||
-    referencias.find(r => upper(r?.tipo) === 'FAMILIAR') || null;
+    referencias.find(r => esReferenciaFamiliar(r?.tipo)) || null;
 
   // Composición de nombres
   const apellidos = norm([s(cand.primer_apellido), s(cand.segundo_apellido)].filter(Boolean).join(' '));
@@ -239,7 +248,9 @@ export function fillFichaTecnicaPdf(
   const f0 = formaciones[0] || {};
   setText('Seleccione el Grado de Escolaridad', norm(f0.nivel));
   setText('Institución', norm(f0.institucion));
-  setText('Titulo Obtenido o Ultimo año Cursado', norm(f0.titulo_obtenido));
+  // Con nivel 1..11 el titulo suele venir vacio: ahi lo que aplica es el
+  // ultimo grado cursado. Y si hay estudios adicionales reales, se anexan.
+  setText('Titulo Obtenido o Ultimo año Cursado', norm(tituloOUltimoGrado(f0)));
   setText('Año Finalización', s(f0.anio_finalizacion));
 
   // ════════════════════════════════════════════════════════════════════
@@ -345,8 +356,11 @@ export function fillFichaTecnicaPdf(
   // ════════════════════════════════════════════════════════════════════
   // REFERENCIAS PERSONALES Y FAMILIARES (P2)
   // ════════════════════════════════════════════════════════════════════
-  const refsP = referencias.filter(r => upper(r.tipo) === 'PERSONAL' || upper(r.tipo) === 'LABORAL');
-  const refsF = referencias.filter(r => upper(r.tipo) === 'FAMILIAR');
+  // `tipo` llega como PERSONAL/PERSONAL1/PERSONAL2 y FAMILIAR/FAMILIAR1/
+  // FAMILIAR2 según la época del registro: se clasifica por prefijo y se ordena
+  // por el sufijo. Comparar por igualdad exacta dejaba en blanco las
+  // referencias de todos los candidatos recientes.
+  const { personales: refsP, familiares: refsF } = separarReferencias(referencias);
 
   if (refsP[0]) {
     setText('Nombre Referencia 1Row1', norm(refsP[0].nombre));
@@ -396,9 +410,11 @@ export function fillFichaTecnicaPdf(
   setText('descripcion-familiar1', descFamiliar1);
   setText('descripcion-familiar2', descFamiliar2);
 
-  // Parentesco de las referencias familiares
+  // Parentesco / relación de las referencias
   setText('parentesco_familiar_1', upper(refsF[0]?.parentesco));
   setText('parentesco_familiar_2', upper(refsF[1]?.parentesco));
+  setText('parentesco_personal_1', upper(refsP[0]?.parentesco));
+  setText('parentesco_personal_2', upper(refsP[1]?.parentesco));
 
   // Descripción laboral 1 = primer empleo (empresa - tiempo - labores)
   if (exp1) {
@@ -424,16 +440,43 @@ export function fillFichaTecnicaPdf(
   // TEXTOS ESPECIALES / AUTORIZACIÓN EMPRESA
   // ════════════════════════════════════════════════════════════════════
   setText('empresa', upper(ctx.empUsuaria), 7);
+
+  // ── Datos de nómina (pestaña "Pago y Transporte" del contrato) ──
+  // Los nombres de campo son los de la plantilla, con sus tildes y el typo
+  // "Sublador"; no se pueden "corregir" sin romper el mapeo con el PDF.
+  const contratoNom: any = cand?.entrevistas?.[0]?.proceso?.contrato ?? {};
+  setText('Empresa Grupo Elite', upper(contratoNom.empresa_grupo_elite), 6);
+  // Apoyo siempre opera con la compañía 001.
+  setText('Código Compañía', s(contratoNom.codigo_compania) || '001', 6);
+  setText('Sucursal', upper(contratoNom.sucursal), 6);
+  setText('Centro de Costo', upper(contratoNom.Ccentro_de_costos), 6);
+  setText('SubCentro de Costo', upper(contratoNom.subcentro_de_costos), 6);
+  setText('CÓDIGOCiudad de Labor', upper(contratoNom.ciudad_labor), 6);
+  setText('CÓDIGOClasificador 2Categoría', upper(contratoNom.categoria), 6);
+  setText('CÓDIGOClasificador 3Operación', upper(contratoNom.operacion), 6);
+  // La sublabor suele ser larga y desborda la caja a 6pt: solo este campo va más pequeño.
+  setText('CÓDIGOClasificador 4Sublador', upper(contratoNom.sublabor), 4.5);
+  setText('Apoyo Laboral TSClasificador 6Grupo', upper(contratoNom.grupo), 6);
+
+  // Domicilio: ambos campos llevan el municipio de residencia.
+  const municipioResidencia = upper(cand?.residencia?.municipio ?? cand?.municipio);
+  setText('Ciudad DomicilioRow1', municipioResidencia, 6);
+  setText('DepartamentoRow1', municipioResidencia, 6);
   // El rect de `CedulaAutorizacion` es muy estrecho (~52pt × 7pt). Sin fontSize
   // fijo el número se ve gigante y se desborda; forzamos 6pt.
   setText('CedulaAutorizacion', s(cand.numero_documento), 6);
 
   if (ctx.empUsuaria) {
-    setText(
-      'AutorizacionDeEstudiosSeguridad2',
-      `estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a ${ctx.empUsuaria} a consultar en cualquier momento ante las centrales de riesgo la información comercial a mi nombre.`,
-      6
-    );
+    // Este campo es SOLO el espacio en blanco de la plantilla, que ya trae
+    // impreso "...autorizo a ______ a consultar ante las centrales de riesgo".
+    // Antes se le metía el párrafo completo, que no cabe en el rect y salía
+    // cortado en "estudios de seguridad. De conformidad con lo dispuesto...".
+    // Va únicamente el nombre de las dos empresas autorizadas.
+    const autorizadas = [ctx.temporal, ctx.empUsuaria]
+      .map(v => String(v ?? '').trim())
+      .filter(Boolean)
+      .join(' - ');
+    setText('AutorizacionDeEstudiosSeguridad2', autorizadas, 6);
     setText(
       'TEXTOCARNET',
       `me comprometo a presentar ante ${ctx.empUsuaria} fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación.`,

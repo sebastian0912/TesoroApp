@@ -469,7 +469,8 @@ export async function generarPdfAusentismo(
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'pt',
-    format: 'letter'
+    format: 'letter',
+    compress: true,
   });
 
   try {

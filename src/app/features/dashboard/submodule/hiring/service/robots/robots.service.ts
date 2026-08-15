@@ -36,6 +36,45 @@ export class RobotsService {
 
 
 
+  /**
+   * Resultados que YA consultó el robot para una persona, normalizados a los
+   * valores que acepta el formulario de antecedentes.
+   *
+   * `campos[x].valor === null` significa que el robot no dejó un veredicto
+   * interpretable (p.ej. procuraduría en "Consultado", que solo indica que la
+   * consulta corrió). Ese caso NO se autocompleta: lo decide una persona.
+   */
+  getResultadosAntecedentes(cedula: string, tipoDocumento?: string | null): Observable<ResultadosAntecedentes> {
+    let params = new HttpParams().set('cedula', cedula);
+    if (tipoDocumento) params = params.set('tipo_documento', tipoDocumento);
+
+    return this.http
+      .get<ResultadosAntecedentes>(`${this.apiUrl}/Robots/resultados-antecedentes/`, { params })
+      .pipe(catchError(this.handleError));
+  }
+
   // EstadosRobots/pendientes_por_oficina
   // EstadosRobots/pendientes_generales
+}
+
+/** Una fuente consultada por el robot. */
+export interface ResultadoRobotCampo {
+  /** Valor listo para el formulario, o null si no es interpretable. */
+  valor: string | number | null;
+  /** Texto crudo que devolvió la fuente, para mostrar procedencia. */
+  crudo: string | null;
+  fecha: string | null;
+  marca_temporal: string | null;
+}
+
+export interface ResultadosAntecedentes {
+  cedula: string;
+  tipo_documento?: string | null;
+  encontrado: boolean;
+  fecha_ultima_modificacion?: string | null;
+  campos: Partial<Record<
+    'policivos' | 'ofac' | 'procuraduria' | 'contraloria'
+    | 'eps' | 'afp' | 'sisben' | 'medidas_correctivas',
+    ResultadoRobotCampo
+  >>;
 }

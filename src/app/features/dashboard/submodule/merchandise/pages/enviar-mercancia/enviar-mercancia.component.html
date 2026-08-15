@@ -24,10 +24,15 @@
           <mat-form-field appearance="outline" class="full-width" style="margin-top: 16px;">
             <mat-label>Concepto</mat-label>
             <mat-icon matPrefix>category</mat-icon>
-            <mat-select formControlName="concepto" (selectionChange)="updateOtroConceptoValidator($event.value)">
-              @for (concepto of conceptos; track concepto) {
-                <mat-option [value]="concepto.valor">
-                  {{ concepto.valor }}
+            <mat-select formControlName="concepto">
+              @if (cargandoConceptos()) {
+                <mat-option disabled>Cargando conceptos...</mat-option>
+              } @else if (conceptos().length === 0) {
+                <mat-option disabled>No hay conceptos configurados</mat-option>
+              }
+              @for (concepto of conceptos(); track labelConcepto(concepto)) {
+                <mat-option [value]="labelConcepto(concepto)">
+                  {{ labelConcepto(concepto) }}
                 </mat-option>
               }
             </mat-select>
@@ -36,7 +41,7 @@
             }
           </mat-form-field>
 
-          @if (myForm.get('concepto')?.value === 'Otro') {
+          @if (esOtroConcepto(myForm.get('concepto')?.value)) {
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Otro Concepto</mat-label>
               <input matInput formControlName="otroConcepto" />
@@ -75,7 +80,7 @@
             <mat-label>Sede Destino</mat-label>
             <mat-icon matPrefix>location_on</mat-icon>
             <mat-select formControlName="sede">
-              @for (sede of sedes; track sede) {
+              @for (sede of sedes(); track sede.nombre) {
                 <mat-option [value]="sede.nombre">
                   {{ sede.nombre }}
                 </mat-option>

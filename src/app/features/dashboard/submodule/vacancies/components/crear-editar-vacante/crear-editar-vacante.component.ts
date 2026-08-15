@@ -1,4 +1,4 @@
-import { FincaItem } from './../../service/fincas/fincas.service';
+import { FincaItem, etiquetaFinca } from './../../service/fincas/fincas.service';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
@@ -32,6 +32,12 @@ import { Observable, Subject, of } from 'rxjs';
 import { catchError, map, startWith, takeUntil } from 'rxjs/operators';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import {
+  resolverDescripcionObra,
+  esDescripcionGenerada,
+  claveDescripcion,
+  fechaParaDescripcionVacante,
+} from '@/app/shared/data/labores-por-mes.data';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
 import { FincasService } from '../../service/fincas/fincas.service';
@@ -84,6 +90,7 @@ type DepCiudades = { ciudades: string[] };
 export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   private readonly SI = 'Si';
   private readonly PRUEBA = 'Prueba';
+  private readonly CONTRATACION = 'Contratación';
   private readonly destroyRef = inject(DestroyRef);
 
   vacanteForm!: FormGroup;
@@ -122,6 +129,9 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   today: Date = new Date();
 
   private prevMunicipios: string[] = [];
+
+  /** Finca cuyos datos ya se trajeron del maestro; evita recargas repetidas. */
+  private fincaAplicada = '';
 
   constructor(
     private fb: FormBuilder,
@@ -180,7 +190,11 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         personasSolicitadas: [null, [Validators.required, Validators.min(1)]],
         municipiosDistribucion: this.fb.array<DistMunGroup>([]),
 
-        auxilioTransporte: [0, [Validators.required]],
+        // Arranca VACIO y no en 0: con 0 `Validators.required` pasaba (0 no es
+        // "vacío" para Angular), el select se veía en blanco sin marca de error
+        // y el faltante solo salía al guardar, en el Swal de "faltan campos".
+        // Se llena solo desde el maestro al elegir la finca.
+        auxilioTransporte: ['', [Validators.required]],
         area: ['', Validators.required],
 
         // Oficinas
@@ -302,29 +316,70 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
 
     // ====== Validaciones condicionales ======
-    this.applyTieneFechaIngreso(String(this.vacanteForm.get('tieneFechaIngreso')!.value ?? 'No'));
-    this.vacanteForm
-      .get('tieneFechaIngreso')!
-      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((v: unknown) => this.applyTieneFechaIngreso(String(v ?? 'No')));
-
+    // La fecha de ingreso la maneja applyPruebaContratacion -> syncFechaIngreso
+    // (solo aplica en "Contratación inmediata"). El toggle "Tiene Fecha de
+    // Ingreso" ya no se muestra ni se edita a mano.
     this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
     this.vacanteForm
       .get('pruebaOContratacion')!
       .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v: unknown) => this.applyPruebaContratacion(String(v ?? '')));
+
+    // ====== DESCRIPCIÓN AUTOMÁTICA ======
+    // La labor cambia con el cargo (de ahí sale el área), con el mes de la
+    // fecha, y con la temporal (cada una tiene su hoja de labores).
+    // `pruebaOContratacion` entra porque al cambiarlo se limpia la fecha que se
+    // estaba usando, y `fechadePruebatecnica` porque es la que se conoce al
+    // publicar: ponerla tiene que corregir la descripción en el momento.
+    // `finca` y `empresaUsuariaSolicita` entran porque también mandan: la
+    // finca por las áreas fijas (LAS DELICIAS) y la empresa porque Elite Blu
+    // tiene su propia hoja de labores aunque sea de Apoyo. Las dos se pueden
+    // editar a mano después de que el maestro las llenó.
+    const disparan = [
+      'cargo',
+      'fechadeIngreso',
+      'fechadePruebatecnica',
+      'fechaPublicado',
+      'temporal',
+      'pruebaOContratacion',
+      'finca',
+      'empresaUsuariaSolicita',
+    ];
+    for (const campo of disparan) {
+      this.vacanteForm
+        .get(campo)!
+        .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.sugerirDescripcion());
+    }
+
+    this.sugerirDescripcion();
   }
 
-  ngOnDestroy(): void {  }
+  ngOnDestroy(): void {
+  }
 
   // ---------- Validaciones condicionales ----------
-  private applyTieneFechaIngreso(valor: string): void {
+  /**
+   * La Fecha de Ingreso se muestra y se exige SOLO en "Contratación inmediata"
+   * (misma lógica que tenía la "Autorización de ingreso": entra de una vez).
+   * El toggle "Tiene Fecha de Ingreso" ya no se muestra: se maneja aquí solo.
+   * Al cambiar a otra opción (p.ej. Prueba técnica) se BORRA la fecha para no
+   * dejar un dato viejo colgado, y se oculta.
+   */
+  private syncFechaIngreso(): void {
+    const esContratacion =
+      String(this.vacanteForm.get('pruebaOContratacion')?.value ?? '') === this.CONTRATACION;
+
+    // Toggle oculto, coherente con el payload (Si/No).
+    this.vacanteForm.get('tieneFechaIngreso')!
+      .setValue(esContratacion ? this.SI : 'No', { emitEvent: false });
+
     const ctrl = this.vacanteForm.get('fechadeIngreso')!;
-    if (valor === this.SI) {
+    if (esContratacion) {
       ctrl.enable({ emitEvent: false });
       ctrl.setValidators([Validators.required]);
     } else {
-      ctrl.reset(null, { emitEvent: false });
+      ctrl.reset(null, { emitEvent: false });   // borra el dato al cambiar de opción
       ctrl.clearValidators();
       ctrl.disable({ emitEvent: false });
     }
@@ -356,6 +411,9 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     fPrueba.updateValueAndValidity({ emitEvent: false });
     hPrueba.updateValueAndValidity({ emitEvent: false });
     uPrueba.updateValueAndValidity({ emitEvent: false });
+
+    // La fecha de ingreso depende de esta opción (Contratación inmediata).
+    this.syncFechaIngreso();
   }
 
   // ---------- Distribución por municipio ----------
@@ -557,7 +615,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       ubicacionPruebaTecnica: v?.ubicacionPruebaTecnica ?? '',
       tipoContratacion: v?.tipoContratacion ?? '',
       municipio: Array.isArray(v?.municipio) ? v.municipio : [],
-      auxilioTransporte: v?.auxilioTransporte ?? 0,
+      auxilioTransporte: v?.auxilioTransporte ?? '',
       personasSolicitadas: v?.personasSolicitadas ?? null,
     });
 
@@ -593,7 +651,11 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .map((x: any) => String(x ?? '').trim())
       .filter(Boolean);
 
-    this.applyTieneFechaIngreso(String(this.vacanteForm.get('tieneFechaIngreso')!.value ?? 'No'));
+    // La vacante ya trae empresa y dirección guardadas: no hay que volver a
+    // pedirlas al abrir para editar, solo si se cambia la finca.
+    this.fincaAplicada = String(v?.finca ?? '').trim().toUpperCase();
+
+    this.syncFechaIngreso();
     this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
 
     this.vacanteForm.updateValueAndValidity({ emitEvent: false });
@@ -627,21 +689,182 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   }
 
   onCentroCostoSelected(event: MatAutocompleteSelectedEvent): void {
-    const nombre = (event.option.value || '').toString();
-    if (!nombre) return;
+    this.aplicarFinca((event.option.value || '').toString());
+  }
+
+  /**
+   * Nombres entre los que hay que escoger cuando la finca escrita es ambigua.
+   * Vacío = no hay ambigüedad pendiente. Lo lee la plantilla para decir cuáles
+   * son las opciones sin que el usuario tenga que adivinar.
+   */
+  fincaAmbiguaOpciones: string[] = [];
+
+  /**
+   * Trae del maestro empresa, dirección, temporal, salario y auxilio de
+   * transporte de la finca dada.
+   *
+   * Se llama tanto al elegir del desplegable como al salir del campo escrito a
+   * mano: el input es un autocomplete libre, así que se puede teclear el nombre
+   * completo sin llegar a seleccionar la opción, y antes en ese caso la vacante
+   * quedaba sin empresa ni dirección.
+   */
+  private aplicarFinca(nombre: string): void {
+    const q = (nombre || '').trim();
+    if (!q || q.toUpperCase() === this.fincaAplicada) return;
 
     this.fincasService
-      .getFincaByNombre(nombre)
-      .pipe(catchError(() => of(undefined)))
-      .subscribe((finca: FincaItem | undefined) => {
-        const temporalCanon = this.canonicalTemporal(finca?.temporal);
+      .buscarFincasPorNombre(q)
+      .pipe(catchError(() => of([] as FincaItem[])))
+      .subscribe((coincidencias: FincaItem[]) => {
+        if (!coincidencias.length) return;
 
-        this.vacanteForm.patchValue({
-          empresaUsuariaSolicita: finca?.empresa ?? null,
-          direccion: finca?.direccion ?? null,
-          temporal: temporalCanon,
-        });
+        const finca = this.escogerFinca(coincidencias);
+        if (!finca) return; // ambigua: `escogerFinca` ya dejó el aviso puesto
+
+        // El autocomplete muestra el nombre desambiguado ("SAN CARLOS (FLORES
+        // IPANEMA S.A.S)") pero en la vacante se guarda el nombre limpio: es la
+        // clave con la que la contratación vuelve a cruzar el maestro, y la
+        // empresa usuaria —que queda al lado— ya dice de cuál de las dos es.
+        const limpio = (finca.finca ?? '').trim();
+        this.fincaAplicada = (limpio || q).toUpperCase();
+
+        const patch: Record<string, unknown> = {
+          finca: limpio || q,
+          empresaUsuariaSolicita: finca.empresa ?? null,
+          direccion: finca.direccion ?? null,
+          temporal: this.canonicalTemporal(finca.temporal),
+        };
+
+        // Pago y transporte son datos DE LA FINCA, no algo que quien publica
+        // tenga que recordar: el maestro ya los tiene y son distintos entre la
+        // finca de Apoyo y la homónima de Tu Alianza. Solo entran cuando el
+        // maestro los da sin ambigüedad (mismo valor en todos los subcentros);
+        // si difieren llega `null` y se deja lo que haya para digitarlo.
+        if (finca.salario != null && Number(finca.salario) > 0) {
+          patch['salario'] = Number(finca.salario);
+        }
+        if (finca.auxilio_transporte != null) {
+          patch['auxilioTransporte'] = finca.auxilio_transporte ? 'Si' : 'No';
+        }
+
+        this.vacanteForm.patchValue(patch);
+
+        // La temporal del maestro es la que decide de qué hoja sale la labor,
+        // así que la descripción se recalcula después de tenerla.
+        this.sugerirDescripcion();
       });
+  }
+
+  /**
+   * Decide cuál de las fincas homónimas aplicar, o ninguna.
+   *
+   * Con un solo resultado no hay nada que decidir. Cuando el nombre existe en
+   * varias razones sociales —SAN CARLOS está en Apoyo (The Elite Flower) y en
+   * Tu Alianza (Flores Ipanema), y son sitios distintos— primero se intenta con
+   * la empresa que ya tenga la vacante; si eso no la deja en una sola, NO se
+   * escoge: entre las dos cambia la dirección, la temporal (y con ella la hoja
+   * de labores de la que sale la descripción) y el pago, así que tomar la
+   * primera llenaba la vacante con los datos del sitio equivocado sin avisar.
+   *
+   * El error `fincaAmbigua` deja el formulario inválido a propósito: es lo que
+   * evita guardar una vacante con la temporal de la otra finca. Se limpia solo,
+   * porque al escribir en el campo Angular vuelve a correr los validadores.
+   */
+  private escogerFinca(coincidencias: FincaItem[]): FincaItem | null {
+    const fincaCtrl = this.vacanteForm.get('finca')!;
+
+    const aceptar = (f: FincaItem): FincaItem => {
+      this.fincaAmbiguaOpciones = [];
+      this.limpiarError(fincaCtrl, 'fincaAmbigua');
+      return f;
+    };
+
+    if (coincidencias.length === 1) return aceptar(coincidencias[0]);
+
+    const empresa = this.normalizarNombre(this.vacanteForm.get('empresaUsuariaSolicita')?.value);
+    const porEmpresa = empresa
+      ? coincidencias.filter((i) => this.normalizarNombre(i.empresa) === empresa)
+      : [];
+    if (porEmpresa.length === 1) return aceptar(porEmpresa[0]);
+
+    this.fincaAmbiguaOpciones = coincidencias.map(etiquetaFinca).filter(Boolean);
+    this.ponerError(fincaCtrl, 'fincaAmbigua');
+    return null;
+  }
+
+  /** Mayúsculas sin acentos ni espacios de sobra, para comparar nombres. */
+  private normalizarNombre(v: unknown): string {
+    return String(v ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /** Agrega un error propio sin borrar los nativos (`required`). */
+  private ponerError(ctrl: AbstractControl, clave: string): void {
+    ctrl.setErrors({ ...(ctrl.errors || {}), [clave]: true });
+  }
+
+  /** Quita un error propio dejando los nativos como estén. */
+  private limpiarError(ctrl: AbstractControl, clave: string): void {
+    if (!ctrl.errors || !ctrl.errors[clave]) return;
+    const { [clave]: _, ...resto } = ctrl.errors;
+    ctrl.setErrors(Object.keys(resto).length ? resto : null);
+  }
+
+  /** Al salir del campo de finca escrito a mano. */
+  onFincaBlur(): void {
+    this.aplicarFinca(String(this.vacanteForm.get('finca')?.value ?? ''));
+  }
+
+  /**
+   * Propone la descripción de la obra con la misma regla de la base de
+   * contratación: la labor depende del MES y del área, y el área sale del
+   * cargo. De qué hoja de "labores por mes" se lee lo decide la temporal, y
+   * Elite Blu tiene la suya aunque sea de Apoyo.
+   *
+   * El mes sale de la fecha de ingreso; si no la hay todavía, de la de prueba
+   * técnica, y solo como último recurso de la de publicación (ver
+   * `fechaParaDescripcionVacante`). Aquí es una aproximación: la definitiva es
+   * la fecha de ingreso de la pantalla de contratación, que la vuelve a
+   * calcular antes de que salga en los documentos.
+   *
+   * Se reescribe cuando el campo está vacío, cuando lo que hay salió de estas
+   * tablas, o cuando quedó de otro mes. Un texto redactado a mano no se pisa.
+   */
+  private sugerirDescripcion(): void {
+    const ctrl = this.vacanteForm.get('descripcion');
+    if (!ctrl) return;
+
+    const actual = String(ctrl.value ?? '').trim();
+    const redactadaAMano =
+      actual !== '' && !esDescripcionGenerada(actual) && !claveDescripcion(actual);
+    if (redactadaAMano) return;
+
+    const v = this.vacanteForm.getRawValue();
+    const fecha = fechaParaDescripcionVacante(
+      v.fechadeIngreso,
+      v.fechadePruebatecnica,
+      v.fechaPublicado,
+    );
+    if (!fecha) return;
+
+    const sugerida = resolverDescripcionObra(
+      v.cargo,
+      fecha,
+      `${v.empresaUsuariaSolicita ?? ''} ${v.finca ?? ''}`,
+      v.temporal,
+      v.empresaUsuariaSolicita,
+    );
+
+    // Si no hay labor para esa combinación se deja lo que haya: el campo es
+    // obligatorio y quien publica la escribe a mano. Pasa con los cargos de
+    // jardinería de Tu Alianza (área JAR), que no tienen labores definidas.
+    if (sugerida && sugerida !== actual) {
+      ctrl.setValue(sugerida);
+    }
   }
 
   actualizarOficinasQueContratan(seleccionadas: any[]): void {

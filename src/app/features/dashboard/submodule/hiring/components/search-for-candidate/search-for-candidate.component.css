@@ -205,6 +205,7 @@
 }
 
 .btn-consultar-inline,
+.btn-carnet-masivo-inline,
 .btn-reportar-inline {
   flex-shrink: 0;
   height: 48px;
@@ -215,6 +216,7 @@
 }
 
 .btn-consultar-inline mat-icon,
+.btn-carnet-masivo-inline mat-icon,
 .btn-reportar-inline mat-icon {
   margin-right: 4px;
   font-size: 18px;
@@ -433,4 +435,16 @@
 
 .fila-atendida td {
   font-style: italic;
+}
+
+/* Botones de solo icono del cluster de búsqueda: mismo alto redondo que el
+   resto, sin el padding que reservaba el texto. */
+.btn-solo-icono {
+  min-width: 48px !important;
+  width: 48px !important;
+  padding: 0 !important;
+}
+
+.btn-solo-icono mat-icon {
+  margin: 0 !important;
 }

@@ -192,6 +192,7 @@ export class HiringService {
         registro: string; errores: any[];
       }[];
       responsable: string;
+      oficina?: string;
       tipo: string;
     },
 
@@ -202,6 +203,7 @@ export class HiringService {
     const data = {
       errores: payload.errores,
       responsable: payload.responsable,
+      oficina: payload.oficina ?? '',
       tipo: payload.tipo,
     };
 
@@ -219,10 +221,12 @@ export class HiringService {
     }
   }
 
-  // Obtener base contratacion por rango de fechas
-  public obtenerBaseContratacionPorFechas(start: string, end: string): Observable<Blob> {
+  // Obtener base contratacion por rango de fechas.
+  // `oficina` (opcional) filtra por la oficina del contrato (cierre por sede).
+  public obtenerBaseContratacionPorFechas(start: string, end: string, oficina?: string): Observable<Blob> {
 
-    const params = { start, end };
+    const params: { [k: string]: string } = { start, end };
+    if (oficina) params['oficina'] = oficina;
 
     // Indicamos que el responseType será 'blob' para manejar archivos binarios
     return this.http.get(`${this.apiUrl}/contratacion/descargarReporte/`, {

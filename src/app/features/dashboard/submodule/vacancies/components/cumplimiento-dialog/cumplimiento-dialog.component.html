@@ -84,6 +84,7 @@
               <th>Candidato</th>
               <th class="col-doc">Documento</th>
               <th class="col-etapa">Etapa</th>
+              <th class="col-resultado">Resultado</th>
             </tr>
           </thead>
           <tbody>
@@ -107,7 +108,40 @@
                   <span class="doc-num">{{ c.numero_documento }}</span>
                 </td>
                 <td class="col-etapa">
-                  <span class="etapa-chip" [ngClass]="etapaClass(c.etapa)">{{ c.etapa || '—' }}</span>
+                  <span class="etapa-chip" [ngClass]="etapaClass(c.etapa)"
+                    [matTooltip]="c.no_paso_prueba_tecnica ? noPasoTooltip(c) : ''"
+                    matTooltipClass="cumpl-nopaso-tooltip">
+                    {{ c.etapa || '—' }}
+                  </span>
+                  @if (c.no_paso_prueba_tecnica && c.motivo_no_paso_prueba_tecnica) {
+                    <span class="etapa-motivo" [matTooltip]="noPasoTooltip(c)" matTooltipClass="cumpl-nopaso-tooltip">
+                      <mat-icon>info</mat-icon>{{ c.motivo_no_paso_prueba_tecnica }}
+                    </span>
+                  }
+                </td>
+
+                <!-- Registrar resultado: se ofrece según la etapa en la que va
+                     la persona, o si ya tiene un resultado que se quiera cambiar. -->
+                <td class="col-resultado" (click)="$event.stopPropagation()">
+                  @if (puedeRegistrar(c, 'prueba')) {
+                    <button mat-icon-button class="btn-resultado {{ claseResultado(c, 'prueba') }}"
+                      [disabled]="working()"
+                      [matTooltip]="'Prueba técnica: ' + etiquetaResultado(c, 'prueba') + ' · click para cambiar'"
+                      (click)="registrarResultado(c, 'prueba')">
+                      <mat-icon>assignment_ind</mat-icon>
+                    </button>
+                  }
+                  @if (puedeRegistrar(c, 'examen')) {
+                    <button mat-icon-button class="btn-resultado {{ claseResultado(c, 'examen') }}"
+                      [disabled]="working()"
+                      [matTooltip]="'Examen médico: ' + etiquetaResultado(c, 'examen') + ' · click para cambiar'"
+                      (click)="registrarResultado(c, 'examen')">
+                      <mat-icon>medical_information</mat-icon>
+                    </button>
+                  }
+                  @if (!puedeRegistrar(c, 'prueba') && !puedeRegistrar(c, 'examen')) {
+                    <span class="resultado-vacio">—</span>
+                  }
                 </td>
               </tr>
             }
@@ -150,6 +184,22 @@
       <button mat-menu-item (click)="descargarBmc()">
         <mat-icon>description</mat-icon>
         <span>Formato BMC</span>
+      </button>
+      <button mat-menu-item (click)="descargarHato()">
+        <mat-icon>description</mat-icon>
+        <span>Formato HATO</span>
+      </button>
+      <button mat-menu-item (click)="descargarFlores()">
+        <mat-icon>description</mat-icon>
+        <span>Formato Flores del Río</span>
+      </button>
+      <button mat-menu-item (click)="descargarSagaro()">
+        <mat-icon>description</mat-icon>
+        <span>Formato Sagaro</span>
+      </button>
+      <button mat-menu-item (click)="descargarSanCarlos()">
+        <mat-icon>description</mat-icon>
+        <span>Formato San Carlos</span>
       </button>
     </mat-menu>
 

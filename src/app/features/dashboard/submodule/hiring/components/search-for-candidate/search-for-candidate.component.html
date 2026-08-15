@@ -48,14 +48,24 @@
                 ? 'La persona se agregará a la cola de la tabla'
                 : 'Sólo se buscará, no se agrega a la cola'"
               matTooltipPosition="above">
-              Agregar a la cola
+              Cola
             </mat-slide-toggle>
 
             <button mat-flat-button color="primary" type="button"
-              class="btn-consultar-inline"
-              (click)="buscarCandidato()" [disabled]="!cedula">
+              class="btn-consultar-inline btn-solo-icono"
+              (click)="buscarCandidato()" [disabled]="!cedula"
+              matTooltip="Consultar" matTooltipPosition="above" aria-label="Consultar">
               <mat-icon>arrow_forward</mat-icon>
-              <span>Consultar</span>
+            </button>
+
+            <!-- Generación masiva de carnets: la revisa el pipeline, que es
+                 quien abre el diálogo con las cédulas de la cola. -->
+            <button mat-stroked-button type="button"
+              class="btn-carnet-masivo-inline btn-solo-icono"
+              (click)="pedirCarnetMasivo()"
+              matTooltip="Generar carnets en masa (9 por hoja)" matTooltipPosition="above"
+              aria-label="Carnets masivos">
+              <mat-icon>badge</mat-icon>
             </button>
 
             @if (procesoValido && !mostrarObservacion) {
@@ -128,6 +138,7 @@
               <th>Experiencia</th>
               <th>Antecedentes</th>
               <th>Formulario</th>
+              <th>Carnet</th>
               <th></th>
             </tr>
           </thead>
@@ -192,6 +203,19 @@
                   } @else {
                     <span class="badge-formulario badge-sin-iniciar" matTooltip="No ha iniciado el formulario web">
                       <mat-icon>radio_button_unchecked</mat-icon> Sin iniciar
+                    </span>
+                  }
+                </td>
+                <!-- Carnet: lo consume también la generación masiva, que por
+                     defecto solo toma a los pendientes. -->
+                <td>
+                  @if (item.carnet_generado) {
+                    <span class="badge-formulario badge-completo" matTooltip="El carnet ya se generó">
+                      <mat-icon>badge</mat-icon> Generado
+                    </span>
+                  } @else {
+                    <span class="badge-formulario badge-sin-iniciar" matTooltip="Todavía no se le genera el carnet">
+                      <mat-icon>badge</mat-icon> Pendiente
                     </span>
                   }
                 </td>

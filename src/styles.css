@@ -978,10 +978,13 @@ button {
     0 10px 26px rgba(15, 23, 42, 0.16) !important;
 }
 
-/* El componente controla su propio espaciado (.cumpl-body / .cumpl-actions);
-   sólo evitamos el tope de altura del MDC para que el cuerpo scrollee solo. */
+/* El componente controla su propio espaciado y altura: .cumpl-dialog se limita
+   a 92vh y .cumpl-body crece con flex (min-height:0) para ser el único que
+   scrollea. Aquí sólo quitamos el tope de 65vh del MDC (que recortaría el flex)
+   y garantizamos el contenedor de scroll por si la encapsulación no aplica. */
 .mat-mdc-dialog-panel.cumpl-dialog-panel .mat-mdc-dialog-content {
   max-height: none !important;
+  overflow-y: auto !important;
 }
 
 /* SweetAlert2 SIEMPRE por encima de los diálogos/overlays de Angular Material
@@ -989,4 +992,93 @@ button {
    MatDialog quedan por detrás). */
 .swal2-container {
   z-index: 100000 !important;
+}
+
+/* Swal abierto DESDE un MatDialog: el CDK pone `position: fixed` en <html>
+   (cdk-global-scrollblock) y Swal le mete `height: auto`. Con las dos cosas a
+   la vez el modal se posiciona fuera de la pantalla y parece que "quedó
+   debajo" del diálogo.
+
+   OJO CON LA ESPECIFICIDAD: tanto SweetAlert2 como el CDK inyectan su CSS en
+   runtime (no van en el bundle), así que la hoja de Swal se agrega DESPUÉS de
+   esta. Con `html.swal2-height-auto` (0,1,1) empatábamos en especificidad y en
+   !important, y ganaba la de ellos por orden. Se repite la clase para subir a
+   (0,2,1) y ganar sin depender del orden de inyección. */
+html.swal2-height-auto.swal2-height-auto,
+html.swal2-shown.swal2-shown {
+  height: 100% !important;
+}
+
+/* El contenedor de Swal SIEMPRE anclado al viewport y por encima de todo.
+   Swal declara su posición con `div:where(.swal2-container)`, y `:where()` NO
+   suma especificidad: cualquier regla de la app con una clase se la lleva por
+   delante. Por eso se re-afirma aquí.
+
+   NO tocar `inset`: los toasts se anclan con `inset: auto auto 0 0` y demás
+   variantes; forzarlo los mandaría a la esquina equivocada. */
+.swal2-container.swal2-container {
+  position: fixed !important;
+  z-index: 2147483000 !important;
+  pointer-events: auto !important;
+}
+
+/* Cuando el Swal se monta DENTRO del overlay (ver swalEnDialogo), el contenedor
+   del CDK tiene `pointer-events: none`: el popup necesita recuperarlos para
+   poder escribir el motivo y pulsar los botones. */
+.cdk-overlay-container .swal2-container,
+.cdk-overlay-container .swal2-popup {
+  pointer-events: auto !important;
+}
+
+/* ===========================================================================
+   Historial laboral (TableDialogComponent, panelClass "table-dialog")
+   Celdas en UNA sola línea, recortadas con "…" según el ancho de columna.
+   El texto completo se ve con el tooltip nativo ([title]) al pasar el cursor.
+   Scopeado a .table-dialog para no afectar las otras 19 tablas del sistema.
+   =========================================================================== */
+.table-dialog .sf-table td,
+.table-dialog .sf-table th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+}
+
+/* Los spans internos (fecha / texto) heredan el recorte para que la elipsis
+   aparezca aunque el contenido viva dentro del span. */
+.table-dialog .sf-table td > span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Los badges de estado/prueba no se recortan: son cortos y deben leerse enteros. */
+.table-dialog .sf-table td .sf-status-badge {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Tooltip de celda (matTooltip): al pasar el cursor por CUALQUIER celda se ve su
+   contenido COMPLETO, aunque en la tabla esté recortado con "…". Vive en el overlay
+   del CDK (fuera del componente), por eso es global. Permite texto largo/multilínea. */
+.sf-cell-tip {
+  max-width: 520px !important;
+  white-space: pre-line !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+/* Tooltip que explica por qué un botón de la barra del pipeline está deshabilitado
+   ("Falta: • Centro de costos • Fecha de ingreso…"). Vive en el overlay del CDK,
+   fuera del componente, por eso es global. `pre-line` respeta los saltos de línea:
+   sin esto las once etiquetas salían pegadas en un párrafo que nadie leía. */
+.tooltip-faltantes {
+  max-width: 380px !important;
+  white-space: pre-line !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  text-align: left !important;
 }

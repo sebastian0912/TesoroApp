@@ -493,6 +493,13 @@ mat-tab-group {
   border-color: rgba(148, 163, 184, 0.28);
 }
 
+/* Enviado a prueba técnica: informativo, sin resultado registrado todavía. */
+.pill-info {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(2, 132, 199, 0.22));
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
 /* Pills clickables: mismo aspecto que un .pill informativo, sólo cambia el cursor
    y el efecto de hover. Usa <span role="button"> para evitar los estilos de
    user-agent del <button> que rompen la altura. */
@@ -542,6 +549,24 @@ mat-tab-group {
 .premium-toolbar button[disabled] {
   opacity: 0.35;
   color: #64748b;
+}
+
+/* ── Tooltip sobre botón deshabilitado ──
+   Un <button disabled> no dispara eventos de puntero, así que un matTooltip
+   puesto sobre él no aparece NUNCA: justo cuando el usuario necesita saber por
+   qué está gris. El tooltip se pone en este <span> envolvente y se le quitan los
+   pointer-events al botón apagado para que el hover atraviese hasta el span. */
+.tt-wrap {
+  display: inline-flex;
+}
+
+.tt-wrap > button[disabled] {
+  pointer-events: none;
+}
+
+/* El span no debe alterar la fila de botones ni tapar el badge del hijo. */
+.premium-toolbar .tt-wrap {
+  border-radius: 10px;
 }
 
 .premium-toolbar button mat-icon {
@@ -1079,4 +1104,123 @@ mat-tab-group {
   opacity: 0.55;
   user-select: none;
   filter: grayscale(0.2);
+}
+
+/* Banner de bloqueo por CONTRATO ACTIVO: el candidato no puede avanzar al resto
+   del pipeline hasta darle de baja el contrato vigente. */
+.contrato-activo-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 12px 4px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.10), rgba(220, 38, 38, 0.14));
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.contrato-activo-banner > mat-icon {
+  flex: 0 0 auto;
+  color: #dc2626;
+}
+
+.contrato-activo-banner .cab-text {
+  flex: 1 1 auto;
+}
+
+.contrato-activo-banner .cab-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s, box-shadow 0.15s;
+}
+
+.contrato-activo-banner .cab-action:hover {
+  filter: brightness(1.08);
+}
+
+.contrato-activo-banner .cab-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.35);
+}
+
+.contrato-activo-banner .cab-action mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* Acciones del banner: "Dar de baja" + "Modificar de todas formas". */
+.contrato-activo-banner .cab-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Botón override: secundario (contorno) frente al rojo de "Dar de baja". */
+.contrato-activo-banner .cab-action--override {
+  background: #fff;
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+}
+
+.contrato-activo-banner .cab-action--override:hover {
+  filter: none;
+  background: #fef2f2;
+}
+
+/* Sello de auditoría del override. */
+.contrato-activo-banner .cab-audit {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Banner en modo edición forzada: ámbar en vez de rojo. */
+.contrato-activo-banner.cab-override {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.10), rgba(217, 119, 6, 0.14));
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #92400e;
+}
+
+.contrato-activo-banner.cab-override > mat-icon {
+  color: #d97706;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Botón "Cerrar contratación": el único con texto en la toolbar. No hereda
+   el tamaño fijo 40x40 de los icon buttons y se distingue como LA acción de
+   cierre del día (siempre habilitado, no depende del candidato).
+   ───────────────────────────────────────────────────────────────────────── */
+.premium-toolbar button.btn-cerrar-contratacion {
+  width: auto;
+  height: 40px;
+  padding: 0 14px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+}
+
+.premium-toolbar button.btn-cerrar-contratacion:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
 }

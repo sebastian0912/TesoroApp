@@ -22,6 +22,8 @@ export interface ColumnDefinition {
   options?: string[];
   statusConfig?: Record<string, { color: string; background: string }>;
   customClassConfig?: Record<string, { color: string; background: string }>;
+  /** Formato del DatePipe para columnas type:'date'. Por defecto 'dd/MM/yyyy'. Ej: 'dd/MM/yyyy HH:mm' para fecha + hora. */
+  dateFormat?: string;
   width?: string;
   filterable?: boolean;
   sortable?: boolean; // por defecto true; desactivar en columnas como actions/attachment

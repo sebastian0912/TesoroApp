@@ -55,3 +55,9 @@ package-lock.json
 capacitor.config.ts
 /android
 package-lock.json
+APOYO_LABORAL.lnk
+
+# Playwright: PDF y capturas de la revision visual
+e2e/salida-pdf/
+test-results/
+playwright-report/

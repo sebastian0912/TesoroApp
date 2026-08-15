@@ -199,6 +199,58 @@ export class TransferQueryComponent implements OnInit {
     return isNaN(d.getTime()) ? null : d;
   }
 
+  /** "2025-09-04 14:23" a partir de un Date. */
+  private formatFechaCorta(d: Date | null): string {
+    if (!d) return '';
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  /**
+   * `ultimas_actualizaciones` es el JSON { "<timestamp>": "<estado>" } que el
+   * backend acumula en cada cambio de estado (subida, separacion, radicado,
+   * efectivo, etc.). Devuelve el historial completo ordenado de lo mas
+   * antiguo a lo mas reciente.
+   *
+   * En algunas filas viejas el campo llega como string JSON en vez de dict,
+   * por eso se intenta parsear antes de recorrerlo.
+   */
+  private getHistorialEstados(element: any): { fecha: Date | null; estado: string; clave: string }[] {
+    let ua = element?.ultimas_actualizaciones;
+    if (typeof ua === 'string') {
+      try {
+        ua = JSON.parse(ua);
+      } catch {
+        return [];
+      }
+    }
+    if (!ua || typeof ua !== 'object' || Array.isArray(ua)) return [];
+
+    return Object.entries(ua as Record<string, unknown>)
+      .filter(([clave]) => !!clave)
+      .map(([clave, estado]) => ({
+        clave,
+        fecha: this.parseFechaUltimasActualizaciones(clave),
+        estado: String(estado ?? '').trim() || 'Sin estado',
+      }))
+      .sort((a, b) => {
+        const ta = a.fecha ? a.fecha.getTime() : Number.POSITIVE_INFINITY;
+        const tb = b.fecha ? b.fecha.getTime() : Number.POSITIVE_INFINITY;
+        if (ta !== tb) return ta - tb;
+        return a.clave.localeCompare(b.clave);
+      });
+  }
+
+  /** Historial en texto multilinea para la celda del Excel. */
+  private historialEstadosTexto(element: any): string {
+    const historial = this.getHistorialEstados(element);
+    if (historial.length === 0) return 'Sin historial';
+
+    return historial
+      .map((h, i) => `${i + 1}) ${this.formatFechaCorta(h.fecha) || h.clave} -> ${h.estado}`)
+      .join('\n');
+  }
+
   /**
    * Para una fila ya retornada por el backend de exportar-por-fecha-subida,
    * usa _fecha_subida_iso si viene; si no, calcula desde ultimas_actualizaciones.
@@ -314,7 +366,7 @@ export class TransferQueryComponent implements OnInit {
 
     const ws = wb.addWorksheet('Traslados', { views: [{ state: 'frozen', ySplit: 4 }] });
 
-    ws.mergeCells('A1:K1');
+    ws.mergeCells('A1:L1');
     const tituloCell = ws.getCell('A1');
     tituloCell.value = 'Reporte de Traslados EPS';
     tituloCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -322,7 +374,7 @@ export class TransferQueryComponent implements OnInit {
     tituloCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF21263C' } };
     ws.getRow(1).height = 28;
 
-    ws.mergeCells('A2:K2');
+    ws.mergeCells('A2:L2');
     const subCell = ws.getCell('A2');
     subCell.value = `Rango: ${rangoLabel}    |    Total: ${decoradas.length}    |    Generado: ${ahora.toLocaleString('es-CO')}`;
     subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF4B5563' } };
@@ -331,6 +383,8 @@ export class TransferQueryComponent implements OnInit {
 
     ws.getRow(3).height = 6;
 
+    // El indice de cada columna se usa mas abajo para alinear/formatear celdas.
+    // Si se agrega o mueve una columna hay que revisar COL_* tambien.
     const columnas = [
       { header: 'Codigo Traslado', width: 18 },
       { header: 'Cedula', width: 16 },
@@ -338,12 +392,20 @@ export class TransferQueryComponent implements OnInit {
       { header: 'EPS a Trasladar', width: 24 },
       { header: 'EPS Trasladada', width: 24 },
       { header: 'Responsable', width: 26 },
-      { header: 'Estado', width: 22 },
+      { header: 'Estado Actual', width: 22 },
+      { header: 'Historial de Estados', width: 46 },
       { header: 'Observacion', width: 32 },
       { header: 'Numero Radicado', width: 22 },
       { header: 'Fecha Efectividad', width: 20 },
       { header: 'Solicitud', width: 20 },
     ];
+
+    const COL_CODIGO = 1;
+    const COL_FECHA_SUBIDA = 3;
+    const COL_HISTORIAL = 8;
+    const COL_RADICADO = 10;
+    const COL_FECHA_EFECTIVIDAD = 11;
+    const COL_SOLICITUD = 12;
 
     const headerRow = ws.getRow(4);
     columnas.forEach((c, i) => {
@@ -367,6 +429,9 @@ export class TransferQueryComponent implements OnInit {
       const url = this.resolveSolicitudUrl(r);
       const row = ws.getRow(5 + idx);
 
+      const historial = this.historialEstadosTexto(r);
+      const lineasHistorial = historial.split('\n').length;
+
       row.getCell(1).value = r.codigo_traslado ?? '';
       row.getCell(2).value = r.numero_cedula ?? '';
       row.getCell(3).value = entry.fechaSubida ?? null;
@@ -374,11 +439,12 @@ export class TransferQueryComponent implements OnInit {
       row.getCell(5).value = r.eps_trasladada ?? '';
       row.getCell(6).value = r.responsable ?? '';
       row.getCell(7).value = r.estado_del_traslado ?? '';
-      row.getCell(8).value = r.observacion_estado ?? '';
-      row.getCell(9).value = r.numero_radicado ?? '';
-      row.getCell(10).value = r.fecha_efectividad ?? '';
+      row.getCell(COL_HISTORIAL).value = historial;
+      row.getCell(9).value = r.observacion_estado ?? '';
+      row.getCell(10).value = r.numero_radicado ?? '';
+      row.getCell(11).value = r.fecha_efectividad ?? '';
 
-      const solicitudCell = row.getCell(11);
+      const solicitudCell = row.getCell(COL_SOLICITUD);
       if (url) {
         solicitudCell.value = { text: 'Ver solicitud', hyperlink: url, tooltip: url };
         solicitudCell.font = { name: 'Calibri', size: 11, color: { argb: 'FF1565C0' }, underline: true };
@@ -391,10 +457,19 @@ export class TransferQueryComponent implements OnInit {
       const banded = idx % 2 === 1;
       for (let c = 1; c <= columnas.length; c++) {
         const cell = row.getCell(c);
-        if (c !== 11) cell.font = baseFont;
+        if (c !== COL_SOLICITUD) cell.font = baseFont;
+        if (c === COL_HISTORIAL) {
+          cell.font = { name: 'Consolas', size: 10, color: { argb: 'FF334155' } };
+        }
         cell.alignment = {
-          vertical: 'middle',
-          horizontal: c === 1 || c === 3 || c === 9 || c === 10 ? 'center' : 'left',
+          vertical: c === COL_HISTORIAL ? 'top' : 'middle',
+          horizontal:
+            c === COL_CODIGO ||
+            c === COL_FECHA_SUBIDA ||
+            c === COL_RADICADO ||
+            c === COL_FECHA_EFECTIVIDAD
+              ? 'center'
+              : 'left',
           wrapText: true,
         };
         cell.border = {
@@ -406,8 +481,11 @@ export class TransferQueryComponent implements OnInit {
         if (banded) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
       }
 
-      row.getCell(3).numFmt = 'yyyy-mm-dd hh:mm';
-      row.height = 22;
+      row.getCell(COL_FECHA_SUBIDA).numFmt = 'yyyy-mm-dd hh:mm';
+      // El historial es multilinea: la fila crece con la cantidad de estados.
+      // Se limita a 12 lineas visibles para no romper la lectura del reporte
+      // (el contenido completo sigue en la celda).
+      row.height = Math.max(22, Math.min(lineasHistorial, 12) * 14);
     });
 
     ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: columnas.length } };

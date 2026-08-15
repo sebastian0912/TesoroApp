@@ -99,10 +99,20 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Sesión de cámara: cada arranque la incrementa y `stopCamera` también.
+   * `getUserMedia` puede resolver DESPUÉS de cerrar el diálogo (el prompt de
+   * permiso o una cámara lenta): sin este guard, el stream que llega tarde no
+   * lo detenía nadie y el LED quedaba encendido hasta reiniciar la app. Lo
+   * mismo con doble clic rápido en "Cambiar cámara".
+   */
+  private camSesion = 0;
+
   async startCamera(): Promise<void> {
     this.loadingCamera = true;
     this.cameraError = '';
     this.stopCamera();
+    const sesion = ++this.camSesion;
 
     try {
       const constraints: MediaStreamConstraints = {
@@ -113,21 +123,33 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
         },
         audio: false
       };
-      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (sesion !== this.camSesion) {
+        // Llegó tarde (diálogo cerrado u otra cámara arrancando): apagarlo ya.
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+      this.stream = stream;
       if (this.videoEl?.nativeElement) {
         const v = this.videoEl.nativeElement;
         v.srcObject = this.stream;
         await v.play().catch(() => { /* algunos navegadores requieren interacción */ });
       }
     } catch {
-      this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
+      if (sesion === this.camSesion) {
+        this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
+      }
     } finally {
-      this.loadingCamera = false;
-      this.cdr.markForCheck();
+      if (sesion === this.camSesion) {
+        this.loadingCamera = false;
+        this.cdr.markForCheck();
+      }
     }
   }
 
   stopCamera(): void {
+    // Invalida cualquier getUserMedia en vuelo (ver camSesion).
+    this.camSesion++;
     if (this.stream) {
       this.stream.getTracks().forEach(t => t.stop());
       this.stream = undefined;
@@ -157,6 +179,22 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Pasa a modo "Adjuntar" desde la previsualizacion y abre el selector de
+   * archivos de una vez.
+   *
+   * El dialogo arranca mostrando la foto que ya tiene el candidato, y en ese
+   * estado la unica barra visible era Repetir/Confirmar: para adjuntar habia
+   * que adivinar que primero tocaba pulsar Repetir.
+   */
+  adjuntarDesdePreview(): void {
+    this.stopCamera();
+    this.isUploadMode = true;
+    this.clearSelection();
+    // Tras el render del input, abrir el explorador de archivos.
+    setTimeout(() => this.fileInput?.nativeElement?.click(), 0);
+  }
+
   capture(): void {
     if (!this.videoEl?.nativeElement || !this.canvasEl?.nativeElement) return;
     const video = this.videoEl.nativeElement;
@@ -170,12 +208,16 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Si está en espejo, invertir el canvas horizontalmente antes de dibujar
-    if (this.isMirror) {
-      ctx.translate(w, 0);
-      ctx.scale(-1, 1);
-    }
-
+    // Se guarda SIEMPRE la imagen real, sin espejo.
+    //
+    // `isMirror` voltea unicamente la vista previa (CSS .mirror sobre el
+    // <video>), que es lo que ayuda a encuadrarse como en un espejo. El frame
+    // que entrega el <video> ya viene sin voltear, asi que dibujarlo tal cual
+    // produce la foto correcta.
+    //
+    // Antes se replicaba el volteo en el canvas y el ARCHIVO quedaba invertido:
+    // en una foto de identificacion la cara sale al reves respecto a la cedula,
+    // y cualquier texto del fondo se lee espejado.
     ctx.drawImage(video, 0, 0, w, h);
 
     canvas.toBlob((blob) => {

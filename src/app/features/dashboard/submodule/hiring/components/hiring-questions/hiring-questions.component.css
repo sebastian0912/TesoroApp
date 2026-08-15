@@ -721,8 +721,79 @@ button {
   grid-column: 1 / -1;
 }
 
+/* La descripcion es la causa objetiva del contrato: si no se pudo calcular hay
+   que verlo, no dejar el campo callado con un texto del mes equivocado. */
+.obra-aviso {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -6px 0 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fff4e5;
+  border: 1px solid #ffd9a8;
+  color: #7a4f14;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.obra-aviso mat-icon {
+  flex: 0 0 auto;
+  color: #ed6c02;
+}
+
 .obra-actions {
   display: flex;
   justify-content: flex-end;
   margin-top: 12px;
+}
+
+/* ───────── Visor de documentos ───────── */
+.visor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.visor-caja {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .35);
+  width: min(1000px, 100%);
+  height: min(90vh, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.visor-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.visor-titulo {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.visor-spacer {
+  flex: 1 1 auto;
+}
+
+/* El iframe hereda .doc-iframe (100% x 100%); aquí solo se le da el alto. */
+.visor-caja .doc-iframe {
+  flex: 1 1 auto;
+  min-height: 0;
 }

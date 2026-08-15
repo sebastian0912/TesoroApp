@@ -16,19 +16,34 @@
   min-height: 0;
 }
 
-/* Asegurar que el cuerpo de los tabs se expanda y llene el espacio */
+/* Asegurar que el cuerpo de los tabs se expanda y llene el espacio, con altura
+   acotada para que el scroll interno del form (.form-tab) tenga contra qué medir. */
 :host ::ng-deep .help-tabs .mat-mdc-tab-body-wrapper {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
-/* Formulario dentro del tab "Remisión" */
+:host ::ng-deep .help-tabs .mat-mdc-tab-body,
+:host ::ng-deep .help-tabs .mat-mdc-tab-body-content {
+  min-height: 0;
+}
+
+/* Formulario dentro del tab "Remisión".
+   El pipeline padre pone `overflow:hidden` en .mat-mdc-tab-body-content (global,
+   se filtra a los sub-tabs de aquí), así que el scroll no puede vivir arriba: el
+   contenido se recorta y el botón Guardar queda fuera de vista. Como este form es
+   `flex:1` dentro de ese contenedor ya acotado, se vuelve él mismo el área con
+   scroll vertical. */
 .form-tab {
   display: flex;
   flex-direction: column;
   gap: 24px;
   width: auto;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   box-sizing: border-box;
   padding: 24px 0;
   margin-top: 16px;
@@ -423,4 +438,53 @@ h3 {
   opacity: 0.55;
   user-select: none;
   filter: grayscale(0.2);
+}
+
+/* ── "No pasó la prueba técnica" ── */
+.no-paso-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.no-paso-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fdecea;
+  border: 1px solid #f5c2c0;
+  color: #8a1c14;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.no-paso-banner mat-icon {
+  flex: 0 0 auto;
+  color: #c62828;
+}
+
+.no-paso-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.no-paso-fecha {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.no-paso-motivo {
+  margin-top: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.no-paso-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }

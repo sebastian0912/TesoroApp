@@ -1,15 +1,29 @@
-import {  Component, OnInit, input, effect, inject, DestroyRef , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { firstValueFrom, forkJoin, of, throwError, Observable } from 'rxjs';
-import { catchError, startWith, map } from 'rxjs/operators';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom, Observable } from 'rxjs';
+import { startWith, map } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
+import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import type jsPDF from 'jspdf';
 import type { RowInput } from 'jspdf-autotable';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import {
+  FORMATO_ENTREGA_APOYO,
+  PLAN_FUNERAL,
+} from '../generate-contracting-documents/formato-entrega-docs.data';
+import {
+  resolverDescripcionObra,
+  esDescripcionGenerada,
+  descripcionEsDeOtroMes,
+  claveDescripcion,
+  resolverCodigoCompania,
+} from '@/app/shared/data/labores-por-mes.data';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+import { FarmsService } from '../../../farms/services/farms/farms.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import {
   ProcesoUpdateByDocumentRequest,
@@ -43,6 +57,29 @@ type ServerDocInfo = {
 export class HiringQuestionsComponent implements OnInit {
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
+  /**
+   * Avisa al pipeline que algo del contrato/proceso cambió, para que recargue el
+   * candidato. Sin esto el padre se queda con el objeto viejo y los `computed`
+   * que dependen de él (p. ej. el botón "Generar documentación", que exige
+   * "Pago y Transporte" completo) no se habilitan hasta volver a buscar a la persona.
+   */
+  guardado = output<void>();
+  /**
+   * Override "Modificar de todas formas" (pipeline con contrato activo): los
+   * guardados de este tab se marcan como edición pura sobre el proceso EXISTENTE.
+   * El backend (update-by-document) NO reinicia banderas ni abre proceso nuevo y
+   * sella la auditoría con el nombre + fecha/hora del servidor.
+   */
+  modificacionForzada = input<boolean>(false);
+  /** Nº de consulta del buscador: re-consultar a la misma persona re-parchea. */
+  consultaSeq = input<number>(0);
+  modificadoPor = input<string>('');
+
+  /** Inyecta las banderas de override en cualquier payload de update-by-document. */
+  private withOverride(payload: ProcesoUpdateByDocumentRequest): ProcesoUpdateByDocumentRequest {
+    if (!this.modificacionForzada()) return payload;
+    return { ...payload, modificacion_forzada: true, modificado_por: this.modificadoPor() || null };
+  }
 
   // ───────── UI ─────────
   descripcionVacante = '';
@@ -53,7 +90,7 @@ export class HiringQuestionsComponent implements OnInit {
   referenciasForm!: FormGroup;
   trasladosForm!: FormGroup;
   huellaForm!: FormGroup;
-  /** Datos de obra/empresa para documentos (prellenados desde la vacante, editables). */
+  /** Datos de obra/empresa para documentos (siempre desde la vacante, solo lectura). */
   datosObraForm!: FormGroup;
 
   // ───────── Archivos / tipos ─────────
@@ -119,12 +156,14 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly docSvc = inject(GestionDocumentalService);
   private readonly vacantesService = inject(VacantesService);
+  private readonly farmsService = inject(FarmsService);
   private readonly procesosService = inject(RegistroProcesoContratacion);
   private readonly tarjetasService = inject(TarjetasService);
   private readonly positionsService = inject(PositionsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly seleccionEstado = inject(SeleccionEstadoService);
+  private readonly utilService = inject(UtilityServiceService);
 
   /**
    * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
@@ -154,13 +193,26 @@ export class HiringQuestionsComponent implements OnInit {
       startWith(''),
       map(value => this._filterTarjetas(value || '')),
     );
+
+    // La labor de la base cambia con el MES de ingreso, así que si se corrige
+    // la fecha hay que reproponerla.
+    this.pagoTransporteForm.get('fechaIngreso')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.sugerirDescripcionObra());
   }
+
+  /** True cuando la lista de tarjetas YA respondió (aunque venga vacía). */
+  private tarjetasCargadas = false;
 
   private loadTarjetas() {
     this.tarjetasService.list().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res: any) => {
         const items = Array.isArray(res) ? res : (res.results || []);
         this.tarjetasDisponibles = items;
+        this.tarjetasCargadas = true;
+        // El patch inicial del contrato pudo correr ANTES de que llegara esta
+        // lista y quedarse sin validar: re-verificar con la lista real.
+        this.verificarTarjeta();
       },
       error: (err) => {
         console.error('[loadTarjetas] Error:', err);
@@ -199,16 +251,32 @@ export class HiringQuestionsComponent implements OnInit {
         contraseniaAsignada: ['', []],
         seguroFunerario: [false, Validators.required],
         Ccostos: ['', Validators.required],
+        // Centro de costo que se IMPRIME en el carnet. Puede diferir del
+        // Ccostos de nomina (p. ej. la finca donde va a estar la persona),
+        // por eso es un campo propio y no obligatorio: si va vacio, el carnet
+        // cae al Ccostos.
+        carnetCentroCosto: [null],
         salario: [{ value: null, disabled: true }, Validators.required],
         auxilioTransporte: [{ value: null, disabled: true }, Validators.required],
         // Editable: se autocompleta desde el cargo de la vacante como sugerencia,
         // pero el usuario puede modificarlo manualmente si necesita.
         porcentajeARL: [null, Validators.required],
         cesantias: [null, Validators.required],
-        subCentroCostos: [null, Validators.required],
-        grupo: [null, Validators.required],
-        categoria: [null, Validators.required],
-        operacion: [null, Validators.required],
+        // Sub centro, grupo y los clasificadores 2/3 salen del maestro del
+        // centro de costo; cuando el maestro no los trae hay que poder guardar
+        // igual, así que van sin Validators.required (el backend los acepta
+        // null: `subcentro_de_costos`, `grupo`, `categoria`, `operacion`).
+        subCentroCostos: [null],
+        // Datos de nomina. Se prellenan desde el centro de costo pero quedan
+        // editables; no son obligatorios para no bloquear contrataciones viejas.
+        empresaGrupoElite: [null],
+        codigoCompania: [null],
+        sucursal: [null],
+        ciudadLabor: [null],
+        sublabor: [null],
+        grupo: [null],
+        categoria: [null],
+        operacion: [null],
         horasExtras: [false, Validators.required],
         fechaIngreso: [null, Validators.required],
         fechaContrato: [null, Validators.required],
@@ -321,28 +389,28 @@ export class HiringQuestionsComponent implements OnInit {
       const idRaw = this.pagoTransporteForm.get('numeroIdentificacion')?.value;
       const id = (typeof idRaw === 'string' ? idRaw : (idRaw?.identification_number || '')).trim();
 
-      console.log('[verificarTarjeta] num:', num, '| id:', id, '| tarjetasDisponibles:', this.tarjetasDisponibles.length);
-      console.log('[verificarTarjeta] errores ANTES:', JSON.stringify(numCtrl.errors));
-
       // Si faltan datos o no cumplen longitud mínima, limpiamos los errores custom y salimos
       if (!num || num.length < 16 || !id) {
         this._clearCustomError(numCtrl, 'tarjetaInexistente');
         this._clearCustomError(numCtrl, 'noCoincide');
-        console.log('[verificarTarjeta] datos incompletos, errores DESPUÉS:', JSON.stringify(numCtrl.errors));
         return;
       }
+
+      // Mientras la lista no haya llegado no se puede afirmar que la tarjeta no
+      // exista: el patch del contrato guardado corría antes que la respuesta y
+      // dejaba `tarjetaInexistente` sobre datos correctos, bloqueando el
+      // guardado hasta re-editar el campo a mano. loadTarjetas re-verifica al
+      // llegar la lista.
+      if (!this.tarjetasCargadas) return;
 
       // Buscar tarjetas que coincidan con la identificación
       const tarjetasDelId = this.tarjetasDisponibles.filter(
         t => (t.identification_number || '').trim() === id
       );
 
-      console.log('[verificarTarjeta] tarjetasDelId:', tarjetasDelId.length);
-
       if (tarjetasDelId.length === 0) {
         this._setCustomError(numCtrl, 'tarjetaInexistente');
         this._clearCustomError(numCtrl, 'noCoincide');
-        console.log('[verificarTarjeta] tarjetaInexistente SET, errores:', JSON.stringify(numCtrl.errors));
         return;
       }
 
@@ -353,11 +421,9 @@ export class HiringQuestionsComponent implements OnInit {
       if (!coincide) {
         this._clearCustomError(numCtrl, 'tarjetaInexistente');
         this._setCustomError(numCtrl, 'noCoincide');
-        console.log('[verificarTarjeta] noCoincide SET, errores:', JSON.stringify(numCtrl.errors));
       } else {
         this._clearCustomError(numCtrl, 'tarjetaInexistente');
         this._clearCustomError(numCtrl, 'noCoincide');
-        console.log('[verificarTarjeta] TODO OK, errores:', JSON.stringify(numCtrl.errors));
       }
     } catch (err) {
       console.error('💥 verificarTarjeta crashed:', err);
@@ -427,10 +493,18 @@ export class HiringQuestionsComponent implements OnInit {
       (proc?.contrato_codigo as string) || (contr?.codigo_contrato as string) || null;
 
     const v = this.pagoTransporteForm.getRawValue(); // getRawValue incluye disabled fields (salario, auxilioTransporte)
-    const toNum = (x: any) => (x === '' || x == null ? null : Number(x));
+    // Acepta coma decimal ("0,522"): con Number() a secas daba NaN, que el
+    // serializador de HTTP convertía en null y el %ARL se perdía con Swal de
+    // éxito incluido.
+    const toNum = (x: any) => {
+      if (x === '' || x == null) return null;
+      const n = Number(String(x).trim().replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    };
 
     const payload: ProcesoUpdateByDocumentRequest & {
       contratado?: boolean;
+      contrato?: { sede_abbr?: string; generar_codigo: boolean };
       contrato_detalle: {
         forma_de_pago?: string | null;
         numero_para_pagos?: string | null;
@@ -438,48 +512,100 @@ export class HiringQuestionsComponent implements OnInit {
         contrasenia_asignada?: string | null;
         seguro_funerario?: boolean | null;
         Ccentro_de_costos?: string | null;
+        /** Centro de costo que se imprime en el carnet (puede diferir del de nómina). */
+        carnet_centro_costo?: string | null;
         porcentaje_arl?: number | null;
         cesantias?: string | null;
         subcentro_de_costos?: string | null;
+        empresa_grupo_elite?: string | null;
+        codigo_compania?: string | null;
+        sucursal?: string | null;
+        ciudad_labor?: string | null;
+        sublabor?: string | null;
         grupo?: string | null;
         categoria?: string | null;
         operacion?: string | null;
         horas_extras?: boolean | null;
         fecha_ingreso?: string | null;
         fecha_contrato?: string | null;
+        /** Datos de obra: van en el mismo guardado, ver más abajo. */
+        descripcion_de_obra?: string | null;
+        centro_costo_obra?: string | null;
+        direccion_empresa?: string | null;
+        empresa_usuaria?: string | null;
       };
     } = {
       numero_documento: String(cand.numero_documento),
       contratado: true,
+      // Guardar Pago y Transporte SIEMPRE pide código de contrato. El backend
+      // es idempotente: si ya hay código lo devuelve sin tocarlo (incluida la
+      // edición forzada) y solo genera cuando el contrato está sin código.
+      contrato: { sede_abbr: ent0?.oficina || undefined, generar_codigo: true },
       contrato_detalle: {
-        forma_de_pago: v.formaPago ?? null,
+        // "Otra" guarda el TEXTO que escribió el usuario (mismo campo del
+        // backend): antes `otraFormaPago` se pedía en pantalla y se descartaba,
+        // quedando solo el literal "Otra" sin saber cuál era.
+        forma_de_pago: v.formaPago === 'Otra' && String(v.otraFormaPago ?? '').trim()
+          ? String(v.otraFormaPago).trim()
+          : (v.formaPago ?? null),
         numero_para_pagos: v.numeroPagos ?? null,
         identification_number_tarjeta: v.numeroIdentificacion ?? null,
         contrasenia_asignada: v.contraseniaAsignada ?? null,
         seguro_funerario: !!v.seguroFunerario,
         Ccentro_de_costos: v.Ccostos ?? null,
+        carnet_centro_costo: v.carnetCentroCosto ?? null,
         porcentaje_arl: toNum(v.porcentajeARL),
         cesantias: v.cesantias ?? null,
         subcentro_de_costos: v.subCentroCostos ?? null,
+        empresa_grupo_elite: v.empresaGrupoElite ?? null,
+        codigo_compania: v.codigoCompania ?? null,
+        sucursal: v.sucursal ?? null,
+        ciudad_labor: v.ciudadLabor ?? null,
+        sublabor: v.sublabor ?? null,
         grupo: v.grupo ?? null,
         categoria: v.categoria ?? null,
         operacion: v.operacion ?? null,
         horas_extras: !!v.horasExtras,
         fecha_ingreso: v.fechaIngreso ? new Date(v.fechaIngreso).toISOString().split('T')[0] : null,
         fecha_contrato: v.fechaContrato ? new Date(v.fechaContrato).toISOString().split('T')[0] : null,
+        // Los datos de obra viajan en el MISMO guardado. Antes solo los
+        // persistía el botón aparte de la pestaña "Datos de obra", así que la
+        // descripción que se propone sola al fijar la fecha de ingreso se
+        // quedaba en pantalla y los documentos salían con la de la vacante.
+        ...this.datosObraPayload(),
       },
     };
 
     try {
       const resp = await firstValueFrom(
-        this.procesosService.updateProcesoByDocumento(payload, 'PATCH'),
+        this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
       );
-      this.alert(
-        'success',
-        'Guardado',
-        `Contrato ${codigoContrato ? `(${codigoContrato}) ` : ''}actualizado y proceso marcado como contratado.`,
-      );
-      console.log('update-by-document →', resp);
+      const proc0 = (resp as any)?.proceso;
+      const codigoFinal = String(proc0?.contrato_codigo ?? codigoContrato ?? '').trim();
+      const motivo = String(proc0?.contrato_codigo_motivo ?? '').trim();
+      if (!codigoFinal && motivo) {
+        // El guardado sí quedó; lo que falló fue asignar el número. Se avisa en
+        // vez de dejarlo mudo: 'sin_oficina' = la sede no tiene rango asignado,
+        // 'rango_agotado' = se acabaron los 10.000 números de esa oficina.
+        // Se ESPERA el Ok antes de emitir: la recarga que dispara `guardado`
+        // abre el Swal de "Cargando…", que reemplazaría este aviso a los
+        // pocos ms y el operador nunca sabría que el contrato quedó sin código.
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Guardado sin código de contrato',
+          text: motivo === 'rango_agotado'
+            ? 'Se guardó, pero el rango de números de esta oficina se agotó. Avisa a sistemas para asignar un rango nuevo.'
+            : 'Se guardó, pero no se pudo asignar el código porque la oficina no tiene rango de numeración. Avisa a sistemas.',
+          confirmButtonText: 'Ok',
+        });
+      } else {
+        this.alert(
+          'success',
+          'Guardado',
+          `Contrato ${codigoFinal ? `(${codigoFinal}) ` : ''}actualizado y proceso marcado como contratado.`,
+        );
+      }
+      this.guardado.emit();
     } catch (e: any) {
       console.error('[cargarPagoTransporte] Error:', e);
       const body = e?.error;
@@ -513,16 +639,210 @@ export class HiringQuestionsComponent implements OnInit {
     input.value = '';
   }
 
+  /**
+   * Genera el formato de verificación de referencias para un slot
+   * ('familiar1' | 'familiar2' | 'personal1' | 'personal2').
+   *
+   * Queda en `uploadedFiles`, así que se ve con "Ver" y sube con "Cargar",
+   * igual que un PDF adjuntado a mano. Solo aplica a referencias personales y
+   * familiares; las laborales llevan otro formato.
+   */
+  async generarReferencia(campo: string): Promise<void> {
+    const m = /^(familiar|personal)([12])$/.exec(campo);
+    if (!m) return;
+    const tipo = m[1].toUpperCase();      // FAMILIAR | PERSONAL
+    const slot = Number(m[2]);
+
+    const cand: any = this.candidatoSeleccionado();
+    if (!cand?.numero_documento) {
+      return this.alert('info', 'Sin candidato', 'Selecciona un candidato primero.');
+    }
+
+    // La tabla guarda el tipo con y sin sufijo ('PERSONAL' y 'PERSONAL1'); se
+    // aceptan ambos y, cuando hay varias del mismo tipo, se ordenan por id.
+    const todas: any[] = Array.isArray(cand?.referencias) ? [...cand.referencias] : [];
+    const delTipo = todas
+      .filter(r => String(r?.tipo ?? '').toUpperCase().startsWith(tipo))
+      .sort((a, b) => (Number(a?.id) || 0) - (Number(b?.id) || 0));
+    const exacta = delTipo.find(r => String(r?.tipo ?? '').toUpperCase() === `${tipo}${slot}`);
+    const ref = exacta ?? delTipo[slot - 1];
+
+    if (!ref) {
+      return this.alert(
+        'info', 'Sin datos de la referencia',
+        `El candidato no tiene registrada la referencia ${tipo.toLowerCase()} ${slot}.`,
+      );
+    }
+
+    const nombreCand = [cand.primer_nombre, cand.segundo_nombre, cand.primer_apellido, cand.segundo_apellido]
+      .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
+    const hoy = new Date();
+    const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
+
+    const { buildCartaReferenciaPdf } = await import('./referencias-fill');
+    const blob = buildCartaReferenciaPdf({
+      candidatoNombre: nombreCand,
+      ciudad: String(cand?.municipio ?? ''),
+      fecha,
+      referencia: {
+        tipo,
+        slot,
+        nombre: String(ref.nombre ?? ''),
+        parentesco: String(ref.parentesco ?? ''),
+        telefono: String(ref.telefono ?? ''),
+        ocupacion: String(ref.ocupacion ?? ''),
+      },
+    });
+
+    const fileName = `Referencia-${tipo}${slot}-${cand.numero_documento}.pdf`;
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+    this.uploadedFiles[campo] = { file, fileName };
+    this.referenciasForm.get(campo)?.setValue(fileName);
+    // No se abre solo: queda listo y se ve desde el menú de los 3 puntos.
+    this.alert('success', 'Generado', `${fileName} quedó listo. Ábrelo con "Ver" cuando quieras.`);
+  }
+
+  /**
+   * Prellena los datos de nómina desde el centro de costo digitado.
+   *
+   * `CentroCosto` ya guarda empresa, ciudad y sublabor; se copian solo a los
+   * campos vacíos para no pisar un ajuste manual.
+   *
+   * `GET /gestion_centros_costos/` responde con las claves "tal cual el Excel"
+   * ("Ccostos", "Empresa " con espacio, "Categoría" con tilde), no en
+   * snake_case como `/resolver/`. Antes se leían en minúscula y salían todas
+   * `undefined`, así que este autollenado no hacía nada; `campo()` acepta las
+   * dos formas para que sirva con cualquiera de los dos endpoints.
+   */
+  async autollenarDesdeCentroCosto(): Promise<void> {
+    const cc = String(this.pagoTransporteForm.get('Ccostos')?.value ?? '').trim();
+    if (!cc) return;
+
+    const campo = (fila: Record<string, any>, ...claves: string[]): string => {
+      for (const k of claves) {
+        const v = fila?.[k];
+        if (v != null && String(v).trim() !== '') return String(v).trim();
+      }
+      return '';
+    };
+
+    // Si el centro de costo cambió respecto al que generó el llenado anterior,
+    // los valores que hay son de OTRA finca y hay que reemplazarlos: dejarlos
+    // mandaría a la persona al centro de costo equivocado, y eso va a nómina.
+    // Mientras sea el mismo, solo se rellenan huecos y no se pisa nada a mano.
+    const cambioDeFinca =
+      this.ccostosAutollenado !== '' && this.ccostosAutollenado !== cc.toUpperCase();
+
+    try {
+      const ctx = this._loadCtx;
+      const filas = await firstValueFrom(this.farmsService.list(cc));
+      // El candidato pudo cambiar mientras respondía la finca: escribir acá
+      // llenaría el formulario del nuevo con la finca del anterior.
+      if (ctx !== this._loadCtx) return;
+      // Coincidencia exacta por Ccostos; si no, la primera del resultado.
+      const norm = (v: any) => String(v ?? '').trim().toUpperCase();
+      const fila = (filas || []).find(f => norm(campo(f, 'Ccostos', 'ccostos')) === norm(cc))
+        ?? (filas || [])[0];
+      if (!fila) return;
+
+      const poner = (control: string, valor: string) => {
+        const c = this.pagoTransporteForm.get(control);
+        if (!c) return;
+        const actual = String(c.value ?? '').trim();
+        if (cambioDeFinca) {
+          if (valor !== actual) c.setValue(valor);
+        } else if (!actual && valor) {
+          c.setValue(valor);
+        }
+      };
+
+      const empresa = campo(fila, 'Empresa ', 'Empresa', 'empresa');
+      const centroCosto = campo(fila, 'Centro de costo', 'centro_de_costo');
+      const temporal = campo(fila, 'Temporal', 'temporal');
+
+      poner('empresaGrupoElite', empresa);
+      poner('ciudadLabor', campo(fila, 'Ciudad', 'ciudad'));
+      poner('sublabor', campo(fila, 'Sublabor', 'sublabor'));
+      poner('subCentroCostos', campo(fila, 'Subcentro', 'subcentro'));
+      poner('grupo', campo(fila, 'Grupo', 'grupo'));
+      poner('categoria', campo(fila, 'Categoría', 'categoria'));
+      poner('operacion', campo(fila, 'Operación', 'operacion'));
+      // Sucursal = "Centro de costo Para el Carné" (FICHA V12!I95).
+      poner('sucursal', centroCosto);
+      poner('carnetCentroCosto', centroCosto);
+      poner('codigoCompania', resolverCodigoCompania(empresa));
+
+      this.ccostosAutollenado = cc.toUpperCase();
+
+      // Cambiar de finca puede cambiar la empresa usuaria Y la temporal, y con
+      // ellas el juego de labores (Apoyo, Elite Blu y Tu Alianza tienen hojas
+      // distintas), así que la obra se repropone.
+      //
+      // La temporal hay que releerla del maestro, no dejar la de la vacante:
+      // hay fincas con el mismo nombre en las dos temporales (SAN CARLOS está
+      // en Apoyo y en Tu Alianza) y sin esto la obra seguía saliendo de la hoja
+      // de la finca anterior.
+      if (cambioDeFinca && (empresa || temporal)) {
+        if (empresa) {
+          this.empresaVacante = empresa;
+          this.datosObraForm.get('empresaUsuaria')?.setValue(empresa);
+        }
+        if (temporal) this.temporalVacante = temporal;
+        this.sugerirDescripcionObra();
+      }
+    } catch (e) {
+      // Es una ayuda de digitación: si falla, los campos se llenan a mano.
+      console.warn('[centro de costo] no se pudo autocompletar', e);
+    }
+  }
+
+  // ───────── Visor de documentos ─────────
+  /** Documento que se está viendo; `null` = visor cerrado. */
+  visorSrc: SafeResourceUrl | null = null;
+  visorTitulo = '';
+  /** blob: URL cruda, para poder descargarla y revocarla al cerrar. */
+  private visorBlobUrl: string | null = null;
+
+  /**
+   * Muestra el documento dentro de la app.
+   *
+   * Antes se hacía con `window.open`, pero cuando `verArchivo` se llama después
+   * de un `await` se pierde el gesto del usuario, el popup se bloquea y caía al
+   * plan B de descargar. Con el visor propio siempre se ve, y descargar queda
+   * como una acción aparte.
+   */
   verArchivo(campo: string): void {
     const reg = this.uploadedFiles[campo];
     if (!reg) return this.alert('error', 'Archivo no encontrado', 'No se encontró el archivo.');
+
+    this.cerrarVisor();
+
     if (typeof reg.file === 'string') {
-      window.open(encodeURI(reg.file), '_blank');
+      // Documento ya guardado: se abre por su URL, no hay blob que revocar.
+      this.visorSrc = this.sanitizer.bypassSecurityTrustResourceUrl(encodeURI(reg.file));
     } else {
-      const url = URL.createObjectURL(reg.file);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 250);
+      this.visorBlobUrl = URL.createObjectURL(reg.file);
+      this.visorSrc = this.sanitizer.bypassSecurityTrustResourceUrl(this.visorBlobUrl);
     }
+    this.visorTitulo = reg.fileName || 'Documento';
+  }
+
+  /** Descarga lo que se está viendo. */
+  descargarDelVisor(): void {
+    if (!this.visorBlobUrl) return;
+    const a = document.createElement('a');
+    a.href = this.visorBlobUrl;
+    a.download = this.visorTitulo || 'documento.pdf';
+    a.click();
+  }
+
+  cerrarVisor(): void {
+    if (this.visorBlobUrl) {
+      try { URL.revokeObjectURL(this.visorBlobUrl); } catch { }
+      this.visorBlobUrl = null;
+    }
+    this.visorSrc = null;
+    this.visorTitulo = '';
   }
 
   descargarArchivo(): void {
@@ -560,9 +880,12 @@ export class HiringQuestionsComponent implements OnInit {
 
       const ced = this.candidatoSeleccionado()?.numero_documento;
       const cod = this.candidatoSeleccionado()?.codigo_contrato;
+      // Sin el tipo, el backend asume CC y guarda el documento de un CE/PPT en
+      // el expediente del titular CC con el mismo número (owner_id sin "x").
+      const tipoDoc = String(this.candidatoSeleccionado()?.tipo_doc || '').trim() || undefined;
       const obs = withContract
-        ? this.docSvc.guardarDocumento(fileName, ced, type, file, cod)
-        : this.docSvc.guardarDocumento(fileName, ced, type, file);
+        ? this.docSvc.guardarDocumento(fileName, ced, type, file, cod, tipoDoc)
+        : this.docSvc.guardarDocumento(fileName, ced, type, file, undefined, tipoDoc);
 
       try {
         const resp: any = await firstValueFrom(obs);
@@ -587,10 +910,196 @@ export class HiringQuestionsComponent implements OnInit {
     return { uploaded, skipped, failed };
   }
 
+  /** Cargo de la vacante; se usa para deducir el área de la labor. */
+  private cargoVacante = '';
+
+  /**
+   * Temporal y empresa usuaria de la vacante. Deciden de qué hoja de "labores
+   * por mes" sale la descripción de la obra (Apoyo / Blu / Tu Alianza).
+   */
+  private temporalVacante = '';
+  private empresaVacante = '';
+
+  /** Ccostos con el que se autollenaron los datos de nómina la última vez. */
+  private ccostosAutollenado = '';
+
+  /**
+   * Prellena los datos de nómina cruzando la vacante con el maestro de centros
+   * de costo. El backend resuelve el cruce (los nombres de finca se escribieron
+   * por separado en las dos tablas y casi nunca coinciden literal).
+   *
+   * Solo se escribe lo que el backend marca como `comun`, es decir lo que vale
+   * igual en TODAS las filas que cruzaron. Cuando una finca tiene varios
+   * subcentros —SAN CARLOS tiene 5— el centro de costo no viene en `comun` y se
+   * deja vacío a propósito: elegir uno al azar metería a la persona en el
+   * centro de costo equivocado, y eso va a nómina.
+   *
+   * Nunca pisa un valor ya escrito.
+   */
+  private async prellenarDesdeVacante(vac: any): Promise<void> {
+    const finca = String(vac?.finca ?? '').trim();
+    const empresa = String(vac?.empresaUsuariaSolicita ?? '').trim();
+    if (!finca && !empresa) return;
+
+    const ctx = this._loadCtx;
+    const res: any = await firstValueFrom(this.farmsService.resolverPorVacante(finca, empresa));
+    // Si mientras respondía la finca ya se está cargando otro candidato, estos
+    // "solo si vacío" llenarían los campos del nuevo con datos del anterior.
+    if (ctx !== this._loadCtx) return;
+    const comun = res?.comun;
+    if (!comun) return;
+
+    const soloSiVacio = (ctrl: string, valor: any) => {
+      const c = this.pagoTransporteForm.get(ctrl);
+      if (!c) return;
+      const actual = String(c.value ?? '').trim();
+      const nuevo = String(valor ?? '').trim();
+      if (actual === '' && nuevo !== '') c.setValue(nuevo, { emitEvent: false });
+    };
+
+    soloSiVacio('Ccostos', comun.ccostos);
+    soloSiVacio('subCentroCostos', comun.subcentro);
+    soloSiVacio('grupo', comun.grupo);                  // "GRUPO 1" del maestro
+    soloSiVacio('empresaGrupoElite', comun.empresa);
+    soloSiVacio('ciudadLabor', comun.ciudad);
+    soloSiVacio('sublabor', comun.sublabor);            // clasificador 4
+    soloSiVacio('categoria', comun.categoria);          // clasificador 2
+    soloSiVacio('operacion', comun.operacion);          // clasificador 3
+
+    // Sucursal y código de compañía salen de FICHA V12 de la base de
+    // contratación, no de una columna propia del maestro:
+    //   Sucursal        = FICHA V12!I95 -> "Centro de costo Para el Carné",
+    //                     que en el maestro es `centro_de_costo`.
+    //   Código Compañía = FICHA V12!I94 -> tabla fija empresa -> código.
+    soloSiVacio('sucursal', comun.centro_de_costo);
+    soloSiVacio('carnetCentroCosto', comun.centro_de_costo);
+    soloSiVacio('codigoCompania', resolverCodigoCompania(comun.empresa));
+
+    // La temporal del maestro es más confiable que la de la vacante: en la
+    // vacante se escoge a mano de una lista de dos opciones.
+    if (comun.temporal) this.temporalVacante = String(comun.temporal);
+    if (comun.empresa) this.empresaVacante = String(comun.empresa);
+
+    // Punto de partida para detectar un cambio de finca hecho a mano.
+    this.ccostosAutollenado =
+      String(this.pagoTransporteForm.get('Ccostos')?.value ?? '').trim().toUpperCase();
+
+    // Datos de obra: la dirección y la empresa del maestro son más confiables
+    // que las de la vacante, pero igual solo entran si el campo está vacío.
+    const obra = (ctrl: string, valor: any) => {
+      const c = this.datosObraForm.get(ctrl);
+      if (!c) return;
+      if (String(c.value ?? '').trim() === '' && String(valor ?? '').trim() !== '') {
+        c.setValue(String(valor).trim(), { emitEvent: false });
+      }
+    };
+    obra('empresaUsuaria', comun.empresa);
+    obra('centroCosto', comun.centro_de_costo);
+    obra('direccion', comun.direccion);
+  }
+
+  /**
+   * Aviso a mostrar bajo la descripción de obra. Vacío = todo en orden.
+   *
+   * La descripción es la causa objetiva del contrato temporal, así que cuando no
+   * se puede calcular hay que decirlo, no dejar el campo callado con un texto
+   * que puede ser del mes equivocado.
+   */
+  avisoDescripcionObra = '';
+
+  /**
+   * Propone la "Descripción de la obra" con la misma regla de la base de
+   * contratación (columna J): la labor depende del MES de ingreso y del área,
+   * y el área sale del cargo. Ver `labores-por-mes.data.ts`.
+   *
+   * Manda SIEMPRE la fecha de ingreso de esta pantalla, no la de la vacante.
+   * La vacante se publica con la fecha de prueba técnica —que muchas veces ni
+   * existe todavía—, y entre la prueba y el ingreso se puede cruzar el mes: si
+   * la prueba fue el 28 de julio y la persona entra el 3 de agosto, el contrato
+   * tiene que decir la obra de agosto. Por eso una descripción que quedó de otro
+   * mes se reemplaza aunque ya estuviera escrita.
+   *
+   * Lo único que nunca se pisa es un texto redactado a mano (sin el prefijo
+   * `<mes><área>` y que no esté en las tablas).
+   */
+  private sugerirDescripcionObra(): void {
+    const ctrl = this.datosObraForm.get('descripcionObra');
+    if (!ctrl) return;
+
+    const actual = String(ctrl.value ?? '').trim();
+    const fechaIngreso = this.pagoTransporteForm.get('fechaIngreso')?.value;
+
+    const redactadaAMano =
+      actual !== '' && !esDescripcionGenerada(actual) && !claveDescripcion(actual);
+    if (redactadaAMano) {
+      this.avisoDescripcionObra = '';
+      return;
+    }
+
+    if (!fechaIngreso) {
+      this.avisoDescripcionObra =
+        'Falta la fecha de ingreso: la descripción de la obra se ajustará al fijarla.';
+      return;
+    }
+
+    const v = this.datosObraForm.value;
+    const sugerida = resolverDescripcionObra(
+      this.cargoVacante,
+      fechaIngreso,
+      `${v.empresaUsuaria ?? ''} ${v.centroCosto ?? ''}`,
+      this.temporalVacante,
+      this.empresaVacante || String(v.empresaUsuaria ?? ''),
+    );
+
+    if (!sugerida) {
+      // Cargo fuera del maestro, o área sin labores en la hoja que aplica (los
+      // cargos de jardinería de Tu Alianza, area JAR, son el caso real).
+      this.avisoDescripcionObra = descripcionEsDeOtroMes(actual, fechaIngreso)
+        ? 'La descripción quedó de otro mes y no hay labor definida para este cargo. Revísala a mano.'
+        : 'No hay labor definida para este cargo y mes. Escribe la descripción a mano.';
+      return;
+    }
+
+    this.avisoDescripcionObra = '';
+    if (sugerida !== actual) {
+      ctrl.setValue(sugerida, { emitEvent: false });
+    }
+  }
+
+  /**
+   * Los 4 datos de obra tal como los espera el contrato.
+   *
+   * Lo que esté escrito en el formulario es lo que se guarda: los documentos
+   * (contrato, ficha técnica, carnet, Minerva) leen estos campos del contrato y
+   * solo caen a la vacante cuando están vacíos, así que un `''` en vez de `null`
+   * dejaría el documento en blanco en vez de usar el respaldo.
+   */
+  private datosObraPayload(): {
+    descripcion_de_obra: string | null;
+    centro_costo_obra: string | null;
+    direccion_empresa: string | null;
+    empresa_usuaria: string | null;
+  } {
+    const v = this.datosObraForm.value;
+    const norm = (s: any) => {
+      const t = (s ?? '').toString().trim();
+      return t.length ? t : null;
+    };
+    return {
+      descripcion_de_obra: norm(v.descripcionObra),
+      centro_costo_obra: norm(v.centroCosto),
+      direccion_empresa: norm(v.direccion),
+      empresa_usuaria: norm(v.empresaUsuaria),
+    };
+  }
+
   /**
    * Guarda en el contrato los datos de obra/empresa (descripción de obra, centro
    * de costo, dirección, empresa usuaria). Sólo persiste estos campos; no marca
    * al candidato como contratado. Crea el contrato si aún no existía.
+   *
+   * Guardar "Pago y Transporte" ya persiste lo mismo; este botón sigue existiendo
+   * para poder corregir la obra sin marcar al candidato como contratado.
    */
   async guardarDatosObra(): Promise<void> {
     if (this.bloqueadoPorEspera()) return;
@@ -599,25 +1108,15 @@ export class HiringQuestionsComponent implements OnInit {
       return this.alert('info', 'Sin cédula', 'No hay candidato seleccionado.');
     }
 
-    const v = this.datosObraForm.value;
-    const norm = (s: any) => {
-      const t = (s ?? '').toString().trim();
-      return t.length ? t : null;
-    };
-
     const payload: ProcesoUpdateByDocumentRequest = {
       numero_documento: String(cand.numero_documento),
-      contrato_detalle: {
-        descripcion_de_obra: norm(v.descripcionObra),
-        centro_costo_obra: norm(v.centroCosto),
-        direccion_empresa: norm(v.direccion),
-        empresa_usuaria: norm(v.empresaUsuaria),
-      },
+      contrato_detalle: this.datosObraPayload(),
     };
 
     this.loading('Guardando datos de obra…');
     try {
-      await firstValueFrom(this.procesosService.updateProcesoByDocumento(payload, 'PATCH'));
+      await firstValueFrom(this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
+      this.guardado.emit();
       Swal.close();
       this.alert('success', 'Guardado', 'Los datos de obra se guardaron en el contrato.');
     } catch (e: any) {
@@ -668,7 +1167,7 @@ export class HiringQuestionsComponent implements OnInit {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: err?.error?.detail || 'No se pudieron subir los archivos. Verifique su conexión e intente de nuevo.',
+        text: mensajeDeErrorLog('hiring/subir-archivos', err, 'No se pudieron subir los archivos.'),
         confirmButtonText: 'Ok',
       });
     }
@@ -718,9 +1217,10 @@ export class HiringQuestionsComponent implements OnInit {
       }
 
       await firstValueFrom(
-        this.procesosService.updateProcesoByDocumento(payload, 'PATCH'),
+        this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
       );
 
+      this.guardado.emit();
       Swal.close();
       this.alert('success', '¡Éxito!', 'Solicitud de traslado guardada.');
     } catch (e: any) {
@@ -930,7 +1430,7 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // ───────── Utilidades ─────────
-  private alert(icon: 'success' | 'error' | 'warning' | 'info', title: string, text: string) {
+  private alert(icon: 'success' | 'error' | 'warning' | 'info', title: string, text: string): void {
     Swal.fire({ icon, title, text, confirmButtonText: 'Ok' });
   }
 
@@ -1003,42 +1503,115 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // ───────── Carga integral reactiva ─────────
+  /** Secuencia de cargas: invalida los `await` de una carga anterior. */
+  private _loadCtx = 0;
+  /** Último titular (tipo|número) cuyo formulario ya se parcheó desde el servidor. */
+  private ultimaCedulaCargada: string | null = null;
+  /** Llave de la carga aplicada: titular + id del proceso (uno nuevo re-parchea). */
+  private ultimaCargaKey: string | null = null;
+
   async loadData(): Promise<void> {
     const cand = this.candidatoSeleccionado();
     if (!cand?.numero_documento) return;
 
+    // `loadData` corre con CADA referencia nueva del candidato (el padre
+    // recarga tras cada guardado). Dos protecciones:
+    //  1. `ctx`: una carga vieja que despierta de un await no puede escribir
+    //     (antes, cambiar rápido de persona dejaba salario/finca/cargo del
+    //     candidato anterior en el formulario del nuevo).
+    //  2. Misma persona re-servida: NO se re-parchean los formularios (pisaría
+    //     lo que el usuario tiene editado sin guardar en otras pestañas); solo
+    //     se refrescan los documentos.
+    const ctx = ++this._loadCtx;
+    // Llave por TITULAR (tipo|número): dos personas distintas pueden compartir
+    // número (CC vs C.C/CE) y con la cédula sola el cambio no se detectaba.
+    const cedActual = `${String(cand.tipo_doc || 'CC').trim().toUpperCase()}|${String(cand.numero_documento)}`;
+    const cambioPersona = cedActual !== this.ultimaCedulaCargada;
+
+    if (cambioPersona) {
+      // Sin esta limpieza, los slots que el nuevo candidato no llena conservan
+      // el documento del anterior (la pestaña Referencias mostraba y abría el
+      // PDF de otra persona).
+      this.serverDocs = {};
+      this.uploadedFiles = {};
+      this.referenciasForm.reset();
+      this.trasladosForm.reset();
+      // Se acaba de limpiar todo: pase lo que pase abajo, la próxima carga con
+      // proceso debe parchear desde cero (ver el sellado más adelante).
+      this.ultimaCedulaCargada = null;
+      this.ultimaCargaKey = null;
+      // El "criterio de finca" también es del candidato anterior: sin esto, un
+      // blur sobre el Ccostos del nuevo evaluaba cambioDeFinca=true y
+      // REEMPLAZABA su nómina con datos de la finca del otro.
+      this.ccostosAutollenado = '';
+    }
+
     const ent0 = Array.isArray(cand?.entrevistas) ? cand.entrevistas[0] : null;
     const proc = ent0?.proceso;
+    // Sin proceso no hay nada que parchear; NO se sella la cédula para que la
+    // recarga que sí traiga el proceso haga la carga inicial completa.
     if (!proc) return;
+
+    // La llave de carga incluye el ID DEL PROCESO: cuando el backend abre uno
+    // nuevo (regla terminal, eliminar del historial) la misma persona debe
+    // re-parchearse desde cero — sin esto el formulario conservaba forma de
+    // pago, tarjeta y obra del contrato ANTERIOR y "Guardar" los escribía en
+    // el proceso nuevo.
+    // `consultaSeq` también entra: una consulta nueva del buscador re-parchea
+    // (refresco explícito); las recargas internas conservan lo editado.
+    const cargaKey = `${cedActual}|${proc.id ?? 'sin-id'}#${this.consultaSeq()}`;
+    if (cargaKey === this.ultimaCargaKey) {
+      this.llenarDocumentos().catch(console.error);
+      return;
+    }
+    this.ultimaCedulaCargada = cedActual;
+    this.ultimaCargaKey = cargaKey;
 
     const contr = proc?.contrato;
     const isEmptyValue = (v: any) => v === null || v === '' || (typeof v === 'boolean' && v === false);
     const CONTR_KEYS: Array<keyof typeof contr> = [
       'forma_de_pago', 'numero_para_pagos', 'Ccentro_de_costos', 'porcentaje_arl', 'cesantias',
       'subcentro_de_costos', 'grupo', 'categoria', 'operacion', 'horas_extras', 'seguro_funerario',
+      'empresa_grupo_elite', 'codigo_compania', 'sucursal', 'ciudad_labor', 'sublabor',
       'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada', 'identification_number_tarjeta'
     ];
     const contratoVacio = !contr || CONTR_KEYS.every(k => isEmptyValue((contr as any)?.[k]));
     const toNum = (v: any) => (v === '' || v == null ? null : Number(v));
 
+    // "Otra" forma de pago se guarda como el texto libre que escribió el
+    // usuario; al volver del servidor hay que reconocerlo y reabrir el campo.
+    const FORMAS_CONOCIDAS = ['Daviplata', 'Davivienda cta ahorros', 'Colpatria cta ahorros', 'Bancolombia', 'Otra'];
+    const formaGuardada = String(contr?.forma_de_pago ?? '').trim();
+    const esFormaLibre = !!formaGuardada && !FORMAS_CONOCIDAS.includes(formaGuardada);
+
     // 1) Parche inicial (contrato/proceso)
     this.pagoTransporteForm.patchValue({
-      formaPago: contr?.forma_de_pago ?? '',
+      formaPago: esFormaLibre ? 'Otra' : (contr?.forma_de_pago ?? ''),
+      otraFormaPago: esFormaLibre ? formaGuardada : '',
       numeroPagos: contr?.numero_para_pagos ?? null,
       numeroIdentificacion: (contr as any)?.identification_number_tarjeta ?? null,
       contraseniaAsignada: contr?.contrasenia_asignada ?? null,
       // validacionNumeroCuenta: contr?.numero_para_pagos ?? null, // eliminado
       seguroFunerario: contr?.seguro_funerario ?? false,
       Ccostos: contr?.Ccentro_de_costos ?? '',
+      carnetCentroCosto: (contr as any)?.carnet_centro_costo ?? null,
       porcentajeARL: contr?.porcentaje_arl != null ? toNum(contr.porcentaje_arl) : null,
       cesantias: contr?.cesantias ?? null,
       subCentroCostos: contr?.subcentro_de_costos ?? null,
+      empresaGrupoElite: contr?.empresa_grupo_elite ?? null,
+      codigoCompania: contr?.codigo_compania ?? null,
+      sucursal: contr?.sucursal ?? null,
+      ciudadLabor: contr?.ciudad_labor ?? null,
+      sublabor: contr?.sublabor ?? null,
       grupo: contr?.grupo ?? null,
       categoria: contr?.categoria ?? null,
       operacion: contr?.operacion ?? null,
       horasExtras: contr?.horas_extras ?? false,
       salario: proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null,
-      auxilioTransporte: 'No',
+      // Vacío, NO 'No': el auxilio lo dice la vacante y se parchea abajo. Con
+      // 'No' fijo, un proceso sin publicación —o una vacante que no se pudo
+      // traer— mostraba "sin auxilio" como si fuera un dato del contrato.
+      auxilioTransporte: null,
       fechaIngreso: contr?.fecha_ingreso ?? null,
       fechaContrato: contr?.fecha_contrato ?? null,
     });
@@ -1055,7 +1628,16 @@ export class HiringQuestionsComponent implements OnInit {
     //    y autollenar porcentajeARL desde el cargo asociado al cargo de la vacante.
     if (proc?.publicacion) {
       try {
-        const vac: any = await firstValueFrom(this.vacantesService.obtenerVacante(proc.publicacion));
+        // `loadData` corre en cada recarga del candidato (guardar dispara una),
+        // pero la vacante no cambia entre guardados: se pide una vez por id.
+        let vac: any = this.vacantePorId.get(proc.publicacion);
+        if (vac === undefined) {
+          vac = await firstValueFrom(this.vacantesService.obtenerVacante(proc.publicacion));
+          this.vacantePorId.set(proc.publicacion, vac ?? null);
+        }
+        // El candidato pudo cambiar mientras respondía la vacante: parchear
+        // acá pondría salario/finca/cargo del anterior sobre el nuevo.
+        if (ctx !== this._loadCtx) return;
 
         const salarioFromProc = proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null;
         const salarioFromVac = vac?.salario != null ? toNum(vac.salario) : null;
@@ -1067,15 +1649,31 @@ export class HiringQuestionsComponent implements OnInit {
           auxilioTransporte: auxFromVac,
         });
 
-        // Datos de obra/empresa: si el contrato no los tenía, usar los de la vacante.
+        // Datos de obra/empresa: manda SIEMPRE la vacante (los campos son de
+        // solo lectura en la pestaña); lo guardado en el contrato queda solo
+        // de respaldo para cuando la vacante no trae el dato.
         const obraActual = this.datosObraForm.value;
         const orStr = (x: any) => (x == null ? '' : String(x));
         this.datosObraForm.patchValue({
-          empresaUsuaria: obraActual.empresaUsuaria || orStr(vac?.empresaUsuariaSolicita),
-          centroCosto: obraActual.centroCosto || orStr(vac?.finca),
-          direccion: obraActual.direccion || orStr(vac?.direccion),
-          descripcionObra: obraActual.descripcionObra || orStr(vac?.descripcion),
+          empresaUsuaria: orStr(vac?.empresaUsuariaSolicita) || obraActual.empresaUsuaria,
+          centroCosto: orStr(vac?.finca) || obraActual.centroCosto,
+          direccion: orStr(vac?.direccion) || obraActual.direccion,
+          descripcionObra: orStr(vac?.descripcion) || obraActual.descripcionObra,
         });
+
+        this.cargoVacante = String(vac?.cargo ?? '').trim();
+        this.temporalVacante = String(vac?.temporal ?? '').trim();
+        this.empresaVacante = String(vac?.empresaUsuariaSolicita ?? '').trim();
+
+        // Datos de nómina desde el maestro de centros de costo. Va antes de
+        // sugerir la descripción porque puede llenar el centro de costo.
+        try {
+          await this.prellenarDesdeVacante(vac);
+        } catch (e) {
+          console.warn('[nomina] no se pudo prellenar desde la vacante:', e);
+        }
+
+        this.sugerirDescripcionObra();
 
         // Autocompletar Porcentaje ARL desde el cargo de la vacante.
         // Si el contrato YA tenía un porcentaje_arl explícito, lo respetamos
@@ -1126,8 +1724,15 @@ export class HiringQuestionsComponent implements OnInit {
 
     try {
       // El endpoint detail no soporta slashes. Usamos list con `q` (icontains)
-      // y matcheamos exacto en cliente.
-      const lista = await firstValueFrom(this.positionsService.list({ q: cargoNombre }));
+      // y matcheamos exacto en cliente. Igual que la vacante, el porcentaje de
+      // un cargo no cambia entre guardados: se consulta una vez por nombre.
+      const ctx = this._loadCtx;
+      let lista = this.cargosPorNombre.get(cargoNombre);
+      if (lista === undefined) {
+        lista = await firstValueFrom(this.positionsService.list({ q: cargoNombre }));
+        this.cargosPorNombre.set(cargoNombre, lista ?? []);
+      }
+      if (ctx !== this._loadCtx) return; // llegó tarde: es el %ARL de otro candidato
       const norm = (s: string) => (s || '').trim().toUpperCase();
       const target = norm(cargoNombre);
       const cargo = (lista || []).find(c => norm(c.nombre) === target);
@@ -1142,19 +1747,10 @@ export class HiringQuestionsComponent implements OnInit {
     }
   }
 
-  // ───────── Documentos del servidor ─────────
-  private docs$(type: number) {
-    const ced = this.candidatoSeleccionado()?.numero_documento;
-    const cod = this.candidatoSeleccionado()?.codigo_contrato;
-    return this.docSvc
-      .obtenerDocumentosPorTipo(ced, type, cod)
-      .pipe(
-        catchError((err: HttpErrorResponse) => {
-          if (err.status === 404) return of([] as any[]);
-          return throwError(() => err);
-        }),
-      );
-  }
+  /** Vacantes ya consultadas por id. Vive lo que vive el componente. */
+  private readonly vacantePorId = new Map<string | number, any>();
+  /** Resultados de gestion_cargos por nombre de cargo consultado. */
+  private readonly cargosPorNombre = new Map<string, any[]>();
 
   private _docsCtx = 0;
   async llenarDocumentos(): Promise<void> {
@@ -1169,14 +1765,33 @@ export class HiringQuestionsComponent implements OnInit {
     });
 
     try {
-      const res = await firstValueFrom(forkJoin({
-        tipo16: this.docs$(16),
-        tipo17: this.docs$(17),
-        tipo18: this.docs$(18),
-        tipo86: this.docs$(86),
-      }));
+      // Antes eran cuatro GET al mismo endpoint variando `type` (16, 17, 18 y
+      // 86). El expediente completo trae lo mismo —el backend aplica idéntica
+      // regla de "vigentes" con y sin tipo, incluidas las DOS referencias de
+      // los tipos 16/17— y viene cacheado por cédula, así que el pipeline y
+      // selección comparten esta misma respuesta. (El `codigo_contrato` que se
+      // enviaba antes nunca filtró nada: el GET del backend lo ignora.)
+      const ced = this.candidatoSeleccionado()?.numero_documento;
+      const docs = await firstValueFrom(this.docSvc.getDocumentosDeCandidato(ced));
+      // Orden por id ASCENDENTE: es el mismo criterio con el que "Generar
+      // referencia" reparte personal1/personal2. Con el orden por recencia del
+      // backend, re-subir el PDF de la persona 2 lo movía al slot 1 y quedaban
+      // archivo y datos cruzados.
+      const delTipo = (t: number) => (docs ?? [])
+        .filter((d: any) => Number(d?.type) === t)
+        .sort((a: any, b: any) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
+      const res = { tipo16: delTipo(16), tipo17: delTipo(17), tipo18: delTipo(18), tipo86: delTipo(86) };
 
       if (ctx !== this._docsCtx) { if (Swal.isVisible()) Swal.close(); return; }
+
+      // Slots derivados del servidor se reconstruyen desde cero; un adjunto
+      // LOCAL aún sin guardar (File) se respeta para no perderlo.
+      const clavesRef = ['personal1', 'personal2', 'familiar1', 'familiar2', 'laboral1', 'laboral2', 'traslado'];
+      for (const k of clavesRef) {
+        if (this.uploadedFiles[k]?.file instanceof File) continue;
+        delete this.uploadedFiles[k];
+        delete this.serverDocs[k];
+      }
 
       const fillList = async (list: any[], baseKey: 'personal' | 'familiar' | 'laboral', max = 2) => {
         let i = 1;
@@ -1184,6 +1799,10 @@ export class HiringQuestionsComponent implements OnInit {
           if (i > max) break;
           const key = `${baseKey}${i}` as const;
           const head = await this.headMeta(doc.file_url);
+          // El HEAD pudo demorar y ya hay otra carga en curso: no escribir
+          // slots del contexto viejo sobre el candidato nuevo.
+          if (ctx !== this._docsCtx) return;
+          if (this.uploadedFiles[key]?.file instanceof File) { i++; continue; }
           this.serverDocs[key] = {
             id: doc.id, fileName: doc.title || 'Documento', type: doc.type, file_url: doc.file_url,
             uploaded_at: doc.uploaded_at, size: head.size, etag: head.etag, lastModified: head.lastModified,
@@ -1203,6 +1822,8 @@ export class HiringQuestionsComponent implements OnInit {
       // Traslado (único)
       for (const doc of res.tipo18 ?? []) {
         const head = await this.headMeta(doc.file_url);
+        if (ctx !== this._docsCtx) return;
+        if (this.uploadedFiles['traslado']?.file instanceof File) break;
         this.serverDocs['traslado'] = {
           id: doc.id, fileName: doc.title || 'Documento', type: doc.type, file_url: doc.file_url,
           uploaded_at: doc.uploaded_at, size: head.size, etag: head.etag, lastModified: head.lastModified,
@@ -1338,7 +1959,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     const { jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     const empresaNombre = 'APOYO LABORAL T.S. S.A.S.';
     doc.setProperties({ title: 'Entrega_Documentos.pdf', author: empresaNombre, creator: empresaNombre });
 
@@ -1371,9 +1992,9 @@ export class HiringQuestionsComponent implements OnInit {
     doc.line(col2, h2Y, col2, startY + headerHeight);
     doc.line(col3, h2Y, col3, startY + headerHeight);
     doc.setFontSize(7).setFont('helvetica', 'bold');
-    doc.text('Código: AL CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 23', col1 + 2, startY + 11.5);
-    doc.text('Fecha Emisión: Julio 9-25', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_APOYO.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_APOYO.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha Emisión: ${FORMATO_ENTREGA_APOYO.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
     y = startY + headerHeight + 7;
 
@@ -1473,7 +2094,7 @@ export class HiringQuestionsComponent implements OnInit {
       { numero: '6)', texto: 'Socialización de las políticas vigentes y aplicables de la Empresa Temporal.' },
       { numero: '7)', texto: 'Curso de Seguridad y Salud en el Trabajo "SST" de la Empresa Temporal.' },
       { numero: '8)', texto: 'Se hace entrega de la documentación requerida para la vinculación de beneficiarios a la Caja de Compensación Familiar y se establece compromiso de 15 días para la entrega sobre la documentación para afiliación de beneficiarios a la Caja de Compensación y EPS si aplica.\nDe lo contrario se entenderá que usted no desea recibir este beneficio, recuerde que es su responsabilidad el registro de los mismos.' },
-      { numero: '9)', texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.' }
+      { numero: '9)', texto: PLAN_FUNERAL }
     ];
     const bottomSafe = 12;
     const ensureSpace = (need: number) => { if (y + need > pageHeight - bottomSafe) { doc.addPage(); y = 15; } };

@@ -7,14 +7,24 @@
 
 <div class="seccion" [formGroup]="antecedentes">
   @for (fld of fields; track $index; let i = $index) {
-    <div class="input-container">
+    <div class="input-container" [attr.data-estado]="estadoTarjeta(fld)">
+
+      <!-- Encabezado de la tarjeta: el nombre del antecedente y en qué va.
+           Antes el nombre iba como `mat-label` flotando sobre el borde del
+           campo, que a media pantalla se leía como si fuera el VALOR (las
+           tarjetas de AFP o Rama Judicial parecían tener contenido cuando en
+           realidad estaban vacías). -->
+      <div class="tarjeta-head">
+        <span class="tarjeta-titulo">{{ fld.label }}</span>
+        <span class="tarjeta-punto" [attr.data-estado]="estadoTarjeta(fld)"></span>
+      </div>
+
       <mat-form-field appearance="outline" class="example-full-width">
-        <mat-label>{{ fld.label }}</mat-label>
         @switch (fld.type) {
           <!-- ===== ESTADO ===== -->
           @case ('estado') {
             <ng-container>
-              <mat-select [formControlName]="controlName(fld)">
+              <mat-select [formControlName]="controlName(fld)" placeholder="Sin seleccionar">
                 @for (estado of estados; track estado) {
                   <mat-option [value]="estado">
                     {{ estado }}
@@ -37,7 +47,8 @@
           <!-- ===== LISTA ===== -->
           @case ('list') {
             <ng-container>
-              <mat-select [formControlName]="controlName(fld)" [placeholder]="fld.placeholder || ''">
+              <mat-select [formControlName]="controlName(fld)"
+                [placeholder]="fld.placeholder || 'Sin seleccionar'">
                 @for (opt of getOptions(fld); track opt) {
                   <mat-option [value]="opt">
                     {{ opt }}
@@ -54,7 +65,8 @@
           <!-- ===== NÚMERO ===== -->
           @case ('number') {
             <ng-container>
-              <input matInput type="number" [formControlName]="controlName(fld)" min="1" step="1" inputmode="numeric"
+              <input matInput type="number" [formControlName]="controlName(fld)" placeholder="Sin consultar"
+                min="1" step="1" inputmode="numeric"
                 pattern="[0-9]*" (keydown)="onlyInteger($event)" />
                 <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
                   <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
@@ -81,7 +93,7 @@
             <!-- Nombre y fecha de actualización -->
             @if ($any(uploadedFiles)[fld.key]) {
               <small class="uploaded-file-name"
-                [ngClass]="{ 'text-danger': $any(uploadedFiles)[fld.key].fileName === 'Adjuntar documento' }"
+                [ngClass]="{ 'text-danger': $any(uploadedFiles)[fld.key].fileName === 'Adjuntar documento' || !!$any(uploadedFiles)[fld.key].error }"
                 style="margin-bottom: 0;">
                 {{ $any(uploadedFiles)[fld.key].fileName }}
                 @if ($any(uploadedFiles)[fld.key].updatedAtLabel) {
@@ -108,26 +120,62 @@
                     EN PROGRESO...
                   }
                   @if (!turno.finalizado && !turno.enProgreso) {
-                    @if (turno.faltan !== null) {
-                      <span>Faltan <b>{{ turno.faltan }}</b> antes que tú</span>
-                    }
+                    <!-- Un "Faltan 13613 antes que tú" no le sirve a nadie: es
+                         cierto pero suena a que nunca va a salir. Por encima de
+                         200 se dice la espera en palabras. -->
                     @if (turno.faltan === null) {
-                      <span>SIN CONSULTAR</span>
+                      <span>Sin consultar</span>
+                    } @else if (turno.faltan > 200) {
+                      <span>En cola · la respuesta puede demorar</span>
+                    } @else if (turno.faltan === 0) {
+                      <span>Es el siguiente en la fila</span>
+                    } @else {
+                      <span>Faltan <b>{{ turno.faltan }}</b> antes</span>
                     }
                   }
                 </span>
               </div>
             }
           </div>
-          <!-- Alerta documento antiguo -->
+          <!-- Procedencia: lo que devolvió el robot para este campo -->
+          @if (crudoRobot(fld); as crudo) {
+            <div class="robot-origen" [class.aplicado]="vieneDelRobot(fld)">
+              <mat-icon class="robot-icon">smart_toy</mat-icon>
+              <span>
+                Robot: <b>{{ crudo }}</b>
+                @if (vieneDelRobot(fld)) {
+                  <span class="robot-tag">— autocompletado</span>
+                }
+                @if (!vieneDelRobot(fld)) {
+                  <span class="robot-tag">— requiere revisión</span>
+                }
+              </span>
+            </div>
+          }
+          <!-- Documento vencido. Va en UNA sola línea: antes era un bloque rojo
+               con el botón debajo que duplicaba el alto de la tarjeta y
+               desalineaba toda la fila. -->
           @if (isOlderThan(fld.key, 15)) {
             <div class="doc-warning">
-              <mat-icon class="warn-icon" color="warn">warning</mat-icon>
-              <span>El documento tiene más de 15 días.</span>
+              <mat-icon class="warn-icon">schedule</mat-icon>
+              <span class="doc-warning-txt">Vencido · más de 15 días</span>
+              <!-- Re-consulta SOLO esta fuente (el botón del pipeline re-abre las 8). -->
+              @if (puedeForzarFuente(fld.key)) {
+                <button type="button" class="btn-forzar-fuente"
+                  [disabled]="forzandoFuente !== null"
+                  matTooltip="Volver a consultar solo este documento con el robot"
+                  (click)="forzarConsultaDeFuente(fld.key, fld.label)">
+                  {{ forzandoFuente === fld.key ? 'Enviando…' : 'Actualizar' }}
+                </button>
+              }
             </div>
           }
         </div>
       }
+
+      <!-- El barrio vive en la pestaña de Entrevista (form-entrevista), que es
+           donde están todos los datos de residencia y donde ya tiene su
+           validación. Acá estaba duplicado. -->
 
       <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">
         Cargar
