@@ -125,6 +125,12 @@ export class PaymentsService {
     );
   }
 
+  /** Descarga el documento interno con JWT (el gateway lo exige). */
+  public descargarDocumento(documentId: number): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/api/v1/documents/${documentId}/download`,
+      { responseType: 'blob' });
+  }
+
   // Subir archivo de desprendibles
   async subirExcelDesprendibles(
     datos: any

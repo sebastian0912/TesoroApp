@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { Title } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -20,6 +21,9 @@ import Swal from 'sweetalert2';
 import {
   CruceRespuesta, EnvioCorreosService, FilaCruce, PeriodoDisponible, TipoRef,
 } from '../../service/envio-correos/envio-correos.service';
+import {
+  VisorDocumentoComponent, VisorDocumentoData,
+} from '../../components/visor-documento/visor-documento.component';
 
 /**
  * Nómina → Envío de correos (modelo antiguo) → Cruce por quincena.
@@ -37,7 +41,7 @@ import {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule, FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule,
+    CommonModule, FormsModule, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule,
     MatIconModule, MatInputModule, MatPaginatorModule, MatProgressBarModule,
     MatSelectModule, MatTableModule, MatTooltipModule,
   ],
@@ -47,6 +51,7 @@ import {
 export class EnvioCorreosCruceComponent implements OnInit {
   private srv = inject(EnvioCorreosService);
   private titulo = inject(Title);
+  private dialog = inject(MatDialog);
 
   readonly cargando = signal(false);
   readonly periodos = signal<PeriodoDisponible[]>([]);
@@ -120,10 +125,25 @@ export class EnvioCorreosCruceComponent implements OnInit {
     this.consultar();
   }
 
-  /** Abre el documento interno de gestión documental (ya no el link de Drive). */
+  /**
+   * Abre el documento interno en un visor.
+   *
+   * NO usa `window.open(url)`: `/api/v1/documents/**` exige JWT en el gateway y
+   * una navegación directa responde 401. El visor lo descarga por HttpClient
+   * (con token) y lo muestra desde un object URL.
+   */
   verDocumento(fila: FilaCruce): void {
     if (!fila.document_id) return;
-    window.open(this.srv.urlDocumento(fila.document_id), '_blank', 'noopener');
+    this.dialog.open<VisorDocumentoComponent, VisorDocumentoData>(VisorDocumentoComponent, {
+      data: {
+        documentId: fila.document_id,
+        nombreArchivo: fila.nombre_archivo,
+        cedula: fila.cedula,
+        titulo: fila.nombre,
+      },
+      width: '900px',
+      maxWidth: '95vw',
+    });
   }
 
   porcentaje(parte: number, total: number): number {

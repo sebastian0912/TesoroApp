@@ -101,58 +101,48 @@
   <!-- ── Cuerpo del módulo (contexto listo) ─────────────────────────────── -->
   <ng-container *ngIf="contextoListo">
 
-    <!-- Aviso: backend pendiente -->
-    <div class="backend-banner" *ngIf="!backendDisponible">
-      <mat-icon>engineering</mat-icon>
-      <div>
-        <strong>Servicio de almacenamiento en preparación.</strong>
-        El backend de este submódulo (<code>/api/nomina/novedades-periodo</code>) aún no está desplegado;
-        la pantalla queda lista y se conectará automáticamente cuando el servicio esté disponible.
-      </div>
-    </div>
-
-    <!-- KPIs del periodo -->
+    <!-- KPIs del histórico común por estado (§37) -->
     <div class="kpis">
       <div class="kpi kpi-primary">
         <div class="kpi-icon"><mat-icon>playlist_add_check</mat-icon></div>
         <div class="kpi-body">
           <span class="kpi-value">{{ kpis.total | number }}</span>
-          <span class="kpi-label">Novedades registradas</span>
+          <span class="kpi-label">Novedades ({{ kpis.origen_tnl }} TNL · {{ kpis.origen_manual }} manuales)</span>
         </div>
       </div>
       <div class="kpi">
-        <div class="kpi-icon kpi-icon-people"><mat-icon>groups</mat-icon></div>
+        <div class="kpi-icon kpi-icon-time"><mat-icon>pending_actions</mat-icon></div>
         <div class="kpi-body">
-          <span class="kpi-value">{{ kpis.empleados | number }}</span>
-          <span class="kpi-label">Empleados con novedad</span>
+          <span class="kpi-value">{{ kpis.pendientes | number }}</span>
+          <span class="kpi-label">Pendientes</span>
         </div>
       </div>
       <div class="kpi">
-        <div class="kpi-icon kpi-icon-up"><mat-icon>trending_up</mat-icon></div>
+        <div class="kpi-icon kpi-icon-up"><mat-icon>rule</mat-icon></div>
         <div class="kpi-body">
-          <span class="kpi-value">{{ kpis.devengos | number }}</span>
-          <span class="kpi-label">Devengos</span>
+          <span class="kpi-value">{{ kpis.parcialmente_aplicadas | number }}</span>
+          <span class="kpi-label">Parcialmente aplicadas</span>
         </div>
       </div>
       <div class="kpi">
-        <div class="kpi-icon kpi-icon-down"><mat-icon>trending_down</mat-icon></div>
+        <div class="kpi-icon kpi-icon-people"><mat-icon>task_alt</mat-icon></div>
         <div class="kpi-body">
-          <span class="kpi-value">{{ kpis.deducciones | number }}</span>
-          <span class="kpi-label">Deducciones</span>
+          <span class="kpi-value">{{ kpis.aplicadas | number }}</span>
+          <span class="kpi-label">Aplicadas</span>
         </div>
       </div>
       <div class="kpi">
-        <div class="kpi-icon kpi-icon-time"><mat-icon>schedule</mat-icon></div>
+        <div class="kpi-icon kpi-icon-down"><mat-icon>link_off</mat-icon></div>
         <div class="kpi-body">
-          <span class="kpi-value">{{ kpis.horas | number:'1.0-2' }} h · {{ kpis.dias | number:'1.0-2' }} d</span>
-          <span class="kpi-label">Horas y días reportados</span>
+          <span class="kpi-value">{{ kpis.sin_homologacion | number }}</span>
+          <span class="kpi-label">Sin homologación</span>
         </div>
       </div>
       <div class="kpi">
-        <div class="kpi-icon kpi-icon-money"><mat-icon>payments</mat-icon></div>
+        <div class="kpi-icon kpi-icon-money"><mat-icon>report</mat-icon></div>
         <div class="kpi-body">
-          <span class="kpi-value">{{ kpis.valor | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-          <span class="kpi-label">Valor informado</span>
+          <span class="kpi-value">{{ kpis.rechazadas + kpis.bloqueadas | number }}</span>
+          <span class="kpi-label">Rechazadas / bloqueadas</span>
         </div>
       </div>
     </div>
@@ -167,6 +157,13 @@
                  placeholder="Empleado, documento, código o concepto...">
         </mat-form-field>
 
+        <mat-button-toggle-group class="nat-toggle" [value]="filtroOrigen"
+                                 (change)="cambiarFiltroOrigen($event.value)" hideSingleSelectionIndicator>
+          <mat-button-toggle value="TODOS">Todas</mat-button-toggle>
+          <mat-button-toggle value="TNL">TNL</mat-button-toggle>
+          <mat-button-toggle value="MANUAL">Manuales</mat-button-toggle>
+        </mat-button-toggle-group>
+
         <mat-button-toggle-group class="nat-toggle" [value]="filtroNaturaleza"
                                  (change)="cambiarFiltroNaturaleza($event.value)" hideSingleSelectionIndicator>
           <mat-button-toggle value="TODAS">Todas</mat-button-toggle>
@@ -177,6 +174,21 @@
 
         <span class="toolbar-spacer"></span>
 
+        <input type="file" #tnlFileInput hidden
+               accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+               (change)="onArchivoTnl($event)">
+        <button mat-stroked-button class="btn-export" (click)="abrirSelectorTnl()"
+                [disabled]="importandoTnl"
+                matTooltip="Cargar el archivo TNL: cada fila queda en el histórico con su origen">
+          <mat-icon>{{ importandoTnl ? 'hourglass_top' : 'upload_file' }}</mat-icon>
+          {{ importandoTnl ? 'Importando…' : 'Importar TNL' }}
+        </button>
+        <button mat-stroked-button class="btn-export" (click)="generarIpanema()"
+                [disabled]="generandoIpanema"
+                matTooltip="Excel operacional IPANEMA generado desde la base de datos">
+          <mat-icon>{{ generandoIpanema ? 'hourglass_top' : 'grid_on' }}</mat-icon>
+          {{ generandoIpanema ? 'Generando…' : 'Excel IPANEMA' }}
+        </button>
         <button mat-stroked-button class="btn-export" (click)="exportarExcel()"
                 [disabled]="!dataSource.data.length" matTooltip="Descargar lo listado en Excel">
           <mat-icon>file_download</mat-icon>
@@ -196,6 +208,16 @@
       </div>
 
       <table mat-table [dataSource]="dataSource" matSort>
+
+        <ng-container matColumnDef="origen">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Origen </th>
+          <td mat-cell *matCellDef="let row">
+            <span class="badge" [ngClass]="row.origen === 'TNL' ? 'origen-tnl' : 'origen-manual'"
+                  [matTooltip]="row.archivo_origen ? (row.archivo_origen + (row.fila_origen ? ' · fila ' + row.fila_origen : '')) : ''">
+              {{ row.origen }}
+            </span>
+          </td>
+        </ng-container>
 
         <ng-container matColumnDef="empleado">
           <th mat-header-cell *matHeaderCellDef mat-sort-header> Empleado </th>
@@ -229,11 +251,12 @@
         <ng-container matColumnDef="cantidad">
           <th mat-header-cell *matHeaderCellDef mat-sort-header> Cantidad </th>
           <td mat-cell *matCellDef="let row">
-            <span *ngIf="row.cantidad != null" class="cantidad-cell">
-              {{ row.cantidad | number:'1.0-2' }}
-              <em>{{ row.unidad === 'HORA' ? 'h' : row.unidad === 'DIA' ? 'días' : '' }}</em>
+            <span *ngIf="row.horas != null || row.dias != null" class="cantidad-cell">
+              <ng-container *ngIf="row.horas != null">{{ row.horas | number:'1.0-2' }} <em>h</em></ng-container>
+              <ng-container *ngIf="row.horas != null && row.dias != null"> · </ng-container>
+              <ng-container *ngIf="row.dias != null">{{ row.dias | number:'1.0-2' }} <em>días</em></ng-container>
             </span>
-            <span *ngIf="row.cantidad == null" class="muted">—</span>
+            <span *ngIf="row.horas == null && row.dias == null" class="muted">—</span>
           </td>
         </ng-container>
 
@@ -260,22 +283,31 @@
           </td>
         </ng-container>
 
-        <ng-container matColumnDef="observacion">
-          <th mat-header-cell *matHeaderCellDef> Observación </th>
-          <td mat-cell *matCellDef="let row" class="obs-cell" [matTooltip]="row.observacion || ''">
-            {{ row.observacion || '—' }}
+        <ng-container matColumnDef="estado">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Estado </th>
+          <td mat-cell *matCellDef="let row">
+            <span class="badge" [ngClass]="badgeEstado(row.estado)"
+                  [matTooltip]="(row.motivo || '') + (row.aplicaciones ? ' · ' + row.aplicaciones + ' aplicación(es)' : '')">
+              {{ etiquetaEstado(row.estado) }}
+            </span>
           </td>
         </ng-container>
 
         <ng-container matColumnDef="acciones">
           <th mat-header-cell *matHeaderCellDef class="th-acciones"> Acciones </th>
           <td mat-cell *matCellDef="let row" class="td-acciones">
-            <button mat-icon-button color="primary" matTooltip="Editar novedad" (click)="editarNovedad(row)">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button color="warn" matTooltip="Anular novedad" (click)="anularNovedad(row)">
-              <mat-icon>delete_outline</mat-icon>
-            </button>
+            <ng-container *ngIf="esEditable(row)">
+              <button mat-icon-button color="primary" matTooltip="Editar novedad" (click)="editarNovedad(row)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" matTooltip="Anular novedad" (click)="anularNovedad(row)">
+                <mat-icon>delete_outline</mat-icon>
+              </button>
+            </ng-container>
+            <span *ngIf="!esEditable(row)" class="muted"
+                  [matTooltip]="row.origen === 'TNL'
+                    ? 'Las novedades TNL se gestionan desde su importación'
+                    : 'Ya fue aplicada por un cierre: se conserva en el histórico'">—</span>
           </td>
         </ng-container>
 
@@ -283,12 +315,12 @@
         <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
 
         <tr class="mat-row" *matNoDataRow>
-          <td class="mat-cell" colspan="8">
+          <td class="mat-cell" colspan="9">
             <div class="empty-state" *ngIf="!isLoading">
               <mat-icon>note_add</mat-icon>
-              <p *ngIf="!novedades.length">Aún no hay novedades registradas para este periodo.</p>
+              <p *ngIf="!novedades.length">Aún no hay novedades para este periodo: regístrelas o importe el TNL.</p>
               <p *ngIf="novedades.length">Ninguna novedad coincide con el filtro actual.</p>
-              <button *ngIf="!novedades.length && backendDisponible" mat-flat-button color="primary"
+              <button *ngIf="!novedades.length" mat-flat-button color="primary"
                       (click)="nuevaNovedad()">
                 <mat-icon>add</mat-icon>
                 Registrar la primera novedad

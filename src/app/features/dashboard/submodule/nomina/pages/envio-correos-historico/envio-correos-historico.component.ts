@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Title } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -17,6 +18,9 @@ import Swal from 'sweetalert2';
 import {
   EnvioCorreosService, EnvioItem, EnvioLote, EstadoEnvioItem, PeriodoDisponible,
 } from '../../service/envio-correos/envio-correos.service';
+import {
+  VisorDocumentoComponent, VisorDocumentoData,
+} from '../../components/visor-documento/visor-documento.component';
 
 /**
  * Nómina → Envío de correos (modelo antiguo) → Histórico.
@@ -30,7 +34,7 @@ import {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule, FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule,
+    CommonModule, FormsModule, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule,
     MatIconModule, MatPaginatorModule, MatProgressBarModule, MatSelectModule,
     MatTableModule, MatTooltipModule,
   ],
@@ -40,6 +44,7 @@ import {
 export class EnvioCorreosHistoricoComponent implements OnInit {
   private srv = inject(EnvioCorreosService);
   private titulo = inject(Title);
+  private dialog = inject(MatDialog);
 
   readonly cargando = signal(false);
   readonly periodos = signal<PeriodoDisponible[]>([]);
@@ -124,9 +129,19 @@ export class EnvioCorreosHistoricoComponent implements OnInit {
     this.cargarItems();
   }
 
+  /** Visor con JWT: una navegación directa a /api/v1/documents/** da 401. */
   verDocumento(item: EnvioItem): void {
     if (!item.document_id) return;
-    window.open(this.srv.urlDocumento(item.document_id), '_blank', 'noopener');
+    this.dialog.open<VisorDocumentoComponent, VisorDocumentoData>(VisorDocumentoComponent, {
+      data: {
+        documentId: item.document_id,
+        nombreArchivo: item.nombre_archivo,
+        cedula: item.cedula,
+        titulo: item.nombre,
+      },
+      width: '900px',
+      maxWidth: '95vw',
+    });
   }
 
   etiquetaEstado(estado: EstadoEnvioItem | string): string {

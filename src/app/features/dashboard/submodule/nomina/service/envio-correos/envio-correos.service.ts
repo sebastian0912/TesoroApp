@@ -359,9 +359,18 @@ export class EnvioCorreosService {
     return this.http.get<CruceRespuesta>(`${this.nomina}/cruce`, { params });
   }
 
-  /** URL de descarga/visor del documento interno (reemplaza el link de Drive). */
-  urlDocumento(documentId: number): string {
-    return `${this.api}/api/v1/documents/${documentId}/download`;
+  /**
+   * Descarga el documento interno como blob.
+   *
+   * NO se puede usar `window.open(url)`: `/api/v1/documents/**` no está en
+   * `GATEWAY_AUTH_PUBLIC_PATHS`, así que el gateway exige JWT y una navegación
+   * directa responde 401 — el documento no abre nunca. Pasando por HttpClient,
+   * el `authInterceptor` añade el token. Es el patrón que ya usan afiliaciones
+   * y gestión documental.
+   */
+  descargarDocumento(documentId: number): Observable<Blob> {
+    return this.http.get(`${this.api}/api/v1/documents/${documentId}/download`,
+      { responseType: 'blob' });
   }
 
   // ── Fase 2: plantillas ─────────────────────────────────────────────────────

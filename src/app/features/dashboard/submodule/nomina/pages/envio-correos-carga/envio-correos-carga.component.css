@@ -297,3 +297,61 @@ code {
   .compacto { width: 100%; min-width: 120px; }
   .ruta { max-width: 180px; }
 }
+
+/* ── Tabla de proceso de la subida ────────────────────────────────────── */
+.progreso-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.titulo-proceso {
+  margin: 22px 0 10px;
+  font-size: .95rem;
+  font-weight: 600;
+}
+
+.titulo-proceso .tenue { font-weight: 400; }
+
+/* Con 200+ tandas la tabla no puede empujar la página hasta el infinito. */
+.tabla-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: 6px;
+}
+
+.chip-info { background: #e8f0fe; color: #134DA8; }
+
+.girando {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  animation: gira 1.1s linear infinite;
+}
+
+@keyframes gira { to { transform: rotate(360deg); } }
+
+/* Respeta a quien pide menos movimiento en el sistema. */
+@media (prefers-reduced-motion: reduce) {
+  .girando { animation: none; }
+}
+
+.fallidos { color: #9c2d12; }
+
+/* ── Contenido de la carga ────────────────────────────────────────────── */
+.fila-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.fila-cabecera h3 { margin-bottom: 4px; }
+
+.btn-doc {
+  --mdc-outlined-button-container-height: 30px;
+  font-size: .78rem;
+}

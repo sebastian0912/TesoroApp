@@ -348,3 +348,15 @@ table { width: 100%; }
   .hero-steps { flex-direction: column; }
   .step-arrow { transform: rotate(90deg); }
 }
+
+/* ── Histórico común (V36): origen y estado ─────────────────────────────── */
+.badge.origen-tnl     { background: #e3f2fd; color: #1565c0; }
+.badge.origen-manual  { background: #ede7f6; color: #5e35b1; }
+
+.badge.estado-pendiente { background: #fff8e1; color: #b26a00; }
+.badge.estado-parcial   { background: #e1f5fe; color: #0277bd; }
+.badge.estado-aplicada  { background: #e8f5e9; color: #2e7d32; }
+.badge.estado-sinhom    { background: #fbe9e7; color: #d84315; }
+.badge.estado-rechazada { background: #ffebee; color: #c62828; }
+.badge.estado-bloqueada { background: #eceff1; color: #546e7a; }
+.badge.estado-otra      { background: #f3f4f6; color: #4b5563; }

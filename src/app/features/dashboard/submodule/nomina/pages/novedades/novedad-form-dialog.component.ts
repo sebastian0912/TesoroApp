@@ -487,7 +487,8 @@ export class NovedadFormDialogComponent implements OnInit {
 
     this.guardando = true;
     const req$ = this.isEditing
-      ? this.nominaService.actualizarNovedadPeriodo(this.data.novedad!.id!, base)
+      ? this.nominaService.actualizarNovedadPeriodo(
+            this.data.novedad!.id!, this.data.cliente.id_entidad, base)
       : this.nominaService.crearNovedadPeriodo(base);
 
     req$.subscribe({

@@ -722,6 +722,65 @@ export interface TnlImportacionResponse {
   conceptos_sin_homologacion: TnlConceptoSinHomologacion[];
   detalle: TnlFilaImportada[];
   warnings: string[];
+  /** Cabecera de importación (V36): trazabilidad archivo/fila. */
+  importacion_id?: number | null;
+  /** Filas persistidas con estado SIN_HOMOLOGACION (V36, §16). */
+  filas_sin_homologacion?: number;
+  /** Desglose §46: con/sin fechas, con horas/días/valor, hoja BASE. */
+  desglose_contenido?: Record<string, number> | null;
+}
+
+// ── Histórico COMÚN de novedades (V36): TNL + MANUAL en un solo modelo ─────
+export interface NovedadComun {
+  id: number;
+  origen: 'TNL' | 'MANUAL' | 'API' | 'IMPORTACION' | 'OTRO';
+  id_cliente?: number | null;
+  documento: string;
+  nombre_empleado?: string | null;
+  codigo_concepto: string;
+  descripcion_concepto?: string | null;
+  naturaleza?: string | null;
+  unidad?: 'HORA' | 'DIA' | 'VALOR' | null;
+  fecha_inicio?: string | null;
+  fecha_fin?: string | null;
+  horas?: number | null;
+  dias?: number | null;
+  valor?: number | null;
+  estado: string;
+  motivo?: string | null;
+  importacion_id?: number | null;
+  archivo_origen?: string | null;
+  fila_origen?: number | null;
+  periodo_carga_id?: number | null;
+  aplicaciones: number;
+  creado_por?: string | null;
+  creado_at?: string | null;
+}
+
+export interface HistoricoNovedadesKpis {
+  total: number;
+  pendientes: number;
+  parcialmente_aplicadas: number;
+  aplicadas: number;
+  sin_homologacion: number;
+  rechazadas: number;
+  bloqueadas: number;
+  anuladas: number;
+  origen_tnl: number;
+  origen_manual: number;
+}
+
+export interface HistoricoNovedadesResponse {
+  items: NovedadComun[];
+  kpis: HistoricoNovedadesKpis;
+}
+
+export interface NovedadComunDetalle {
+  novedad: NovedadComun;
+  datos_origen: Record<string, unknown> | null;
+  importacion: Record<string, unknown> | null;
+  aplicaciones_realizadas: Array<Record<string, unknown>>;
+  periodos_afectados: number[];
 }
 
 export interface TnlRegistro {
@@ -1454,13 +1513,51 @@ export class NominaService {
     return this.http.post<NovedadPeriodo>(`${this.baseNovedadesPeriodo}/`, data);
   }
 
-  actualizarNovedadPeriodo(id: number, data: Partial<NovedadPeriodo>): Observable<NovedadPeriodo> {
-    return this.http.patch<NovedadPeriodo>(`${this.baseNovedadesPeriodo}/${id}/`, data);
+  /** PATCH con scoping por tenant: el backend exige cliente_id y no permite
+   *  tocar novedades de otra empresa usuaria (responde 404). */
+  actualizarNovedadPeriodo(id: number, clienteId: number,
+                           data: Partial<NovedadPeriodo>): Observable<NovedadPeriodo> {
+    return this.http.patch<NovedadPeriodo>(`${this.baseNovedadesPeriodo}/${id}/`, data,
+      { params: { cliente_id: String(clienteId) } });
   }
 
   /** Anulación lógica: la novedad deja de ser candidata al cálculo. */
-  anularNovedadPeriodo(id: number): Observable<NovedadPeriodo> {
-    return this.http.delete<NovedadPeriodo>(`${this.baseNovedadesPeriodo}/${id}/`);
+  anularNovedadPeriodo(id: number, clienteId: number): Observable<NovedadPeriodo> {
+    return this.http.delete<NovedadPeriodo>(`${this.baseNovedadesPeriodo}/${id}/`,
+      { params: { cliente_id: String(clienteId) } });
+  }
+
+  // ── HISTÓRICO COMÚN de novedades (TNL + MANUAL en un solo modelo, V36) ────
+  private baseNovedadesComun = `${environment.apiUrl}/api/nomina/novedades`;
+
+  /** Vista unificada del periodo con KPIs por estado y origen. */
+  getHistoricoNovedadesComun(opts: {
+    clienteId: number; periodoId: number; origen?: 'TNL' | 'MANUAL' | null; q?: string | null;
+  }): Observable<HistoricoNovedadesResponse> {
+    const params: Record<string, string> = {
+      cliente_id: String(opts.clienteId),
+      periodo_id: String(opts.periodoId),
+    };
+    if (opts.origen) params['origen'] = opts.origen;
+    if (opts.q && opts.q.trim()) params['q'] = opts.q.trim();
+    return this.http.get<HistoricoNovedadesResponse>(
+      `${this.baseNovedadesComun}/historico`, { params });
+  }
+
+  /** Detalle §47: normalizado + fila original completa + aplicaciones. */
+  getDetalleNovedadComun(origen: 'TNL' | 'MANUAL', id: number,
+                          clienteId: number): Observable<NovedadComunDetalle> {
+    return this.http.get<NovedadComunDetalle>(
+      `${this.baseNovedadesComun}/historico/${origen}/${id}`,
+      { params: { cliente_id: String(clienteId) } });
+  }
+
+  /** Excel operacional IPANEMA generado DESDE BD (el motor nunca lo lee). */
+  exportIpanemaXlsx(clienteId: number, periodoId: number): Observable<Blob> {
+    return this.http.get(`${this.baseNovedadesComun}/export-ipanema`, {
+      params: { cliente_id: String(clienteId), periodo_id: String(periodoId) },
+      responseType: 'blob',
+    });
   }
 
   // ── ENTIDADES EXTERNAS (mantenimiento general con borrado lógico) ─────────

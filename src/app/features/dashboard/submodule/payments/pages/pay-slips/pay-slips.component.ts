@@ -137,10 +137,29 @@ export class PaySlipsComponent implements OnInit {
       prefijos.some((p) => (d?.type_name ?? '').toUpperCase().includes(p))) ?? null;
   }
 
+  /**
+   * Abre el documento interno.
+   *
+   * No vale `window.open(url)`: `/api/v1/documents/**` exige JWT en el gateway
+   * y una navegación directa responde 401 — el documento no abre nunca. Se baja
+   * por HttpClient (el authInterceptor pone el token) y se abre desde un object
+   * URL local.
+   */
   abrirDocumentoInterno(doc: any): void {
     if (!doc?.document_id) return;
-    window.open(`${environment.apiUrl}/api/v1/documents/${doc.document_id}/download`,
-      '_blank', 'noopener');
+    this.paymentsService.descargarDocumento(doc.document_id).subscribe({
+      next: (blob: Blob) => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener');
+        // Se revoca con holgura: si se libera al instante, la pestaña nueva
+        // puede no haber terminado de leerlo.
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
+      error: () => Swal.fire({
+        icon: 'error', title: 'Error',
+        text: 'No se pudo abrir el documento.',
+      }),
+    });
   }
 
 
