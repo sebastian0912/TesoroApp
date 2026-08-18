@@ -65,6 +65,11 @@
     <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [pageSizeOptions]="[10, 20, 50]"
       [defaultPageSize]="10" [isLoading]="loading()">
 
+      <!-- Avatar por fila: cada uno pide su propia foto sólo si el listado dice que la tiene -->
+      <ng-template appCellTemplate="foto" let-row>
+        <app-user-avatar [userId]="row.id" [tieneFoto]="row.tiene_foto" [iniciales]="row.iniciales" />
+      </ng-template>
+
       <!-- Acciones por fila -->
       <ng-template #actionsTemplate let-row>
         <div class="actions-flex">

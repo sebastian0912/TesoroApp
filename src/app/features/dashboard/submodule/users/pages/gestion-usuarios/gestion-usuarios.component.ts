@@ -13,6 +13,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import Swal from 'sweetalert2';
 import { UserPermissionsDialogComponent } from '../../components/user-permissions-dialog/user-permissions-dialog.component';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
+import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
+import { UserAvatarComponent } from '../../components/user-avatar/user-avatar.component';
 
 @Component({
   selector: 'app-gestion-usuarios',
@@ -25,6 +27,8 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
     MatDialogModule,
     StandardFilterTable,
     MatProgressSpinnerModule,
+    ColumnCellTemplateDirective,
+    UserAvatarComponent,
   ],
   templateUrl: './gestion-usuarios.component.html',
   styleUrl: './gestion-usuarios.component.css',
@@ -49,6 +53,8 @@ export class GestionUsuariosComponent implements OnInit {
   public readonly rows = computed(() => {
     return this.users().map(u => ({
       id: u.id,
+      tiene_foto: !!u.tiene_foto,
+      iniciales: this.inicialesDe(u),
       estado: !!u.estado_solicitudes,
       correo: u.correo_electronico ?? '—',
       tipo_documento: u.tipo_documento ?? '—',
@@ -86,8 +92,17 @@ export class GestionUsuariosComponent implements OnInit {
     });
   }
 
+  /** Iniciales de respaldo cuando el usuario no tiene foto. */
+  private inicialesDe(u: UsuarioDetail): string {
+    const n = (u.datos_basicos?.nombres ?? '').trim();
+    const a = (u.datos_basicos?.apellidos ?? '').trim();
+    const ini = `${n.charAt(0)}${a.charAt(0)}`.toUpperCase();
+    return ini || (u.correo_electronico ?? '?').charAt(0).toUpperCase();
+  }
+
   // --- DEFINICIÓN DE COLUMNAS ---
   public readonly columns: ColumnDefinition[] = [
+    { name: 'foto', header: 'Foto', type: 'custom', width: '72px', sortable: false, filterable: false },
     {
       name: 'estado', header: 'Estado', type: 'status', width: '110px',
       statusConfig: {

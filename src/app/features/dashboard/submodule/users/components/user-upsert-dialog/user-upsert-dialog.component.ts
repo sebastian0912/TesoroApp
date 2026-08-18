@@ -12,7 +12,8 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { AdminService, ActualizarUsuarioPayload, UsuarioDetail } from '../../services/admin.service';
-import { forkJoin, Observable, of } from 'rxjs';
+import { forkJoin, Observable, of, switchMap } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 
 export interface UserUpsertData {
@@ -27,6 +28,7 @@ export interface UserUpsertData {
     sede?: { id: string; nombre: string; activa: boolean } | null;
     rol?: { nombre: string; id?: string } | null;
     datos_basicos?: { nombres: string; apellidos: string; celular?: string | null } | null;
+    tiene_foto?: boolean;
   } | null;
 }
 
@@ -61,6 +63,26 @@ export class UserUpsertDialogComponent implements OnInit {
   hidePw = signal(true);
   hidePw2 = signal(true);
   changePw = signal(false); // <- toggle para cambiar contraseña en edición
+
+  // --- FOTO DE PERFIL ---
+  /** data-URL de la foto en pantalla, o null si no hay. */
+  foto = signal<string | null>(null);
+  /** Sólo se manda al backend si el usuario la tocó: evita reescribir la misma imagen. */
+  fotoTocada = signal(false);
+  fotoCargando = signal(false);
+
+  /** Lado máximo en píxeles. Es un avatar: más resolución sólo engorda la fila en BD. */
+  private static readonly FOTO_LADO_MAX = 256;
+  /** Tope del archivo ORIGINAL que aceptamos abrir (el reescalado lo deja en ~30 KB). */
+  private static readonly FOTO_ORIGINAL_MAX_BYTES = 10 * 1024 * 1024;
+
+  /** Iniciales para el hueco cuando no hay foto. */
+  iniciales = computed(() => {
+    const n = (this.form?.get('nombres')?.value ?? '').toString().trim();
+    const a = (this.form?.get('apellidos')?.value ?? '').toString().trim();
+    const ini = `${n.charAt(0)}${a.charAt(0)}`.toUpperCase();
+    return ini || '?';
+  });
 
   title = computed(() => (this.data.mode === 'create' ? 'Crear usuario' : 'Editar usuario'));
   isCreate = computed(() => this.data.mode === 'create');
@@ -119,6 +141,7 @@ export class UserUpsertDialogComponent implements OnInit {
 
         if (this.data.mode === 'edit' && this.data.user) {
           this.patchFormWithUser(this.data.user);
+          if (this.data.user.tiene_foto) this.cargarFotoExistente(this.data.user.id);
         }
         this.loading.set(false);
       },
@@ -144,6 +167,81 @@ export class UserUpsertDialogComponent implements OnInit {
     if (!this.isCreate()) {
       this.onToggleChangePw(false);
     }
+  }
+
+  /** Trae la foto ya guardada. Si falla se sigue con las iniciales: no bloquea la edición. */
+  private cargarFotoExistente(id: string): void {
+    this.fotoCargando.set(true);
+    this.adminService.obtenerFoto(id).subscribe({
+      next: r => { this.foto.set(r?.foto ?? null); this.fotoCargando.set(false); },
+      error: () => this.fotoCargando.set(false),
+    });
+  }
+
+  /**
+   * Reescala en el navegador antes de subir. Sin esto una foto de móvil (varios MB) viajaría
+   * entera y acabaría en una fila de db_admin; el backend además la rechazaría por tamaño.
+   */
+  async onArchivoFoto(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ''; // permite volver a elegir el MISMO archivo tras quitarlo
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      Swal.fire({ title: 'Archivo no válido', text: 'Seleccione una imagen.', icon: 'warning',
+        customClass: { container: 'swal-over-dialog' } });
+      return;
+    }
+    if (file.size > UserUpsertDialogComponent.FOTO_ORIGINAL_MAX_BYTES) {
+      Swal.fire({ title: 'Imagen demasiado grande', text: 'El archivo supera los 10 MB.', icon: 'warning',
+        customClass: { container: 'swal-over-dialog' } });
+      return;
+    }
+
+    this.fotoCargando.set(true);
+    try {
+      this.foto.set(await this.reescalar(file));
+      this.fotoTocada.set(true);
+    } catch {
+      Swal.fire({ title: 'No se pudo leer la imagen', text: 'Pruebe con otro archivo.', icon: 'error',
+        customClass: { container: 'swal-over-dialog' } });
+    } finally {
+      this.fotoCargando.set(false);
+    }
+  }
+
+  quitarFoto(): void {
+    this.foto.set(null);
+    this.fotoTocada.set(true);
+  }
+
+  /** Recorta al cuadrado centrado y exporta JPEG. */
+  private reescalar(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('lectura'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('decodificación'));
+        img.onload = () => {
+          const lado = Math.min(img.width, img.height);
+          const destino = Math.min(lado, UserUpsertDialogComponent.FOTO_LADO_MAX);
+          const canvas = document.createElement('canvas');
+          canvas.width = destino;
+          canvas.height = destino;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { reject(new Error('canvas')); return; }
+          // Fondo blanco: el JPEG no tiene alfa y un PNG transparente saldría negro.
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, destino, destino);
+          ctx.drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, destino, destino);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   // Toggle para activar/desactivar cambio de contraseña en edición
@@ -222,8 +320,30 @@ export class UserUpsertDialogComponent implements OnInit {
             nombres: payload.nombres,
             apellidos: payload.apellidos,
             celular: payload.celular ?? null,
+            // En el alta la foto viaja en el mismo POST: si el usuario no llega a crearse,
+            // no queda una foto suelta apuntando a nadie.
+            foto: this.foto(),
           })
-        : this.adminService.actualizar(this.data.user!.id, payload, true);
+        : this.adminService.actualizar(this.data.user!.id, payload, true).pipe(
+            // En edición la foto es un recurso aparte y sólo se toca si el usuario la cambió.
+            switchMap((detail: UsuarioDetail) =>
+              this.fotoTocada()
+                ? this.adminService.guardarFoto(detail.id, this.foto()).pipe(
+                    map(() => detail),
+                    // La foto no debe tumbar un guardado que ya se aplicó: se avisa y se sigue.
+                    catchError(() => {
+                      Swal.fire({
+                        title: 'Datos guardados, foto no',
+                        text: 'Los cambios del usuario se guardaron, pero la foto no se pudo actualizar.',
+                        icon: 'warning',
+                        customClass: { container: 'swal-over-dialog' },
+                      });
+                      return of(detail);
+                    })
+                  )
+                : of(detail)
+            )
+          );
 
     req$.subscribe({
       next: (detail: UsuarioDetail) => {

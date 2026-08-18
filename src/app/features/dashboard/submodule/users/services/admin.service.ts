@@ -17,6 +17,8 @@ export interface UsuarioDetail {
   datos_basicos?: { usuario: string; nombres: string; apellidos: string; celular?: string | null } | null;
   permisos_efectivos?: Array<{ id: string; nombre: string; modulo: string; accion: string }>;
   permisos_tree?: any[];
+  /** El listado sólo trae el booleano; la foto se pide por usuario con `obtenerFoto`. */
+  tiene_foto?: boolean;
   fecha_registro?: string | null;
 }
 
@@ -38,6 +40,8 @@ export type CrearUsuarioPayload = {
   sede?: string | null;
   rol?: string | null;
   estado_solicitudes?: boolean;
+  /** data-URL ya reescalada; opcional, se guarda junto con el alta. */
+  foto?: string | null;
 };
 
 export type ActualizarUsuarioPayload = Partial<CrearUsuarioPayload>;
@@ -118,6 +122,21 @@ export class AdminService {
   /** Borrado DEFINITIVO: elimina la fila y sus dependientes (permisos, datos básicos, MFA). */
   eliminar(id: string): Observable<EliminarUsuarioResponse> {
     return this.http.delete<EliminarUsuarioResponse>(`${this.apiUrl}/gestion_admin/usuarios/${id}/`);
+  }
+
+  /**
+   * Foto de perfil. Vive en su propio endpoint a propósito: el listado devuelve las 8.000
+   * filas de golpe y meter ahí una data-URL por usuario daría una respuesta de cientos de MB.
+   */
+  obtenerFoto(id: string): Observable<{ foto: string | null }> {
+    return this.http.get<{ foto: string | null }>(`${this.apiUrl}/gestion_admin/usuarios/${id}/foto/`);
+  }
+
+  /** `foto` en null quita la existente. */
+  guardarFoto(id: string, foto: string | null): Observable<{ ok: boolean; tiene_foto: boolean }> {
+    return this.http.put<{ ok: boolean; tiene_foto: boolean }>(
+      `${this.apiUrl}/gestion_admin/usuarios/${id}/foto/`, { foto }
+    );
   }
 
   /** Baja/alta reversible: conserva la fila y su historial, solo conmuta estado_solicitudes. */
