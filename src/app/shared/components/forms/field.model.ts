@@ -95,6 +95,15 @@ export type FieldValue =
  */
 export type FieldMode = 'config' | 'preview' | 'readonly';
 
+/**
+ * Máximo de archivos por defecto POR TIPO cuando el schema no fija max_files. DEBE
+ * coincidir con los componentes de campo y con el backend (SchemaValidator): FILE=5,
+ * el resto=1. Un desajuste bloqueaba el envío de un FILE multi-archivo por defecto.
+ */
+export function defaultMaxFiles(type: FieldType): number {
+  return type === 'FILE' ? 5 : 1;
+}
+
 /** Extensión de archivo (minúsculas, sin punto) o cadena vacía. */
 export function fileExtension(filename: string | undefined | null): string {
   if (!filename) return '';
@@ -187,7 +196,7 @@ export function validateFieldValue(field: DynamicField, value: FieldValue): stri
     case 'SIGNATURE': {
       const refs = asDocumentRefs(value);
       if (refs.length === 0) return field.required ? 'Este campo es obligatorio' : null;
-      const maxFiles = type === 'SIGNATURE' ? 1 : (val.max_files ?? 1);
+      const maxFiles = val.max_files ?? defaultMaxFiles(type);
       if (refs.length > maxFiles) return `Máximo ${maxFiles} archivo(s)`;
       return null;
     }

@@ -438,6 +438,10 @@ export class PhotoFieldComponent implements OnChanges, OnDestroy {
     };
     this.slots = [...this.slots, slot];
     this.cdr.markForCheck();
+    // TODO(dynamic-forms): la ventana de compresión (antes de llamar uploadFn) no la ve
+    // el gate `subiendo()` del runtime, que cuenta por uploadFn. Un submit en esos ~200ms
+    // podría no esperar la foto. Cubrirlo bien exige un @Output uploadingChange propagado
+    // por field-renderer a los 4 tipos de media; pendiente (deuda anotada en runbook 16).
     await this.uploadSlot(slot);
   }
 

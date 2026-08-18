@@ -75,7 +75,8 @@
               }
               <div class="runtime-grid">
                 @for (f of sec.fields; track fieldKey(f)) {
-                  <div class="runtime-celda" [class.runtime-celda--full]="esAnchoCompleto(f)">
+                  <div class="runtime-celda" [id]="'df-anchor-' + fieldKey(f)"
+                       [class.runtime-celda--full]="esAnchoCompleto(f)">
                     <app-field-renderer
                         [field]="f"
                         mode="preview"

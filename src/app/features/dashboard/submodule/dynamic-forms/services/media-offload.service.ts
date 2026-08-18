@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { environment } from '@/environments/environment';
+import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
 import { DocumentRef } from '../models/dynamic-forms.models';
 
 /** Respuesta snake_case de upload-by-owner en ms-documents. */
@@ -53,16 +54,9 @@ export class MediaOffloadService {
     return `${this.base}/${ref.document_id}/download`;
   }
 
-  /** Owner del documento = usuario autenticado (fallback al formulario). */
+  /** Owner del documento = usuario autenticado (helper canónico), fallback al formulario. */
   private ownerId(formId: number): string {
-    try {
-      const raw = localStorage.getItem('user');
-      const user = raw ? JSON.parse(raw) : null;
-      const id = user?.id ?? user?.user_id ?? null;
-      if (id) return String(id);
-    } catch {
-      /* usuario ilegible: cae al fallback */
-    }
-    return `dfform-${formId}`;
+    const id = obtenerUsuarioActual().id;
+    return id ? id : `dfform-${formId}`;
   }
 }

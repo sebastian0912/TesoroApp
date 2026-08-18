@@ -310,14 +310,20 @@ export class FormRuntimeComponent {
     return payload;
   }
 
-  /** NUNCA bloquear en silencio: scroll suave y foco al primer campo inválido. */
+  /**
+   * NUNCA bloquear en silencio: scroll suave y foco al primer campo inválido.
+   * Se ancla a la CELDA (id df-anchor-<name>, presente para TODOS los tipos) y no al
+   * input, porque dropdown/choice/signature no exponen id=df-<name>. Como respaldo,
+   * intenta también el input df-<name> para enfocar el control cuando existe.
+   */
   private irAlPrimerInvalido(nombres: string[]): void {
     for (const nombre of nombres) {
-      const el = document.getElementById(`df-${nombre}`);
+      const el = document.getElementById(`df-anchor-${nombre}`) ?? document.getElementById(`df-${nombre}`);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const focusable = document.getElementById(`df-${nombre}`) ?? el;
         try {
-          el.focus({ preventScroll: true });
+          (focusable as HTMLElement).focus({ preventScroll: true });
         } catch {
           /* elemento no enfocable: el scroll ya lo señala */
         }

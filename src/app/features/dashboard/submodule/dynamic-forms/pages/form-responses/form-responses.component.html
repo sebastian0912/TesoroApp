@@ -4,7 +4,7 @@
     <!-- Header estándar de la plataforma -->
     <mat-card-header class="card-header-premium">
       <div class="header-content">
-        <a mat-icon-button class="btn-volver" [routerLink]="['..']"
+        <a mat-icon-button class="btn-volver" [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos']"
            matTooltip="Volver al listado de formularios"
            aria-label="Volver al listado de formularios">
           <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
@@ -23,7 +23,7 @@
       </div>
 
       <div class="header-actions">
-        <a mat-stroked-button class="btn-header" [routerLink]="['..', formId(), 'analitica']">
+        <a mat-stroked-button class="btn-header" [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos', formId(), 'analitica']">
           <span class="material-symbols-outlined" aria-hidden="true">monitoring</span>
           Analítica
         </a>
