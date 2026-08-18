@@ -117,6 +117,109 @@
           </section>
         }
 
+        <!-- Ubicación en el menú: editable SOLO en creación (en edición se gestiona desde el listado) -->
+        @if (!esEdicion()) {
+          <section class="fb-panel">
+            <h2 class="fb-panel__titulo">
+              <span class="material-symbols-outlined" aria-hidden="true">account_tree</span>
+              Ubicación en el menú
+            </h2>
+            <p class="fb-ayuda">
+              Elige dónde aparecerá el formulario en el menú lateral. Puedes dejarlo sin publicar
+              y ubicarlo más tarde desde el listado.
+            </p>
+
+            <label class="fb-switch">
+              <input type="checkbox"
+                     [ngModel]="noPublicar()" (ngModelChange)="noPublicar.set($event)" />
+              <span class="fb-switch__pista" aria-hidden="true"></span>
+              <span>No publicar por ahora (queda pendiente)</span>
+            </label>
+
+            @if (!noPublicar()) {
+              <div class="fb-meta" style="margin-top: 10px;">
+                <div class="fb-campo fb-campo--full">
+                  <label>Módulo padre</label>
+                  <app-module-tree-picker [value]="ubicPadre()"
+                                          (valueChange)="ubicPadre.set($event)"
+                                          (nodeChange)="ubicPadreNodo.set($event)" />
+                </div>
+
+                <div class="fb-campo">
+                  <label for="fb-ubic-label">Etiqueta en el menú</label>
+                  <input id="fb-ubic-label" type="text" maxlength="120"
+                         [ngModel]="ubicLabel()" (ngModelChange)="ubicLabel.set($event)"
+                         [placeholder]="nombre() || 'Nombre visible en el menú'" />
+                </div>
+
+                <div class="fb-campo">
+                  <label for="fb-ubic-orden">Orden</label>
+                  <input id="fb-ubic-orden" type="number" min="0" step="1"
+                         [ngModel]="ubicOrden()" (ngModelChange)="ubicOrden.set($event)"
+                         placeholder="Automático" />
+                </div>
+
+                <div class="fb-campo fb-campo--full">
+                  <label for="fb-ubic-icono">Icono (Material Symbol)</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input id="fb-ubic-icono" type="text" maxlength="60" style="flex:1 1 auto; min-width:0;"
+                           [ngModel]="ubicIcono()" (ngModelChange)="ubicIcono.set($event)"
+                           placeholder="dynamic_form" />
+                    <span style="flex-shrink:0; width:44px; height:44px; border:1px solid var(--slate-200);
+                                 border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
+                                 background: var(--slate-50);">
+                      <span class="material-symbols-outlined" aria-hidden="true"
+                            style="font-size:24px; color:var(--navy);">{{ ubicIcono() || 'dynamic_form' }}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <label class="fb-switch fb-campo--full">
+                  <input type="checkbox"
+                         [ngModel]="ubicRespuestas()" (ngModelChange)="ubicRespuestas.set($event)" />
+                  <span class="fb-switch__pista" aria-hidden="true"></span>
+                  <span>Crear también entrada para ver respuestas</span>
+                </label>
+
+                @if (rutaUbicPreview()) {
+                  <div class="fb-campo--full"
+                       style="display:flex; flex-direction:column; gap:10px; padding:12px;
+                              border:1px dashed var(--slate-200); border-radius:12px; background:var(--slate-50);">
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0; color:var(--slate-700);">
+                      <span class="material-symbols-outlined" aria-hidden="true"
+                            style="font-size:20px; color:var(--slate-500); flex-shrink:0;">link</span>
+                      <code style="overflow-x:auto; white-space:nowrap; font-family:'Roboto Mono',monospace;
+                                   font-size:0.82rem; color:var(--navy);">{{ rutaUbicPreview() }}</code>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <span style="font-size:0.78rem; color:var(--muted);">En el menú:</span>
+                      <span style="display:inline-flex; align-items:center; gap:10px; padding:8px 14px;
+                                   border-radius:10px; background:var(--navy); color:#fff; max-width:100%;">
+                        <span class="material-symbols-outlined" aria-hidden="true"
+                              style="font-size:20px; color:var(--lime); flex-shrink:0;">{{ ubicIcono() || 'dynamic_form' }}</span>
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                          {{ ubicLabel().trim() || nombre() || 'Formulario' }}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </section>
+        } @else {
+          <section class="fb-panel">
+            <h2 class="fb-panel__titulo">
+              <span class="material-symbols-outlined" aria-hidden="true">account_tree</span>
+              Ubicación en el menú
+            </h2>
+            <p class="fb-ayuda">
+              La ubicación en el menú (Publicar / Mover / Desvincular) se gestiona desde el listado.
+              Editar la estructura no la modifica.
+            </p>
+          </section>
+        }
+
         <!-- Secciones con las tarjetas de campo -->
         @for (sec of sections(); track $index; let si = $index) {
           <section class="fb-seccion"

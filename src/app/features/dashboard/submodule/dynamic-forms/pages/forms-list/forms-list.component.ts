@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
@@ -20,13 +20,21 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
+import { environment } from '@/environments/environment';
 import { DynamicFormService } from '../../services/dynamic-form.service';
+import { PlacementService } from '../../services/placement.service';
 import { ApiProblem, FormDetail, FormSummary, ProvisioningResult } from '../../models/dynamic-forms.models';
+import { Placement, PlacementStatus } from '../../models/placement.models';
 import { PublicLinksDialogComponent, PublicLinksDialogData } from '../../components/public-links-dialog/public-links-dialog.component';
+import { PlacementDialogComponent, PlacementDialogData } from '../../components/placement-dialog/placement-dialog.component';
 import { leerUsuarioCrudo } from '@/app/core/utils/usuario-actual';
+import { setLocalStorageItem } from '@/app/core/utils/safe-storage';
 
 /** Filtro de estado del listado. `todos` no manda el parámetro `active`. */
 type FiltroEstado = 'todos' | 'activos' | 'inactivos';
+
+/** Filtro solo-cliente por estado de ubicación en el menú. */
+type FiltroUbic = 'todos' | PlacementStatus;
 
 /**
  * True si el usuario logueado puede borrar DEFINITIVAMENTE un formulario.
@@ -71,6 +79,8 @@ function calcularEsAdmin(): boolean {
 })
 export class FormsListComponent {
   private svc = inject(DynamicFormService);
+  private placementSvc = inject(PlacementService);
+  private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
 
@@ -88,8 +98,17 @@ export class FormsListComponent {
   readonly loading = signal(false);
   readonly loadError = signal(false);
   readonly filtro = signal<FiltroEstado>('todos');
+  /** Filtro solo-cliente por estado de ubicación (sobre la página ya cargada). */
+  readonly filtroUbic = signal<FiltroUbic>('todos');
   /** Id de la fila con una acción en curso (deshabilita sus botones). */
   readonly busyId = signal<number | null>(null);
+
+  /** Filas visibles tras aplicar el filtro de ubicación en cliente. */
+  readonly filasVisibles = computed<FormSummary[]>(() => {
+    const f = this.filtroUbic();
+    if (f === 'todos') return this.rows();
+    return this.rows().filter(r => this.estadoUbic(r) === f);
+  });
   /** Texto de búsqueda YA aplicado (el input escribe en `buscar$`, no aquí). */
   private readonly q = signal('');
 
@@ -204,6 +223,169 @@ export class FormsListComponent {
         this.snack.open(this.mensajeError(err, 'No se pudo reintentar el aprovisionamiento'), 'Cerrar', { duration: 5000 });
       },
     });
+  }
+
+  // ── Ubicación en el menú ────────────────────────────────────────────
+
+  /** Estado de ubicación efectivo: un summary sin dato se trata como PENDING. */
+  estadoUbic(f: FormSummary): PlacementStatus {
+    return f.placement_status ?? 'PENDING';
+  }
+
+  /** Etiqueta legible del estado de ubicación (para el badge). */
+  ubicEtiqueta(f: FormSummary): string {
+    switch (this.estadoUbic(f)) {
+      case 'LINKED': return 'Publicado';
+      case 'UNLINKED': return 'Desvinculado';
+      case 'FAILED': return 'Error';
+      default: return 'Pendiente';
+    }
+  }
+
+  setFiltroUbic(e: MatButtonToggleChange): void {
+    this.filtroUbic.set(e.value as FiltroUbic);
+  }
+
+  /** Publicar en el menú (PENDING/UNLINKED) → diálogo de ubicación en modo publish. */
+  publicar(f: FormSummary): void {
+    if (this.estadoUbic(f) === 'LINKED') return;
+    this.abrirDialogoUbicacion(f, 'publish');
+  }
+
+  /** Mover / renombrar / reordenar (LINKED) → diálogo en modo move. */
+  moverRenombrar(f: FormSummary): void {
+    if (this.estadoUbic(f) !== 'LINKED') return;
+    this.abrirDialogoUbicacion(f, 'move');
+  }
+
+  /**
+   * Carga la ubicación actual (para precargar el diálogo) y lo abre. Al cerrar
+   * con éxito, refresca el menú lateral en caliente.
+   */
+  private abrirDialogoUbicacion(f: FormSummary, mode: 'publish' | 'move'): void {
+    if (this.busyId() !== null) return;
+    this.busyId.set(f.id);
+    this.placementSvc.getPlacement(f.id).subscribe({
+      next: current => { this.busyId.set(null); this.lanzarDialogoUbicacion(f, mode, current); },
+      error: () => {
+        this.busyId.set(null);
+        if (mode === 'publish') {
+          // Sin ubicación previa legible: se publica desde cero.
+          this.lanzarDialogoUbicacion(f, mode, undefined);
+        } else {
+          this.snack.open('No se pudo cargar la ubicación actual del formulario.', 'Cerrar', { duration: 5000 });
+        }
+      },
+    });
+  }
+
+  private lanzarDialogoUbicacion(f: FormSummary, mode: 'publish' | 'move', current?: Placement): void {
+    const data: PlacementDialogData = { formId: f.id, formName: f.name, current, mode };
+    const ref = this.dialog.open(PlacementDialogComponent, {
+      data,
+      width: '760px',
+      maxWidth: '95vw',
+      autoFocus: false,
+      restoreFocus: true,
+    });
+    ref.afterClosed().subscribe((res?: Placement) => {
+      if (!res) return; // cancelado
+      const titulo = mode === 'publish' ? 'Formulario publicado en el menú' : 'Ubicación actualizada';
+      void Swal.fire({ icon: 'success', title: titulo, timer: 1400, showConfirmButton: false })
+        .then(() => this.refrescarMenuLateralYRecargar());
+    });
+  }
+
+  /** Desvincular del menú (LINKED): conserva formulario y respuestas. */
+  desvincular(f: FormSummary): void {
+    if (this.estadoUbic(f) !== 'LINKED' || this.busyId() !== null) return;
+    Swal.fire({
+      icon: 'warning',
+      title: '¿Desvincular del menú?',
+      text: `La entrada de "${f.name}" se quitará del menú. El formulario y sus respuestas se conservan; podrás volver a publicarlo cuando quieras.`,
+      showCancelButton: true,
+      confirmButtonText: 'Desvincular',
+      cancelButtonText: 'Cancelar',
+    }).then(res => {
+      if (!res.isConfirmed) return;
+      this.busyId.set(f.id);
+      this.placementSvc.unlink(f.id).subscribe({
+        next: () => {
+          this.busyId.set(null);
+          void Swal.fire({ icon: 'success', title: 'Formulario desvinculado', timer: 1400, showConfirmButton: false })
+            .then(() => this.refrescarMenuLateralYRecargar());
+        },
+        error: (err: unknown) => {
+          this.busyId.set(null);
+          this.snack.open(this.mensajeError(err, 'No se pudo desvincular el formulario'), 'Cerrar', { duration: 5000 });
+        },
+      });
+    });
+  }
+
+  /** Reintentar (FAILED): reconcilia el estado real en ms-auth-admin. */
+  reintentarUbicacion(f: FormSummary): void {
+    if (this.estadoUbic(f) !== 'FAILED' || this.busyId() !== null) return;
+    this.busyId.set(f.id);
+    this.placementSvc.retry(f.id).subscribe({
+      next: p => {
+        this.busyId.set(null);
+        const conAvisos = (p.warnings?.length ?? 0) > 0;
+        if (p.placement_status === 'FAILED' || conAvisos) {
+          const items = (p.warnings ?? []).map(w => `<li>${this.esc(w)}</li>`).join('');
+          const detalle = p.placement_error ? `<p>${this.esc(p.placement_error)}</p>` : '';
+          void Swal.fire({
+            icon: 'error',
+            title: 'La ubicación sigue en error',
+            html: `${detalle}${items ? `<ul style="text-align:left;margin:8px 0 0;padding-left:18px">${items}</ul>` : ''}`
+              || 'El reintento no completó. Intenta de nuevo más tarde.',
+            confirmButtonText: 'Entendido',
+          });
+        } else {
+          void Swal.fire({ icon: 'success', title: 'Ubicación reconciliada', timer: 1400, showConfirmButton: false })
+            .then(() => this.refrescarMenuLateralYRecargar());
+        }
+      },
+      error: (err: unknown) => {
+        this.busyId.set(null);
+        void Swal.fire({
+          icon: 'error',
+          title: 'No se pudo reintentar',
+          text: this.mensajeError(err, 'El servidor rechazó el reintento de ubicación.'),
+          confirmButtonText: 'Cerrar',
+        });
+      },
+    });
+  }
+
+  /**
+   * Refresca el menú lateral EN CALIENTE (sin cerrar sesión) tras un cambio de
+   * ubicación. El sidebar (navbar.component.ts) construye el menú desde
+   * `localStorage["user"].permisos_tree`, que sólo relee en su ngOnInit /
+   * refreshPermisos(); no hay canal para empujarle un refresco desde aquí sin
+   * tocar ese componente (fuera del alcance de este cambio). Así que replicamos
+   * su mismo GET (/gestion_admin/usuarios/{id}/), reescribimos 'user' con el
+   * árbol nuevo y recargamos la página: el navbar se reinstancia y ya pinta el
+   * módulo recién publicado/movido/desvinculado. Si el GET falla, recargamos
+   * igual — el propio refreshPermisos() del navbar hará el fetch al reiniciar.
+   */
+  private refrescarMenuLateralYRecargar(): void {
+    const recargar = () => { if (typeof window !== 'undefined') window.location.reload(); };
+    const user = leerUsuarioCrudo();
+    const idCrudo = user?.['id'];
+    const userId = idCrudo != null ? String(idCrudo) : '';
+    if (!userId) { recargar(); return; }
+    const apiUrl = environment.apiUrl.replace(/\/+$/, '');
+    this.http.get<unknown>(`${apiUrl}/gestion_admin/usuarios/${userId}/`).subscribe({
+      next: resp => { setLocalStorageItem('user', JSON.stringify(resp)); recargar(); },
+      error: () => recargar(),
+    });
+  }
+
+  /** Escapa texto que va dentro del html de un Swal. */
+  private esc(s: string): string {
+    const mapa: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return s.replace(/[&<>"']/g, c => mapa[c] ?? c);
   }
 
   // ── Acciones por fila ───────────────────────────────────────────────

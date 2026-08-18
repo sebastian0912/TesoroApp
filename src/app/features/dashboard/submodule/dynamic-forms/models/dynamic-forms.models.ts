@@ -12,6 +12,9 @@
 export * from '@/app/shared/components/forms/field.model';
 
 import { DynamicField, FieldSchema, FieldType, FieldValue } from '@/app/shared/components/forms/field.model';
+import { PlacementStatus } from './placement.models';
+
+export type { PlacementStatus } from './placement.models';
 
 export type SubmissionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 export type VersionStatus = 'PUBLISHED' | 'DEPRECATED';
@@ -56,6 +59,20 @@ export interface FormSummary {
   submissions_count: number;
   created_at: string;
   updated_at?: string | null;
+
+  // ── Ubicación en el menú (VISTA de un módulo anfitrión) ──────────────
+  // El listado los trae inline para pintar la columna "Ubicación" sin pedir el
+  // placement fila a fila. Opcionales: un summary viejo/UNLINKED puede no traerlos.
+  /** Estado de la ubicación en el menú. Ausente ⇒ tratar como PENDING. */
+  placement_status?: PlacementStatus | null;
+  /** Módulo padre bajo el que cuelga la entrada de menú (si LINKED). */
+  parent_module_id?: string | null;
+  /** Ruta bajo /dashboard de la entrada publicada (si LINKED). */
+  route_path?: string | null;
+  /** Etiqueta con la que aparece en el menú. */
+  menu_label?: string | null;
+  /** Motivo del último fallo de aprovisionamiento (si FAILED). */
+  placement_error?: string | null;
 }
 
 export interface FormDetail extends FormSummary {

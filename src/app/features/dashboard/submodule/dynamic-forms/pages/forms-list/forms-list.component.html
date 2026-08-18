@@ -51,6 +51,15 @@
         <mat-button-toggle value="inactivos">Inactivos</mat-button-toggle>
       </mat-button-toggle-group>
 
+      <mat-button-toggle-group class="filtro-estado" [value]="filtroUbic()" (change)="setFiltroUbic($event)"
+                               aria-label="Filtrar por ubicación en el menú">
+        <mat-button-toggle value="todos" matTooltip="Cualquier ubicación">Ubicación: todas</mat-button-toggle>
+        <mat-button-toggle value="LINKED">Publicados</mat-button-toggle>
+        <mat-button-toggle value="PENDING">Pendientes</mat-button-toggle>
+        <mat-button-toggle value="UNLINKED">Desvinculados</mat-button-toggle>
+        <mat-button-toggle value="FAILED">Con error</mat-button-toggle>
+      </mat-button-toggle-group>
+
       <span class="grow"></span>
       <span class="total-label" aria-live="polite">{{ total() }} formulario(s)</span>
     </div>
@@ -91,12 +100,13 @@
               <th scope="col" class="col-centrada">Respuestas</th>
               <th scope="col" class="col-centrada">Público</th>
               <th scope="col" class="col-centrada">Estado</th>
+              <th scope="col" class="col-centrada">Ubicación</th>
               <th scope="col" class="col-centrada">Actualizado</th>
               <th scope="col" class="col-acciones">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            @for (f of rows(); track f.id) {
+            @for (f of filasVisibles(); track f.id) {
               <tr [class.fila-inactiva]="!f.active" [class.fila-ocupada]="busyId() === f.id">
                 <td>
                   <div class="celda-nombre">
@@ -135,6 +145,23 @@
                     {{ f.active ? 'Activo' : 'Inactivo' }}
                   </span>
                 </td>
+                <td class="col-centrada">
+                  @if (estadoUbic(f) === 'LINKED') {
+                    <span style="color: var(--slate-500); font-size: 0.8rem; font-family: 'Roboto Mono', monospace;"
+                          [matTooltip]="f.route_path || f.menu_label || ''">
+                      {{ f.route_path || f.menu_label || '—' }}
+                    </span>
+                  } @else if (estadoUbic(f) === 'PENDING') {
+                    <span class="chip chip-neutro">Pendiente</span>
+                  } @else if (estadoUbic(f) === 'UNLINKED') {
+                    <span class="chip chip-inactivo">Desvinculado</span>
+                  } @else {
+                    <span class="chip" style="background:#fdecea; color: var(--danger); border:1px solid #f5c6c0;"
+                          [matTooltip]="f.placement_error || 'La ubicación quedó en error'">
+                      Error
+                    </span>
+                  }
+                </td>
                 <td class="col-centrada celda-fecha">{{ (f.updated_at || f.created_at) | date:'dd/MM/yyyy' }}</td>
                 <td class="col-acciones">
                   <div class="acciones-fila">
@@ -159,6 +186,31 @@
                         <mat-icon>design_services</mat-icon>
                         <span>Editar estructura</span>
                       </button>
+
+                      <!-- Ubicación en el menú -->
+                      @if (estadoUbic(f) === 'PENDING' || estadoUbic(f) === 'UNLINKED') {
+                        <button mat-menu-item (click)="publicar(f)">
+                          <mat-icon>playlist_add</mat-icon>
+                          <span>Publicar en el menú</span>
+                        </button>
+                      }
+                      @if (estadoUbic(f) === 'LINKED') {
+                        <button mat-menu-item (click)="moverRenombrar(f)">
+                          <mat-icon>drive_file_move</mat-icon>
+                          <span>Mover / renombrar</span>
+                        </button>
+                        <button mat-menu-item (click)="desvincular(f)">
+                          <mat-icon>link_off</mat-icon>
+                          <span>Desvincular del menú</span>
+                        </button>
+                      }
+                      @if (estadoUbic(f) === 'FAILED') {
+                        <button mat-menu-item (click)="reintentarUbicacion(f)">
+                          <mat-icon>autorenew</mat-icon>
+                          <span>Reintentar ubicación</span>
+                        </button>
+                      }
+
                       <button mat-menu-item (click)="abrirLinksPublicos(f)">
                         <mat-icon>link</mat-icon>
                         <span>Links públicos</span>
@@ -179,6 +231,12 @@
                       }
                     </mat-menu>
                   </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="9" class="col-centrada" style="padding: 28px 12px; color: var(--muted);">
+                  Ningún formulario de esta página coincide con el filtro de ubicación.
                 </td>
               </tr>
             }
