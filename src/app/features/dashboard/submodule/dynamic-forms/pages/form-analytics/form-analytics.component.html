@@ -9,12 +9,12 @@
       <div class="header-text">
         <h1 class="titulo">Analítica de respuestas</h1>
         <p class="subtitulo">
-          {{ formulario()?.name || 'Formulario #' + formId }} — totales por estado, evolución diaria y distribución por campo.
+          {{ formulario()?.name || 'Formulario #' + formId() }} — totales por estado, evolución diaria y distribución por campo.
         </p>
       </div>
       <span class="grow" aria-hidden="true"></span>
       <div class="header-actions">
-        <a class="btn-header" [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos', formId, 'respuestas']">
+        <a class="btn-header" [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos', formId(), 'respuestas']">
           <span class="material-symbols-outlined" aria-hidden="true">list_alt</span>
           Ver respuestas
         </a>

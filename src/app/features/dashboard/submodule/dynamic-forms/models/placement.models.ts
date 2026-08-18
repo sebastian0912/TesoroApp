@@ -45,14 +45,32 @@ export interface PlacementRequest {
   fill_role_ids?: string[];
 }
 
-/** Resolución de una ruta a un formulario (canMatch / deep links). */
+/** Vista que expone un formulario como entrada de menú. */
+export type FormView = 'fill' | 'responses' | 'supports' | 'analytics';
+
+/** Resolución de una ruta a un formulario + qué vista mostrar (canMatch / deep links). */
 export interface RouteResolution {
   form_id: number;
   module_id?: string | null;
   menu_label?: string | null;
   route_path?: string | null;
+  /** Vista a montar según el sufijo de la ruta. */
+  view?: FormView;
   /** No nulo si la ruta pedida es un alias: el front debe redirigir aquí. */
   canonical_route_path?: string | null;
   /** true si el formulario quedó UNLINKED (padre/módulo borrado a mano). */
   unlinked?: boolean;
+}
+
+/** Un archivo adjunto de una respuesta (vista Soportes). */
+export interface SupportFile {
+  submission_id: number;
+  submitted_at?: string | null;
+  section: string;
+  field_name: string;
+  document_id: number;
+  filename?: string | null;
+  mime_type?: string | null;
+  size?: number | null;
+  download_url: string;
 }

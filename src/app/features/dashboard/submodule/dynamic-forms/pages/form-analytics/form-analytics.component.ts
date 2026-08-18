@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, LOCALE_ID, computed, inject, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, Input, LOCALE_ID, OnInit, computed, inject, signal,
 } from '@angular/core';
 import { CommonModule, formatCurrency, formatNumber } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -74,7 +74,20 @@ interface CampoDistribucion {
   templateUrl: './form-analytics.component.html',
   styleUrl: './form-analytics.component.css',
 })
-export class FormAnalyticsComponent {
+export class FormAnalyticsComponent implements OnInit {
+  /**
+   * Id inyectado por el DISPATCHER (form-view-host); reacciona también si el host
+   * reutiliza el componente para otro formulario. Sin input, se lee de la ruta
+   * clásica :formId/analitica.
+   */
+  @Input() set formIdInput(id: number | undefined) {
+    if (id != null && Number.isFinite(id) && id > 0) {
+      this.idPorInput = id;
+      this.inicializar(id);
+    }
+  }
+  private idPorInput?: number;
+
   private analyticsSvc = inject(FormAnalyticsService);
   private formSvc = inject(DynamicFormService);
   private route = inject(ActivatedRoute);
@@ -82,7 +95,7 @@ export class FormAnalyticsComponent {
   private destroyRef = inject(DestroyRef);
   private locale = inject(LOCALE_ID);
 
-  readonly formId = Number(this.route.snapshot.paramMap.get('formId'));
+  readonly formId = signal<number>(0);
 
   // ── Estado de la vista ─────────────────────────────────────────────
   readonly cargando = signal(true);
@@ -95,14 +108,25 @@ export class FormAnalyticsComponent {
   readonly hasta = signal('');
   readonly filtroAplicado = signal<{ from?: string; to?: string } | null>(null);
 
-  constructor() {
-    if (!Number.isFinite(this.formId) || this.formId <= 0) {
+  ngOnInit(): void {
+    // Con id del host, el setter ya inicializó: no se lee la ruta.
+    if (this.idPorInput != null) return;
+    this.inicializar(Number(this.route.snapshot.paramMap.get('formId')));
+  }
+
+  /** Fija el formId, resetea filtros y dispara la carga de contexto + analítica. */
+  private inicializar(id: number): void {
+    this.formId.set(id);
+    this.desde.set('');
+    this.hasta.set('');
+    this.filtroAplicado.set(null);
+    if (!Number.isFinite(id) || id <= 0) {
       this.cargando.set(false);
       this.error.set('El identificador del formulario en la URL no es válido.');
       return;
     }
     // El nombre del formulario es contexto, no bloquea la analítica si falla.
-    this.formSvc.get(this.formId)
+    this.formSvc.get(id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: f => this.formulario.set(f),
@@ -116,7 +140,7 @@ export class FormAnalyticsComponent {
   cargar(): void {
     this.cargando.set(true);
     this.error.set(null);
-    this.analyticsSvc.analytics(this.formId, this.filtroAplicado() ?? {})
+    this.analyticsSvc.analytics(this.formId(), this.filtroAplicado() ?? {})
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => {

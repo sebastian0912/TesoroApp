@@ -65,11 +65,13 @@ export const routes: Routes = [
       // catch-all. El guard pregunta al backend si la URL (que no matcheó ninguna ruta
       // real) es un formulario; si no, devuelve false y cae al `**` → home. Así un
       // formulario colgado de p. ej. Nómina › Novedades vive en su URL canónica.
+      // Carga el DISPATCHER (form-view-host), que resuelve la vista (Formulario /
+      // Respuestas / Soportes / Analítica) y monta el hijo correspondiente.
       {
         path: '**',
         canMatch: [dynamicFormRouteMatch],
         loadComponent: () =>
-          import('./submodule/dynamic-forms/pages/form-runtime/form-runtime.component').then(m => m.FormRuntimeComponent),
+          import('./submodule/dynamic-forms/pages/form-view-host/form-view-host.component').then(m => m.FormViewHostComponent),
       },
 
       { path: '**', redirectTo: '' },

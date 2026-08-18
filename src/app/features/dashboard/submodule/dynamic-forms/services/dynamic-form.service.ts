@@ -12,6 +12,7 @@ import {
   ProvisioningResult,
   VersionInfo,
 } from '../models/dynamic-forms.models';
+import { SupportFile } from '../models/placement.models';
 
 /**
  * Formularios Dinámicos — gestión (ms-forms vía gateway, /api/dynamic-forms).
@@ -83,6 +84,18 @@ export class DynamicFormService {
 
   versions(id: number): Observable<VersionInfo[]> {
     return this.http.get<VersionInfo[]>(`${this.base}/forms/${id}/versions`);
+  }
+
+  /**
+   * Archivos adjuntos (soportes) de las respuestas de un formulario, paginados en
+   * el servidor. Cada elemento es un documento subido en un campo PHOTO/FILE/... de
+   * una respuesta; el JWT lo agrega el auth.interceptor.
+   */
+  supports(id: number, page = 0, size = 25): Observable<PageResult<SupportFile>> {
+    const params = new HttpParams()
+      .set('page', String(page))
+      .set('size', String(size));
+    return this.http.get<PageResult<SupportFile>>(`${this.base}/forms/${id}/supports`, { params });
   }
 
   provisionRetry(id: number): Observable<ProvisioningResult> {

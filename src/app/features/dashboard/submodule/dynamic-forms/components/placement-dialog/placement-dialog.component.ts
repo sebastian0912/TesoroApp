@@ -8,7 +8,6 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { PlacementService } from '../../services/placement.service';
@@ -43,8 +42,8 @@ export function derivarSlug(texto: string): string {
  *
  * Publica (POST /placement, idempotente) o mueve/renombra/reordena (PATCH). El
  * formulario es una VISTA de un módulo anfitrión: se elige el módulo padre con
- * el árbol, la etiqueta, el icono y el orden, y opcionalmente una entrada gemela
- * para ver las respuestas (con su propio padre si se quiere). Muestra en vivo la
+ * el árbol, la etiqueta, el icono y el orden. El backend crea SIEMPRE las 4 vistas
+ * (Formulario, Respuestas, Soportes y Analítica) bajo ese padre. Muestra en vivo la
  * ruta final y cómo se verá la entrada en el sidebar.
  *
  * Al confirmar: si la respuesta trae `warnings` o `placement_status === 'FAILED'`
@@ -57,7 +56,7 @@ export function derivarSlug(texto: string): string {
   imports: [
     CommonModule, FormsModule,
     MatDialogModule, MatButtonModule, MatFormFieldModule, MatInputModule,
-    MatSlideToggleModule, MatSnackBarModule,
+    MatSnackBarModule,
     ModuleTreePickerComponent,
   ],
   template: `
@@ -117,25 +116,11 @@ export function derivarSlug(texto: string): string {
             <mat-hint>Opcional. Posición entre los hermanos.</mat-hint>
           </mat-form-field>
 
-          <!-- Entrada gemela para respuestas -->
-          <mat-slide-toggle class="pd-toggle" [ngModel]="respuestas()"
-                            (ngModelChange)="respuestas.set($event)">
-            Crear también entrada para ver respuestas
-          </mat-slide-toggle>
-
-          @if (respuestas()) {
-            <label class="pd-check">
-              <input type="checkbox" [ngModel]="otroPadreResp()"
-                     (ngModelChange)="otroPadreResp.set($event)" name="otroPadreResp" />
-              Usar un módulo distinto para las respuestas
-            </label>
-            @if (otroPadreResp()) {
-              <app-module-tree-picker [value]="padreResp()"
-                                      (valueChange)="padreResp.set($event)" />
-            } @else {
-              <p class="pd-ayuda pd-ayuda--sutil">Las respuestas colgarán del mismo módulo padre.</p>
-            }
-          }
+          <!-- El backend crea SIEMPRE las 4 vistas del formulario bajo el módulo padre. -->
+          <p class="pd-info-vistas" role="note">
+            <span class="material-symbols-outlined" aria-hidden="true">info</span>
+            Se crearán 4 entradas en el menú: Formulario, Respuestas, Soportes y Analítica.
+          </p>
         </section>
       </div>
 
@@ -235,15 +220,19 @@ export function derivarSlug(texto: string): string {
 
     .pd-campo--orden { max-width: 200px; }
 
-    .pd-toggle { margin-top: 4px; }
-    .pd-check {
+    .pd-info-vistas {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 8px;
-      font-size: 0.85rem;
-      color: var(--text);
-      cursor: pointer;
+      margin: 6px 0 0;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      color: var(--slate-700);
+      font-size: 0.82rem;
     }
+    .pd-info-vistas .material-symbols-outlined { font-size: 20px; color: var(--navy); flex-shrink: 0; }
 
     .pd-preview {
       display: flex;
@@ -311,12 +300,6 @@ export class PlacementDialogComponent {
   readonly menuLabel = signal<string>(this.data.current?.menu_label || this.data.formName);
   readonly icono = signal<string>(this.data.current?.module_icon || 'dynamic_form');
   readonly orden = signal<number | null>(this.data.current?.module_order_no ?? null);
-  readonly respuestas = signal<boolean>(this.data.current?.responses_menu_enabled ?? true);
-  readonly otroPadreResp = signal<boolean>(
-    !!this.data.current?.responses_parent_module_id
-    && this.data.current?.responses_parent_module_id !== this.data.current?.parent_module_id,
-  );
-  readonly padreResp = signal<string | null>(this.data.current?.responses_parent_module_id ?? null);
 
   readonly guardando = signal(false);
 
@@ -341,17 +324,14 @@ export class PlacementDialogComponent {
       return;
     }
 
+    // El backend crea SIEMPRE las 4 vistas; no se envía responses_menu_enabled.
     const req: PlacementRequest = {
       parent_module_id: padre,
       menu_label: this.menuLabel().trim() || this.data.formName,
       icon: this.icono().trim() || 'dynamic_form',
-      responses_menu_enabled: this.respuestas(),
     };
     const orden = this.orden();
     if (orden != null && Number.isFinite(Number(orden))) req.order_no = Number(orden);
-    if (this.respuestas() && this.otroPadreResp() && this.padreResp()) {
-      req.responses_parent_module_id = this.padreResp();
-    }
 
     this.guardando.set(true);
     const op$ = this.esMover ? this.svc.move(this.data.formId, req) : this.svc.place(this.data.formId, req);

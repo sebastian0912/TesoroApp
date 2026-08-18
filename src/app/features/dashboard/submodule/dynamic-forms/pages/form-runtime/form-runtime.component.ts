@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Input, OnInit, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
@@ -47,7 +47,22 @@ type EstadoCarga = 'cargando' | 'listo' | 'error';
   templateUrl: './form-runtime.component.html',
   styleUrls: ['./form-runtime.component.css'],
 })
-export class FormRuntimeComponent {
+export class FormRuntimeComponent implements OnInit {
+  /**
+   * Id inyectado por el DISPATCHER (form-view-host): cuando llega, el runtime
+   * arranca directo con ese id y NO resuelve la ruta ni toca el título (de eso se
+   * encarga el host). Sin input, se conserva el camino clásico paramMap/URL.
+   */
+  @Input() set formIdInput(id: number | undefined) {
+    if (id != null && Number.isFinite(id) && id > 0) {
+      this.idPorInput = id;
+      this.tituloExterno = true;
+      this.iniciar(id, null);
+    }
+  }
+  private idPorInput?: number;
+  private tituloExterno = false;
+
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
@@ -89,13 +104,17 @@ export class FormRuntimeComponent {
   /** Etiqueta del menú (para el título de página); la trae el placement/resolve. */
   private menuLabel: string | null = null;
 
-  constructor() {
-    // Dos formas de entrar:
+  ngOnInit(): void {
+    // Cuando el DISPATCHER ya inyectó el id, el setter arrancó la carga: no se
+    // resuelve la ruta (evita doble resolución).
+    if (this.idPorInput != null) return;
+
+    // Dos formas de entrar (uso clásico, sin host):
     //  (a) ruta canónica del módulo anfitrión (…/nomina/novedades/x, SIN :formId): se
     //      resuelve el formId por route_path — así el formulario es una vista del módulo.
     //  (b) ruta vieja `llenar/:formId`: se conserva por compat; si el formulario ya está
     //      LINKED, se redirige a su ruta canónica (replaceUrl).
-    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe(pm => {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(pm => {
       const idParam = Number(pm.get('formId'));
       if (Number.isFinite(idParam) && idParam > 0) {
         this.entrarPorId(idParam);
@@ -144,7 +163,8 @@ export class FormRuntimeComponent {
   private iniciar(id: number, menuLabel: string | null): void {
     this.formId = id;
     this.menuLabel = menuLabel;
-    if (menuLabel) this.titleService.setTitle(menuLabel);
+    // El host (dispatcher) ya fija el título con la etiqueta del menú: no lo pisamos.
+    if (menuLabel && !this.tituloExterno) this.titleService.setTitle(menuLabel);
     this.reiniciar();
     this.structure.set(null);
     this.cargar();
@@ -178,8 +198,9 @@ export class FormRuntimeComponent {
         next: st => {
           this.structure.set(st);
           this.estado.set('listo');
-          // Título de página = etiqueta del menú, o el nombre del formulario como respaldo.
-          if (!this.menuLabel && st.form_name) this.titleService.setTitle(st.form_name);
+          // Título de página = etiqueta del menú, o el nombre del formulario como respaldo
+          // (salvo que el host ya gobierne el título).
+          if (!this.menuLabel && !this.tituloExterno && st.form_name) this.titleService.setTitle(st.form_name);
         },
         error: (err: HttpErrorResponse) => {
           const p = this.comoProblema(err);

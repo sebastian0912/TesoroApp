@@ -36,6 +36,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/form-response-detail/form-response-detail.component').then(m => m.FormResponseDetailComponent),
   },
   {
+    path: ':formId/soportes',
+    loadComponent: () => import('./pages/form-supports/form-supports.component').then(m => m.FormSupportsComponent),
+  },
+  {
     path: ':formId/analitica',
     loadComponent: () => import('./pages/form-analytics/form-analytics.component').then(m => m.FormAnalyticsComponent),
   },

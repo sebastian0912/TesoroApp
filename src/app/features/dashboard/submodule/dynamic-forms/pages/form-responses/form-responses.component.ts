@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, formatCurrency, formatNumber } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -63,7 +63,21 @@ const TIPOS_ESCALARES: ReadonlySet<FieldType> = new Set<FieldType>([
   templateUrl: './form-responses.component.html',
   styleUrls: ['./form-responses.component.css'],
 })
-export class FormResponsesComponent {
+export class FormResponsesComponent implements OnInit {
+  /**
+   * Id inyectado por el DISPATCHER (form-view-host). Cuando llega, la vista se
+   * inicializa con ese id sin mirar la ruta; el setter también reacciona si el host
+   * reutiliza el componente y cambia de formulario. Sin input, se lee `formId` de la
+   * ruta clásica :formId/respuestas.
+   */
+  @Input() set formIdInput(id: number | undefined) {
+    if (id != null && Number.isFinite(id) && id > 0) {
+      this.idPorInput = id;
+      this.inicializar(id);
+    }
+  }
+  private idPorInput?: number;
+
   private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
   private formsSvc = inject(DynamicFormService);
@@ -123,19 +137,26 @@ export class FormResponsesComponent {
     return cols;
   });
 
-  constructor() {
+  ngOnInit(): void {
+    // Con id inyectado por el host, el setter ya inicializó: no se lee la ruta.
+    if (this.idPorInput != null) return;
     // El formId llega por la ruta; si cambia (navegación entre formularios) se reinicia todo.
-    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe(pm => {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(pm => {
       const id = Number(pm.get('formId'));
       if (!Number.isFinite(id) || id <= 0) return;
-      this.formId.set(id);
-      this.versionFiltro.set(null);
-      this.estadoFiltro.set('');
-      this.pagina.set(0);
-      this.cargarBase(id);
-      this.cargarEstructura();
-      this.cargarRespuestas();
+      this.inicializar(id);
     });
+  }
+
+  /** Reinicia filtros/paginación y carga base, estructura y respuestas del formulario `id`. */
+  private inicializar(id: number): void {
+    this.formId.set(id);
+    this.versionFiltro.set(null);
+    this.estadoFiltro.set('');
+    this.pagina.set(0);
+    this.cargarBase(id);
+    this.cargarEstructura();
+    this.cargarRespuestas();
   }
 
   // ── Filtros / paginación ────────────────────────────────────────────
