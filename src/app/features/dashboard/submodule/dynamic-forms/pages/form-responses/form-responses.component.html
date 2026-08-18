@@ -1,0 +1,144 @@
+<div class="respuestas-page">
+  <mat-card class="premium-card">
+
+    <!-- Header estándar de la plataforma -->
+    <mat-card-header class="card-header-premium">
+      <div class="header-content">
+        <a mat-icon-button class="btn-volver" [routerLink]="['..']"
+           matTooltip="Volver al listado de formularios"
+           aria-label="Volver al listado de formularios">
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        </a>
+        <div class="header-icon-container">
+          <span class="material-symbols-outlined header-icon" aria-hidden="true">fact_check</span>
+        </div>
+        <div class="header-text">
+          <mat-card-title class="titulo">Respuestas · {{ form()?.name || 'Formulario' }}</mat-card-title>
+          <mat-card-subtitle class="subtitulo">
+            {{ total() }} respuesta(s)
+            @if (form()?.current_version) { · versión vigente v{{ form()?.current_version }} }
+          </mat-card-subtitle>
+        </div>
+        <div class="grow"></div>
+      </div>
+
+      <div class="header-actions">
+        <a mat-stroked-button class="btn-header" [routerLink]="['..', formId(), 'analitica']">
+          <span class="material-symbols-outlined" aria-hidden="true">monitoring</span>
+          Analítica
+        </a>
+        <button mat-flat-button class="btn-header btn-header--primario"
+                (click)="exportarExcel()"
+                [disabled]="exportando() || total() === 0"
+                matTooltip="Excel con los filtros aplicados (versión y estado)">
+          <span class="material-symbols-outlined" aria-hidden="true">download</span>
+          {{ exportando() ? 'Descargando…' : 'Exportar Excel' }}
+        </button>
+      </div>
+    </mat-card-header>
+
+    <mat-card-content class="contenido">
+
+      <!-- Filtros -->
+      <div class="filtros">
+        <mat-form-field appearance="outline" class="filtro">
+          <mat-label>Versión</mat-label>
+          <mat-select [value]="versionFiltro()" (selectionChange)="onVersionChange($event.value)">
+            <mat-option [value]="null">Todas las versiones</mat-option>
+            @for (v of versiones(); track v.id) {
+              <mat-option [value]="v.version">
+                v{{ v.version }} · {{ v.status === 'PUBLISHED' ? 'vigente' : 'obsoleta' }}
+                @if (v.submissions_count != null) { · {{ v.submissions_count }} resp. }
+              </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filtro">
+          <mat-label>Estado</mat-label>
+          <mat-select [value]="estadoFiltro()" (selectionChange)="onEstadoChange($event.value)">
+            @for (e of ESTADOS; track e.valor) {
+              <mat-option [value]="e.valor">{{ e.etiqueta }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      @if (cargando()) {
+        <mat-progress-bar mode="indeterminate" aria-label="Cargando respuestas"></mat-progress-bar>
+      }
+
+      @if (filas().length > 0) {
+        <!-- La tabla scrollea en su contenedor: la página nunca desborda horizontal -->
+        <div class="tabla-scroll">
+          <table class="tabla" aria-label="Respuestas del formulario">
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Versión</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Enviado</th>
+                <th scope="col">Usuario</th>
+                @for (col of columnas(); track col.seccion + '.' + col.nombre) {
+                  <th scope="col">{{ col.etiqueta }}</th>
+                }
+                <th scope="col" class="col-acciones">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (fila of filas(); track fila.id) {
+                <tr>
+                  <td class="celda-id">#{{ fila.id }}</td>
+                  <td>{{ fila.version != null ? 'v' + fila.version : '—' }}</td>
+                  <td>
+                    <span [class]="estadoClase(fila.status)">{{ estadoEtiqueta(fila.status) }}</span>
+                  </td>
+                  <td>{{ fila.submitted_at ? (fila.submitted_at | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
+                  <td [class.celda-anonimo]="!fila.created_by">{{ usuarioDe(fila) }}</td>
+                  @for (col of columnas(); track col.seccion + '.' + col.nombre) {
+                    <td class="celda-valor" [title]="valorCelda(fila, col)">{{ valorCelda(fila, col) }}</td>
+                  }
+                  <td class="col-acciones">
+                    <a mat-icon-button [routerLink]="[fila.id]"
+                       matTooltip="Ver detalle" aria-label="Ver detalle de la respuesta">
+                      <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                    </a>
+                    @if (fila.status === 'SUBMITTED') {
+                      <button mat-icon-button class="btn-aprobar"
+                              (click)="cambiarEstado(fila, 'APPROVED')"
+                              [disabled]="procesandoId() === fila.id"
+                              matTooltip="Aprobar" aria-label="Aprobar respuesta">
+                        <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                      </button>
+                      <button mat-icon-button class="btn-rechazar"
+                              (click)="cambiarEstado(fila, 'REJECTED')"
+                              [disabled]="procesandoId() === fila.id"
+                              matTooltip="Rechazar" aria-label="Rechazar respuesta">
+                        <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
+                      </button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <mat-paginator
+          [length]="total()"
+          [pageIndex]="pagina()"
+          [pageSize]="tamano()"
+          [pageSizeOptions]="[10, 25, 50, 100]"
+          (page)="onPage($event)"
+          aria-label="Paginación de respuestas">
+        </mat-paginator>
+      } @else if (!cargando()) {
+        <div class="vacio">
+          <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
+          <p>No hay respuestas con los filtros actuales.</p>
+        </div>
+      }
+
+    </mat-card-content>
+  </mat-card>
+</div>

@@ -1,0 +1,195 @@
+<mat-card class="premium-card">
+
+  <!-- Header estándar de la plataforma -->
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">dynamic_form</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Formularios Dinámicos</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Crea, publica y administra los formularios de la plataforma.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
+    <div class="header-actions">
+      <button mat-icon-button class="btn-refresh" (click)="cargar()" [disabled]="loading()"
+              matTooltip="Actualizar" aria-label="Actualizar listado de formularios">
+        <mat-icon>refresh</mat-icon>
+      </button>
+      <button mat-flat-button class="btn-managerial"
+              [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos/builder']">
+        <mat-icon>add</mat-icon>
+        <span>Nuevo formulario</span>
+      </button>
+    </div>
+  </mat-card-header>
+
+  <mat-card-content class="card-content">
+
+    <!-- Búsqueda (con debounce) + filtro de estado -->
+    <div class="filters-row">
+      <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+        <mat-label>Buscar</mat-label>
+        <input matInput #buscador type="text" autocomplete="off"
+               placeholder="Nombre, código o descripción"
+               (input)="onSearchInput(buscador.value)"
+               aria-label="Buscar formularios">
+        <mat-icon matPrefix class="prefix-icon">search</mat-icon>
+        @if (buscador.value) {
+          <button mat-icon-button matSuffix aria-label="Limpiar búsqueda" matTooltip="Limpiar"
+                  (click)="buscador.value = ''; onSearchInput('')">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </mat-form-field>
+
+      <mat-button-toggle-group class="filtro-estado" [value]="filtro()" (change)="setFiltro($event)"
+                               aria-label="Filtrar formularios por estado">
+        <mat-button-toggle value="todos">Todos</mat-button-toggle>
+        <mat-button-toggle value="activos">Activos</mat-button-toggle>
+        <mat-button-toggle value="inactivos">Inactivos</mat-button-toggle>
+      </mat-button-toggle-group>
+
+      <span class="grow"></span>
+      <span class="total-label" aria-live="polite">{{ total() }} formulario(s)</span>
+    </div>
+
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate" aria-label="Cargando formularios"></mat-progress-bar>
+    }
+
+    @if (loadError()) {
+      <!-- Falló la carga: estado con reintento -->
+      <div class="estado-vacio" role="alert">
+        <span class="material-symbols-outlined vacio-icon">cloud_off</span>
+        <p>No se pudo cargar el listado de formularios.</p>
+        <button mat-stroked-button (click)="cargar()">
+          <mat-icon>refresh</mat-icon>
+          Reintentar
+        </button>
+      </div>
+    } @else if (!loading() && rows().length === 0) {
+      <!-- Sin resultados -->
+      <div class="estado-vacio">
+        <span class="material-symbols-outlined vacio-icon">quiz</span>
+        <p>No hay formularios que coincidan con la búsqueda.</p>
+        <button mat-flat-button class="btn-managerial"
+                [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos/builder']">
+          <mat-icon>add</mat-icon>
+          Crear el primero
+        </button>
+      </div>
+    } @else if (rows().length > 0) {
+      <div class="table-scroll">
+        <table class="tabla-forms" aria-label="Listado de formularios dinámicos">
+          <thead>
+            <tr>
+              <th scope="col">Formulario</th>
+              <th scope="col">Categoría</th>
+              <th scope="col" class="col-centrada">Versión</th>
+              <th scope="col" class="col-centrada">Respuestas</th>
+              <th scope="col" class="col-centrada">Público</th>
+              <th scope="col" class="col-centrada">Estado</th>
+              <th scope="col" class="col-centrada">Actualizado</th>
+              <th scope="col" class="col-acciones">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (f of rows(); track f.id) {
+              <tr [class.fila-inactiva]="!f.active" [class.fila-ocupada]="busyId() === f.id">
+                <td>
+                  <div class="celda-nombre">
+                    <span class="nombre">{{ f.name }}</span>
+                    <span class="codigo">{{ f.code }}</span>
+                  </div>
+                  @if (provisioningIncompleto(f)) {
+                    <!-- El módulo de menú quedó a medias (partial/failed/skipped) -->
+                    <div class="badge-prov" role="status">
+                      <span class="material-symbols-outlined badge-icon" aria-hidden="true">warning</span>
+                      <span class="badge-texto">Módulo de menú incompleto</span>
+                      <button mat-stroked-button class="btn-retry" (click)="reintentarModulo(f)"
+                              [disabled]="busyId() === f.id">
+                        <mat-icon>autorenew</mat-icon>
+                        Reintentar módulo
+                      </button>
+                    </div>
+                  }
+                </td>
+                <td class="celda-categoria">{{ f.category || '—' }}</td>
+                <td class="col-centrada">
+                  @if (f.current_version != null) {
+                    <span class="chip chip-version">v{{ f.current_version }}</span>
+                  } @else {
+                    <span class="sin-dato">Sin publicar</span>
+                  }
+                </td>
+                <td class="col-centrada">{{ f.submissions_count | number }}</td>
+                <td class="col-centrada">
+                  <span class="chip" [class.chip-si]="f.is_public" [class.chip-neutro]="!f.is_public">
+                    {{ f.is_public ? 'Sí' : 'No' }}
+                  </span>
+                </td>
+                <td class="col-centrada">
+                  <span class="chip" [class.chip-activo]="f.active" [class.chip-inactivo]="!f.active">
+                    {{ f.active ? 'Activo' : 'Inactivo' }}
+                  </span>
+                </td>
+                <td class="col-centrada celda-fecha">{{ (f.updated_at || f.created_at) | date:'dd/MM/yyyy' }}</td>
+                <td class="col-acciones">
+                  <div class="acciones-fila">
+                    <button mat-icon-button matTooltip="Llenar" aria-label="Llenar formulario"
+                            [routerLink]="[base, 'llenar', f.id]" [disabled]="!f.active">
+                      <mat-icon>edit_note</mat-icon>
+                    </button>
+                    <button mat-icon-button matTooltip="Respuestas" aria-label="Ver respuestas"
+                            [routerLink]="[base, f.id, 'respuestas']">
+                      <mat-icon>list_alt</mat-icon>
+                    </button>
+                    <button mat-icon-button matTooltip="Analítica" aria-label="Ver analítica"
+                            [routerLink]="[base, f.id, 'analitica']">
+                      <mat-icon>monitoring</mat-icon>
+                    </button>
+                    <button mat-icon-button matTooltip="Más acciones" aria-label="Más acciones"
+                            [matMenuTriggerFor]="menuFila" [disabled]="busyId() === f.id">
+                      <mat-icon>more_vert</mat-icon>
+                    </button>
+                    <mat-menu #menuFila="matMenu">
+                      <button mat-menu-item [routerLink]="[base, f.id, 'editar']">
+                        <mat-icon>design_services</mat-icon>
+                        <span>Editar estructura</span>
+                      </button>
+                      <button mat-menu-item (click)="abrirLinksPublicos(f)">
+                        <mat-icon>link</mat-icon>
+                        <span>Links públicos</span>
+                      </button>
+                      <button mat-menu-item (click)="duplicar(f)">
+                        <mat-icon>content_copy</mat-icon>
+                        <span>Duplicar</span>
+                      </button>
+                      <button mat-menu-item (click)="toggleActivo(f)">
+                        <mat-icon>{{ f.active ? 'toggle_off' : 'toggle_on' }}</mat-icon>
+                        <span>{{ f.active ? 'Desactivar' : 'Activar' }}</span>
+                      </button>
+                      @if (esAdmin) {
+                        <button mat-menu-item class="menu-peligro" (click)="eliminarDefinitivo(f)">
+                          <mat-icon class="icono-peligro">delete_forever</mat-icon>
+                          <span>Eliminar definitivo</span>
+                        </button>
+                      }
+                    </mat-menu>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <mat-paginator [length]="total()" [pageIndex]="page()" [pageSize]="size()"
+                     [pageSizeOptions]="[10, 25, 50]" (page)="onPage($event)"
+                     showFirstLastButtons aria-label="Paginación de formularios">
+      </mat-paginator>
+    }
+  </mat-card-content>
+</mat-card>

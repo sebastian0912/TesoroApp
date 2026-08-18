@@ -16,4 +16,10 @@ import { CorreosElectronicosComponent } from './pages/correos-electronicos/corre
 export const routes: Routes = [
   { path: '', redirectTo: '/dashboard/users/manage-users', pathMatch: 'full' },
   { path: 'correos-electronicos', component: CorreosElectronicosComponent },
+  // Formularios Dinámicos (constructor + llenado + respuestas + analítica).
+  // El módulo de menú ya existe en db_admin (Administracion → Formularios dinamicos).
+  {
+    path: 'formularios-dinamicos',
+    loadChildren: () => import('../dynamic-forms/dynamic-forms.routes').then(m => m.routes),
+  },
 ];

@@ -1,0 +1,131 @@
+<div class="runtime-page">
+
+  <!-- Header estándar de página (card-header-premium) -->
+  <header class="card-header-premium" role="banner">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <span class="material-symbols-outlined header-icon" aria-hidden="true">edit_note</span>
+      </div>
+      <div class="header-text">
+        <h1 class="titulo">{{ structure()?.form_name || 'Formulario' }}</h1>
+        @if (structure()?.form_description) {
+          <p class="subtitulo">{{ structure()?.form_description }}</p>
+        }
+      </div>
+    </div>
+  </header>
+
+  @switch (estado()) {
+
+    @case ('cargando') {
+      <div class="runtime-estado" role="status" aria-live="polite">
+        <span class="spinner spinner--grande" aria-hidden="true"></span>
+        <p>Cargando formulario…</p>
+      </div>
+    }
+
+    @case ('error') {
+      <div class="runtime-estado runtime-estado--error" role="alert">
+        <span class="material-symbols-outlined runtime-estado__icono" aria-hidden="true">error</span>
+        <p>{{ errorCarga() }}</p>
+        <div class="runtime-estado__acciones">
+          <button type="button" class="btn btn--primario" (click)="recargar()">
+            <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+            Reintentar
+          </button>
+          <button type="button" class="btn btn--secundario" (click)="volver()">
+            <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+            Volver
+          </button>
+        </div>
+      </div>
+    }
+
+    @default {
+
+      @if (enviado()) {
+        <!-- ÉXITO: pantalla de gracias -->
+        <section class="runtime-gracias" role="status">
+          <span class="material-symbols-outlined runtime-gracias__icono" aria-hidden="true">task_alt</span>
+          <h2 class="runtime-gracias__titulo">¡Respuesta enviada!</h2>
+          <p class="runtime-gracias__texto">
+            Gracias por diligenciar «{{ structure()?.form_name }}». Tu respuesta quedó registrada correctamente.
+          </p>
+          <div class="runtime-gracias__acciones">
+            <button type="button" class="btn btn--primario" (click)="enviarOtra()">
+              <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+              Enviar otra respuesta
+            </button>
+            <button type="button" class="btn btn--secundario" (click)="volver()">
+              <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+              Volver
+            </button>
+          </div>
+        </section>
+
+      } @else if (structure(); as st) {
+
+        <form class="runtime-form" (submit)="onSubmit($event)" novalidate [attr.aria-busy]="enviando()">
+
+          @for (sec of st.sections; track sectionKey(sec, $index)) {
+            @let secKey = sectionKey(sec, $index);
+            <section class="runtime-seccion">
+              @if (sec.title) {
+                <h2 class="runtime-seccion__titulo">{{ sec.title }}</h2>
+              }
+              <div class="runtime-grid">
+                @for (f of sec.fields; track fieldKey(f)) {
+                  <div class="runtime-celda" [class.runtime-celda--full]="esAnchoCompleto(f)">
+                    <app-field-renderer
+                        [field]="f"
+                        mode="preview"
+                        [value]="valorDe(secKey, f)"
+                        [sectionValues]="f.type === 'SECTION' ? seccionValores(secKey) : null"
+                        [showErrors]="showErrors()"
+                        [uploadFn]="uploadFn"
+                        [downloadUrlFn]="downloadUrlFn"
+                        (valueChange)="setValue(secKey, fieldKey(f), $event)"
+                        (childChange)="setValue(secKey, fieldKey($event.field), $event.value)" />
+                  </div>
+                }
+              </div>
+            </section>
+          }
+
+          <!-- Barra de acciones -->
+          <div class="runtime-acciones">
+            @if (subiendo() > 0) {
+              <span class="runtime-subiendo" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                Subiendo archivos… ({{ subiendo() }})
+              </span>
+            }
+            @if (draftId(); as id) {
+              <span class="runtime-borrador">Borrador #{{ id }} guardado</span>
+            }
+            <button type="button" class="btn btn--secundario"
+                    (click)="guardarBorrador()"
+                    [disabled]="enviando() || guardandoBorrador()">
+              @if (guardandoBorrador()) {
+                <span class="spinner" aria-hidden="true"></span>
+              } @else {
+                <span class="material-symbols-outlined" aria-hidden="true">save</span>
+              }
+              Guardar borrador
+            </button>
+            <button type="submit" class="btn btn--primario"
+                    [disabled]="enviando() || guardandoBorrador()">
+              @if (enviando()) {
+                <span class="spinner" aria-hidden="true"></span>
+              } @else {
+                <span class="material-symbols-outlined" aria-hidden="true">send</span>
+              }
+              {{ enviando() ? 'Enviando…' : 'Enviar' }}
+            </button>
+          </div>
+
+        </form>
+      }
+    }
+  }
+</div>
