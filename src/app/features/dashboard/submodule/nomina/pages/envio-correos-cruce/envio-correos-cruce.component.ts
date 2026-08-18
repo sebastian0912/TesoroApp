@@ -100,11 +100,17 @@ export class EnvioCorreosCruceComponent implements OnInit {
    * Cartas de retiro, Cesantías, Entrevista): de un vistazo se ve a quién le
    * falta QUÉ, no solo si le falta "algo".
    */
-  readonly columnas = computed<string[]>(() => [
-    'cedula', 'nombre', 'correo',
-    ...this.tiposPresentes().map((t) => `tipo:${t}`),
-    'enviado',
-  ]);
+  readonly columnas = computed<string[]>(() => {
+    const tipos = this.tiposPresentes();
+    return [
+      'cedula', 'nombre', 'finca', 'correo',
+      // Con cargas elegidas: una columna por tipo. Sin ellas no hay tipos que
+      // desglosar, pero seguir mostrando si la persona tiene documento o no es
+      // justo lo que se viene a mirar; si no, la tabla no dice nada.
+      ...(tipos.length ? tipos.map((t) => `tipo:${t}`) : ['archivo']),
+      'enviado',
+    ];
+  });
 
   async ngOnInit(): Promise<void> {
     this.titulo.setTitle('Cruce por quincena | Envío de correos (modelo antiguo)');

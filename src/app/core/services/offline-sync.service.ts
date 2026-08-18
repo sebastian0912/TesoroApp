@@ -277,23 +277,59 @@ export class OfflineSyncService {
       console.log(`[Cache] Refrescando ${apiUrls.length} URLs cacheadas en segundo plano...`);
       const total = apiUrls.length;
       let refreshed = 0;
+      let limitados = 0;
 
-      for (let i = 0; i < apiUrls.length; i += 3) {
+      // Ritmo del refresco.
+      //
+      // El gateway limita a 50 req/s con ráfaga de 100 POR USUARIO. Esto ya iba
+      // de 3 en 3, pero SIN PAUSA entre tandas: con respuestas de ~50 ms son
+      // ~60 req/s sostenidos, por encima del límite. Vaciaba la ráfaga y a
+      // partir de ahí caían con 429 tanto estas peticiones como las de la
+      // pantalla que el usuario tuviera abierta — que es lo grave: un refresco
+      // de fondo no puede tumbar lo que la persona está mirando.
+      //
+      // 3 peticiones cada 150 ms ≈ 20 req/s: deja sitio de sobra para el uso
+      // normal y refrescar 50 URLs sigue tardando ~2,5 s.
+      const LOTE = 3;
+      const PAUSA_MS = 150;
+      // Si aun así llega un 429, el cubo está vacío: se espera bastante más
+      // antes de seguir en vez de insistir y empeorarlo.
+      const PAUSA_TRAS_429_MS = 3000;
+      const esperar = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+      for (let i = 0; i < apiUrls.length; i += LOTE) {
         if (!this.networkService.isOnline) {
           console.warn('[Cache] Conexión perdida durante refresh. Pausando.');
           break;
         }
-        const batch = apiUrls.slice(i, i + 3);
+        const batch = apiUrls.slice(i, i + LOTE);
         this.syncProgress$.next({ current: i + 1, total, phase: 'cache' });
 
         const results = await Promise.allSettled(
           batch.map(url =>
-            firstValueFrom(this.http.get(fromCacheKey(url))).catch(() => null)
+            firstValueFrom(this.http.get(fromCacheKey(url)))
+              .then(value => ({ value, status: 200 }))
+              // El status se conserva para distinguir "no se pudo refrescar"
+              // de "me están limitando", que exigen reacciones distintas.
+              .catch((e: any) => ({ value: null, status: e?.status ?? 0 }))
           )
         );
-        refreshed += results.filter(r => r.status === 'fulfilled' && r.value !== null).length;
+
+        refreshed += results.filter(
+          r => r.status === 'fulfilled' && r.value.value !== null).length;
+        const hubo429 = results.some(
+          r => r.status === 'fulfilled' && r.value.status === 429);
+
+        if (hubo429) {
+          limitados++;
+          await esperar(PAUSA_TRAS_429_MS);
+        } else if (i + LOTE < apiUrls.length) {
+          await esperar(PAUSA_MS);
+        }
       }
-      console.log(`[Cache] Refresh completado: ${refreshed}/${total} URLs actualizadas.`);
+
+      console.log(`[Cache] Refresh completado: ${refreshed}/${total} URLs actualizadas.`
+        + (limitados ? ` (${limitados} tanda(s) frenadas por límite de peticiones)` : ''));
     } catch (e) {
       console.warn('[Cache] Error refrescando cache:', e);
     } finally {
