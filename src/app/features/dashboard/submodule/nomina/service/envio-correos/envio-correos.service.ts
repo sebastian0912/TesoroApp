@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from 'rxjs';
 import { environment } from '@/environments/environment';
 
 /**
@@ -274,6 +274,32 @@ export class EnvioCorreosService {
   private get carga() { return `${this.api}/gestion_documental/carga-carpeta`; }
   private get nomina() { return `${this.api}/api/nomina/envio-correos`; }
 
+  /**
+   * Reintenta ante un 429 con espera creciente.
+   *
+   * El gateway limita a 50 req/s con ráfaga de 100 POR USUARIO, y la app hace
+   * un refresco en segundo plano de 50 URLs cacheadas que se come casi toda la
+   * ráfaga de golpe. Cuando eso coincide con abrir una de estas pantallas, las
+   * peticiones caen con 429 y la pantalla sale vacía.
+   *
+   * Un 429 se rechaza EN EL GATEWAY: la petición nunca llega al microservicio,
+   * así que no hay efecto secundario y reintentar es seguro incluso para la
+   * subida de una tanda.
+   *
+   * Solo reintenta el 429: cualquier otro error se propaga tal cual, para no
+   * disfrazar un fallo real de lentitud.
+   */
+  private reintentarSi429<T>(): MonoTypeOperatorFunction<T> {
+    return retry<T>({
+      count: 4,
+      delay: (error: any, intento: number) => {
+        if (error?.status !== 429) return throwError(() => error);
+        // 400ms, 800ms, 1.6s, 3.2s: dentro de ese margen el cubo se rellena.
+        return timer(400 * Math.pow(2, intento - 1));
+      },
+    });
+  }
+
   // ── Carga por carpeta ──────────────────────────────────────────────────────
 
   /**
@@ -292,11 +318,12 @@ export class EnvioCorreosService {
       empresa,
       periodo_clave: periodoClave,
       archivos,
-    });
+    }).pipe(this.reintentarSi429());
   }
 
   obtenerLote(loteId: number): Observable<PreviewCarga> {
-    return this.http.get<PreviewCarga>(`${this.carga}/lotes/${loteId}`);
+    return this.http.get<PreviewCarga>(`${this.carga}/lotes/${loteId}`)
+      .pipe(this.reintentarSi429());
   }
 
   /**
@@ -310,13 +337,13 @@ export class EnvioCorreosService {
     let params = new HttpParams().set('page', page).set('size', size);
     if (estado) params = params.set('estado', estado);
     return this.http.get<{ content: ItemCarga[]; total_elements: number; total_pages: number }>(
-      `${this.carga}/lotes/${loteId}/items`, { params });
+      `${this.carga}/lotes/${loteId}/items`, { params }).pipe(this.reintentarSi429());
   }
 
   listarLotes(page = 0, size = 20): Observable<{ content: LoteCarga[]; total_elements: number }> {
     const params = new HttpParams().set('page', page).set('size', size);
     return this.http.get<{ content: LoteCarga[]; total_elements: number }>(
-      `${this.carga}/lotes`, { params });
+      `${this.carga}/lotes`, { params }).pipe(this.reintentarSi429());
   }
 
   /** Empresa, quincena, o "aplicar este tipo a toda esta carpeta". */
@@ -348,7 +375,8 @@ export class EnvioCorreosService {
       form.append('archivos', f, f.name);
       form.append('rutas', rutas[i]);
     });
-    return this.http.post<SubirRespuesta>(`${this.carga}/lotes/${loteId}/subir`, form);
+    return this.http.post<SubirRespuesta>(`${this.carga}/lotes/${loteId}/subir`, form)
+      .pipe(this.reintentarSi429());
   }
 
   cancelarLote(loteId: number): Observable<LoteCarga> {
@@ -356,14 +384,14 @@ export class EnvioCorreosService {
   }
 
   tiposDisponibles(): Observable<TipoRef[]> {
-    return this.http.get<TipoRef[]>(`${this.carga}/tipos`);
+    return this.http.get<TipoRef[]>(`${this.carga}/tipos`).pipe(this.reintentarSi429());
   }
 
   // ── Cruce ──────────────────────────────────────────────────────────────────
 
   periodos(): Observable<{ content: PeriodoDisponible[]; total: number }> {
     return this.http.get<{ content: PeriodoDisponible[]; total: number }>(
-      `${this.nomina}/periodos`);
+      `${this.nomina}/periodos`).pipe(this.reintentarSi429());
   }
 
   cruce(opts: {
@@ -385,7 +413,8 @@ export class EnvioCorreosService {
     // Repetido, no separado por comas: es como Spring enlaza List<Long>.
     for (const id of opts.loteIds ?? []) params = params.append('lote_ids', id);
     params = params.set('page', opts.page ?? 0).set('size', opts.size ?? 50);
-    return this.http.get<CruceRespuesta>(`${this.nomina}/cruce`, { params });
+    return this.http.get<CruceRespuesta>(`${this.nomina}/cruce`, { params })
+      .pipe(this.reintentarSi429());
   }
 
   /**
@@ -405,12 +434,14 @@ export class EnvioCorreosService {
   // ── Fase 2: plantillas ─────────────────────────────────────────────────────
 
   plantillas(): Observable<{ content: Plantilla[] }> {
-    return this.http.get<{ content: Plantilla[] }>(`${this.nomina}/plantillas`);
+    return this.http.get<{ content: Plantilla[] }>(`${this.nomina}/plantillas`)
+      .pipe(this.reintentarSi429());
   }
 
   /** Placeholders disponibles: la UI los muestra para no obligar a adivinarlos. */
   camposPlantilla(): Observable<{ content: CampoPlantilla[] }> {
-    return this.http.get<{ content: CampoPlantilla[] }>(`${this.nomina}/plantillas/campos`);
+    return this.http.get<{ content: CampoPlantilla[] }>(`${this.nomina}/plantillas/campos`)
+      .pipe(this.reintentarSi429());
   }
 
   guardarPlantilla(id: number | null, p: Partial<Plantilla>): Observable<Plantilla> {
