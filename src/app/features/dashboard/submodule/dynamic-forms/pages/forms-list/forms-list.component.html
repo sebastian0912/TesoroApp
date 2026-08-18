@@ -113,18 +113,8 @@
                     <span class="nombre">{{ f.name }}</span>
                     <span class="codigo">{{ f.code }}</span>
                   </div>
-                  @if (provisioningIncompleto(f)) {
-                    <!-- El módulo de menú quedó a medias (partial/failed/skipped) -->
-                    <div class="badge-prov" role="status">
-                      <span class="material-symbols-outlined badge-icon" aria-hidden="true">warning</span>
-                      <span class="badge-texto">Módulo de menú incompleto</span>
-                      <button mat-stroked-button class="btn-retry" (click)="reintentarModulo(f)"
-                              [disabled]="busyId() === f.id">
-                        <mat-icon>autorenew</mat-icon>
-                        Reintentar módulo
-                      </button>
-                    </div>
-                  }
+                  <!-- El estado del módulo de menú ahora vive en la columna "Ubicación"
+                       (placement_status); el badge heurístico anterior se retiró. -->
                 </td>
                 <td class="celda-categoria">{{ f.category || '—' }}</td>
                 <td class="col-centrada">

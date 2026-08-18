@@ -23,7 +23,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { environment } from '@/environments/environment';
 import { DynamicFormService } from '../../services/dynamic-form.service';
 import { PlacementService } from '../../services/placement.service';
-import { ApiProblem, FormDetail, FormSummary, ProvisioningResult } from '../../models/dynamic-forms.models';
+import { ApiProblem, FormDetail, FormSummary } from '../../models/dynamic-forms.models';
 import { Placement, PlacementStatus } from '../../models/placement.models';
 import { PublicLinksDialogComponent, PublicLinksDialogData } from '../../components/public-links-dialog/public-links-dialog.component';
 import { PlacementDialogComponent, PlacementDialogData } from '../../components/placement-dialog/placement-dialog.component';
@@ -59,10 +59,9 @@ function calcularEsAdmin(): boolean {
  * (crea versión nueva), gestionar links públicos, duplicar, activar/desactivar y
  * —solo ADMIN/GERENCIA— borrar definitivo.
  *
- * Aprovisionamiento de módulos de menú: el listado (FormSummary) NO trae el campo
- * `provisioning` (solo lo devuelven crear/duplicar/reintentar), pero un formulario
- * bien aprovisionado siempre tiene `module_id` Y `responses_module_id`; si falta
- * alguno quedó partial/failed/skipped y se ofrece "Reintentar módulo".
+ * Ubicación en el menú: la columna "Ubicación" muestra el `placement_status`
+ * (LINKED/PENDING/UNLINKED/FAILED) y las acciones Publicar / Mover-Renombrar /
+ * Desvincular / Reintentar según ese estado.
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -112,12 +111,6 @@ export class FormsListComponent {
   /** Texto de búsqueda YA aplicado (el input escribe en `buscar$`, no aquí). */
   private readonly q = signal('');
 
-  /**
-   * Resultado FRESCO de aprovisionar (crear/duplicar/reintentar): pisa la heurística
-   * por `module_id` hasta el siguiente refresh del listado.
-   */
-  private readonly provisioningFresco = signal<ReadonlyMap<number, ProvisioningResult['status']>>(new Map());
-
   /** Búsqueda con debounce: se dispara sola 350 ms después de dejar de teclear. */
   private readonly buscar$ = new Subject<string>();
 
@@ -146,8 +139,6 @@ export class FormsListComponent {
       next: r => {
         this.rows.set(r.content);
         this.total.set(r.total);
-        // El refresh trae `module_id` actualizado: la heurística vuelve a mandar.
-        this.provisioningFresco.set(new Map());
         this.loading.set(false);
       },
       error: (err: unknown) => {
@@ -181,48 +172,6 @@ export class FormsListComponent {
       case 'inactivos': return false;
       default: return null;
     }
-  }
-
-  // ── Aprovisionamiento de módulos ────────────────────────────────────
-
-  /**
-   * True si el formulario quedó con el aprovisionamiento a medias (partial/failed/
-   * skipped). Ver nota de la clase: el summary no trae `provisioning`, se deduce de
-   * los ids de módulo; un resultado fresco de reintentar tiene prioridad.
-   */
-  provisioningIncompleto(f: FormSummary): boolean {
-    const fresco = this.provisioningFresco().get(f.id);
-    if (fresco) return fresco !== 'ok';
-    return !f.module_id || !f.responses_module_id;
-  }
-
-  reintentarModulo(f: FormSummary): void {
-    if (this.busyId() !== null) return;
-    this.busyId.set(f.id);
-    this.svc.provisionRetry(f.id).subscribe({
-      next: r => {
-        this.busyId.set(null);
-        const mapa = new Map(this.provisioningFresco());
-        mapa.set(f.id, r.status);
-        this.provisioningFresco.set(mapa);
-        if (r.status === 'ok') {
-          this.snack.open('Módulo de menú aprovisionado correctamente', 'Cerrar', { duration: 4000 });
-          this.cargar();
-        } else {
-          const avisos = (r.warnings ?? []).join('\n');
-          Swal.fire({
-            icon: 'warning',
-            title: 'El módulo sigue incompleto',
-            text: avisos || `El aprovisionamiento terminó en estado "${r.status}". Intenta de nuevo más tarde.`,
-            confirmButtonText: 'Entendido',
-          });
-        }
-      },
-      error: (err: unknown) => {
-        this.busyId.set(null);
-        this.snack.open(this.mensajeError(err, 'No se pudo reintentar el aprovisionamiento'), 'Cerrar', { duration: 5000 });
-      },
-    });
   }
 
   // ── Ubicación en el menú ────────────────────────────────────────────
@@ -416,15 +365,10 @@ export class FormsListComponent {
       this.svc.duplicate(f.id).subscribe({
         next: (copia: FormDetail) => {
           this.busyId.set(null);
-          this.snack.open(`Formulario duplicado como "${copia.name}"`, 'Cerrar', { duration: 4000 });
-          if (copia.provisioning === 'partial' || copia.provisioning === 'failed') {
-            Swal.fire({
-              icon: 'warning',
-              title: 'Copia creada con módulo incompleto',
-              text: 'El formulario se duplicó, pero su módulo de menú no quedó completo. Usa "Reintentar módulo" en la fila nueva.',
-              confirmButtonText: 'Entendido',
-            });
-          }
+          // La copia nace sin ubicar (PENDING): se publica luego desde su fila.
+          this.snack.open(
+            `Formulario duplicado como "${copia.name}". Publícalo en el menú desde su fila.`,
+            'Cerrar', { duration: 5000 });
           this.cargar();
         },
         error: (err: unknown) => {
