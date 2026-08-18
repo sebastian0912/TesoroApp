@@ -24,6 +24,7 @@ import { SharedModule } from '../../../../shared/shared.module';
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
 import { getLocalStorageItem, setLocalStorageItem, clearLocalStorage } from '../../../../core/utils/safe-storage';
+import { QuickAccessService } from '../../../../core/security/quick-access.service';
 
 export interface PermNode {
   id: string;
@@ -106,6 +107,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private networkStatus: NetworkStatusService,
     private offlineSync: OfflineSyncService,
     private cdr: ChangeDetectorRef,
+    private quickAccess: QuickAccessService,
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
 
@@ -650,6 +652,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
       if (result.isDenied) {
         this.lsClear();
+        // "Borrar y salir" significa dejar el equipo limpio: eso incluye el
+        // acceso rápido guardado. El logout normal NO lo toca, porque su razón
+        // de ser es sobrevivir al cierre de sesión.
+        await this.quickAccess.olvidar().catch(() => null);
         const wipePromise: Promise<any> = electronApi?.db?.clearUserData
           ? electronApi.db.clearUserData().catch(() => null)
           : Promise.resolve();

@@ -36,6 +36,12 @@ const INVOKE_CHANNELS = new Set([
   'db:clear-cache',
   'db:clear-queue',
   'db:clear-user-data',
+  'secure:available',
+  'secure:protect',
+  'secure:unprotect',
+  'secure:vault-get',
+  'secure:vault-set',
+  'secure:vault-delete',
 ]);
 
 const ON_CHANNELS = new Set([
@@ -101,6 +107,19 @@ contextBridge.exposeInMainWorld('electron', {
   },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+  },
+  /**
+   * Almacén seguro del escritorio para el acceso rápido. `protect`/`unprotect`
+   * usan la credencial del sistema operativo (DPAPI / Keychain / libsecret):
+   * lo que sale de `protect` solo lo puede abrir esta cuenta en este equipo.
+   */
+  secure: {
+    available: () => ipcRenderer.invoke('secure:available'),
+    protect: (texto) => ipcRenderer.invoke('secure:protect', texto),
+    unprotect: (base64) => ipcRenderer.invoke('secure:unprotect', base64),
+    vaultGet: (clave) => ipcRenderer.invoke('secure:vault-get', clave),
+    vaultSet: (clave, valor) => ipcRenderer.invoke('secure:vault-set', clave, valor),
+    vaultDelete: (clave) => ipcRenderer.invoke('secure:vault-delete', clave),
   },
   db: {
     // Cola de mutaciones offline.

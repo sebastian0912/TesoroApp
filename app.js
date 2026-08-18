@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -590,6 +590,93 @@ ipcMain.handle('offline:delete-upload', async (event, storedPath) => {
   } catch (err) {
     return { success: false, error: err && err.message ? err.message : String(err) };
   }
+});
+
+// ─── Almacén seguro del escritorio (acceso rápido) ─────────────────────────
+// La ventana carga con file://, así que aquí no hay WebAuthn ni un origen que
+// respalde IndexedDB de forma fiable. El equivalente en escritorio es
+// `safeStorage`, que cifra con la credencial del SO: DPAPI en Windows,
+// Keychain en macOS, libsecret/kwallet en Linux. El blob resultante solo lo
+// puede descifrar la MISMA cuenta de usuario en el MISMO equipo; copiarlo a
+// otra máquina no sirve de nada.
+//
+// El vault vive en userData (perfil del usuario del SO), con permisos 0600, y
+// guarda datos que YA vienen cifrados con AES-GCM desde el renderer. Es decir:
+// dos capas independientes, y el PIN del usuario sigue siendo necesario.
+const SECURE_VAULT_FILE = () => path.join(app.getPath('userData'), 'secure-vault.json');
+
+function leerVaultSeguro() {
+  try {
+    const file = SECURE_VAULT_FILE();
+    if (!fs.existsSync(file)) return {};
+    return JSON.parse(fs.readFileSync(file, 'utf8')) || {};
+  } catch (e) {
+    log.warn('[secure] vault ilegible, se reinicia:', e.message);
+    return {};
+  }
+}
+
+function escribirVaultSeguro(datos) {
+  const file = SECURE_VAULT_FILE();
+  fs.writeFileSync(file, JSON.stringify(datos), { encoding: 'utf8', mode: 0o600 });
+  try { fs.chmodSync(file, 0o600); } catch { /* Windows no aplica modo POSIX */ }
+}
+
+ipcMain.handle('secure:available', (event) => {
+  assertAllowedIpcSender(event);
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return false;
+    // En Linux sin keyring (ni GNOME Keyring ni KWallet), Electron cae al
+    // backend 'basic_text', que cifra con una clave fija y pública: no protege
+    // nada. Ahí preferimos declararlo NO disponible y que el renderer use la
+    // clave no extraíble de WebCrypto, que sí es un secreto real.
+    if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend) {
+      if (safeStorage.getSelectedStorageBackend() === 'basic_text') return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+/** Cifra con la credencial del SO. Devuelve base64 o null si no hay backend. */
+ipcMain.handle('secure:protect', (event, texto) => {
+  assertAllowedIpcSender(event);
+  if (typeof texto !== 'string' || !texto) throw new Error('secure:protect requiere un texto');
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  return safeStorage.encryptString(texto).toString('base64');
+});
+
+ipcMain.handle('secure:unprotect', (event, base64) => {
+  assertAllowedIpcSender(event);
+  if (typeof base64 !== 'string' || !base64) throw new Error('secure:unprotect requiere base64');
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  return safeStorage.decryptString(Buffer.from(base64, 'base64'));
+});
+
+ipcMain.handle('secure:vault-get', (event, clave) => {
+  assertAllowedIpcSender(event);
+  if (typeof clave !== 'string') throw new Error('clave inválida');
+  const v = leerVaultSeguro();
+  return Object.prototype.hasOwnProperty.call(v, clave) ? v[clave] : null;
+});
+
+ipcMain.handle('secure:vault-set', (event, clave, valor) => {
+  assertAllowedIpcSender(event);
+  if (typeof clave !== 'string') throw new Error('clave inválida');
+  const v = leerVaultSeguro();
+  v[clave] = valor;
+  escribirVaultSeguro(v);
+  return true;
+});
+
+ipcMain.handle('secure:vault-delete', (event, clave) => {
+  assertAllowedIpcSender(event);
+  if (typeof clave !== 'string') throw new Error('clave inválida');
+  const v = leerVaultSeguro();
+  delete v[clave];
+  escribirVaultSeguro(v);
+  return true;
 });
 
 ipcMain.handle('shell:open-external', async (event, url) => {

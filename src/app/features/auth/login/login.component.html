@@ -10,8 +10,34 @@
       <!-- Vista 1: LOGIN NORMAL                                             -->
       <!-- ══════════════════════════════════════════════════════════════════ -->
       @if (vista() === 'login') {
-        <h2>¡Bienvenido a Tu Apo!</h2>
-        <h3>¡Ingresa tus credenciales!</h3>
+
+        <!-- ── Acceso rápido guardado en ESTE dispositivo ────────────────── -->
+        @if (accesoRapido(); as qa) {
+          <div class="qa-card">
+            <div class="qa-card-avatar">{{ inicialesAccesoRapido() }}</div>
+            <div class="qa-card-info">
+              <span class="qa-card-hola">Bienvenido de nuevo</span>
+              <span class="qa-card-nombre">{{ qa.etiquetaUsuario }}</span>
+              <span class="qa-card-login">{{ qa.loginEnmascarado }}</span>
+            </div>
+
+            <button type="button" class="qa-card-btn"
+                    [disabled]="desbloqueando() || loading"
+                    (click)="desbloquearAccesoRapido()">
+              <mat-icon>{{ iconoMetodo(qa.metodo) }}</mat-icon>
+              <span>{{ desbloqueando() ? 'Verificando...' : textoMetodo(qa.metodo) }}</span>
+            </button>
+
+            <button type="button" class="qa-card-link" (click)="olvidarDispositivo()">
+              Usar otra cuenta
+            </button>
+          </div>
+
+          <div class="qa-sep"><span>o entra con tu contraseña</span></div>
+        } @else {
+          <h2>¡Bienvenido a Tu Apo!</h2>
+          <h3>¡Ingresa tus credenciales!</h3>
+        }
 
         <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="form" autocomplete="off">
           <mat-form-field class="textbox" appearance="outline">
@@ -36,6 +62,15 @@
               <mat-error>La contraseña es obligatoria</mat-error>
             }
           </mat-form-field>
+
+          @if (accesoRapidoPosible() && !accesoRapido()) {
+            <mat-checkbox formControlName="recordar" class="qa-recordar">
+              Recordarme en este dispositivo
+              <span class="qa-recordar-nota">
+                Guarda tu acceso cifrado aquí para entrar con huella o PIN
+              </span>
+            </mat-checkbox>
+          }
 
           <button mat-flat-button color="primary" type="submit" [disabled]="loginForm.invalid || loading">
             {{ loading ? 'Ingresando...' : 'Iniciar sesión' }}

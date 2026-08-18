@@ -10,6 +10,18 @@ import { SharedModule } from '../../../shared/shared.module';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { setLocalStorageItem } from '../../../core/utils/safe-storage';
 import { OfflineSyncService } from '../../../core/services/offline-sync.service';
+import { MatDialog } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
+import {
+  CredencialesGuardadas, ErrorAccesoRapido, EstadoAccesoRapido, MetodoAcceso,
+  QuickAccessService,
+} from '../../../core/security/quick-access.service';
+import {
+  DatosSetupAcceso, QuickAccessSetupComponent, ResultadoSetupAcceso,
+} from '../../../shared/components/quick-access/quick-access-setup.component';
+import {
+  DatosUnlockAcceso, QuickAccessUnlockComponent,
+} from '../../../shared/components/quick-access/quick-access-unlock.component';
 
 interface AppRelease {
   version: string;
@@ -46,6 +58,23 @@ function passwordStrengthValidator(control: AbstractControl): ValidationErrors |
   return classes >= 3 ? null : { passwordStrength: true };
 }
 
+/**
+ * Nombre para saludar en la pantalla de desbloqueo. El backend devuelve el
+ * usuario con formas distintas según el endpoint (`datos_basicos.nombres`,
+ * `primer_nombre`…), así que se prueban en orden y se cae al login.
+ */
+function nombreVisible(user: any, login: string): string {
+  const compuesto = [user?.datos_basicos?.nombres, user?.datos_basicos?.apellidos]
+    .filter(Boolean).join(' ').trim();
+  if (compuesto) return compuesto;
+
+  const legacy = [user?.primer_nombre, user?.primer_apellido]
+    .filter(Boolean).join(' ').trim();
+  if (legacy) return legacy;
+
+  return (login.includes('@') ? login.split('@')[0] : login) || 'usuario';
+}
+
 function passwordsMatchValidator(group: AbstractControl): ValidationErrors | null {
   const pass = group.get('password')?.value;
   const confirm = group.get('confirmar')?.value;
@@ -61,6 +90,18 @@ function passwordsMatchValidator(group: AbstractControl): ValidationErrors | nul
 })
 export class LoginComponent implements OnInit {
   private http = inject(HttpClient);
+  private readonly dialog = inject(MatDialog);
+  private readonly qa = inject(QuickAccessService);
+
+  // ── Acceso rápido ────────────────────────────────────────────────────────
+  /** Registro guardado en ESTE dispositivo, si lo hay. */
+  readonly accesoRapido = signal<EstadoAccesoRapido | null>(null);
+  /** El navegador permite guardado cifrado (hay IndexedDB + WebCrypto). */
+  readonly accesoRapidoPosible = signal(false);
+  /** Métodos que este dispositivo puede ofrecer al activar. */
+  private metodosDisponibles: MetodoAcceso[] = [];
+  private etiquetaBiometria = '';
+  desbloqueando = signal(false);
 
   // ── Login ────────────────────────────────────────────────────────────────
   loginForm!: FormGroup;
@@ -96,6 +137,9 @@ export class LoginComponent implements OnInit {
     this.loginForm = this.fb.group({
       login: ['', [Validators.required, emailOrDocValidator]],
       password: ['', [Validators.required]],
+      // "Recordarme": no guarda nada por sí solo, solo fuerza la propuesta de
+      // acceso rápido tras un login correcto.
+      recordar: [false],
     });
 
     this.otpRequestForm = this.fb.group({
@@ -115,6 +159,28 @@ export class LoginComponent implements OnInit {
       next: r => this.desktopRelease.set(r),
       error: () => {},
     });
+
+    void this.prepararAccesoRapido();
+  }
+
+  /**
+   * Consulta si hay un acceso guardado en este dispositivo y qué métodos
+   * soporta. Nunca lanza: si algo falla, el login normal sigue intacto.
+   */
+  private async prepararAccesoRapido(): Promise<void> {
+    try {
+      const posible = await this.qa.disponible();
+      this.accesoRapidoPosible.set(posible);
+      if (!posible) return;
+
+      const estado = await this.qa.cargarEstado();
+      this.accesoRapido.set(estado);
+
+      this.metodosDisponibles = await this.qa.metodosDisponibles();
+      this.etiquetaBiometria = (await this.qa.soporteBiometrico()).etiqueta;
+    } catch {
+      this.accesoRapidoPosible.set(false);
+    }
   }
 
   descargarEscritorio(): void {
@@ -166,6 +232,19 @@ export class LoginComponent implements OnInit {
       return;
     }
 
+    await this.autenticar(login, password, 'formulario');
+  }
+
+  /**
+   * Camino único de autenticación, venga del formulario o del acceso rápido.
+   * `origen` solo cambia dos cosas: si se ofrece guardar el acceso al terminar,
+   * y qué hacer cuando el servidor rechaza las credenciales.
+   */
+  private async autenticar(
+    login: string,
+    password: string,
+    origen: 'formulario' | 'acceso-rapido',
+  ): Promise<void> {
     this.loading = true;
     try {
       const resp = await this.loginS.login(login, password);
@@ -178,6 +257,11 @@ export class LoginComponent implements OnInit {
 
       this.offlineSync.syncNow().catch(() => null);
 
+      if (origen === 'formulario') {
+        // Se ofrece ANTES de navegar: la contraseña en claro solo existe aquí.
+        await this.ofrecerAccesoRapido(login, password, resp.user);
+      }
+
       if (rolNombre === 'SIN-ASIGNAR') {
         this.router.navigate(['']);
         Swal.fire({ icon: 'info', title: 'Sin asignar', text: 'Tu cuenta no tiene un rol asignado.' });
@@ -186,7 +270,21 @@ export class LoginComponent implements OnInit {
       }
     } catch (err) {
       const e = err as HttpErrorResponse;
-      if (e.status === 401 || e.status === 403) {
+      const rechazado = e.status === 401 || e.status === 403;
+
+      if (rechazado && origen === 'acceso-rapido') {
+        // La contraseña guardada dejó de servir (la cambiaron, o revocaron el
+        // usuario). Se borra el registro para no reintentar en bucle.
+        await this.qa.olvidar();
+        this.accesoRapido.set(null);
+        this.loginForm.patchValue({ login, password: '' });
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Tu contraseña cambió',
+          text: 'El acceso guardado en este dispositivo ya no es válido. '
+            + 'Entra con tu contraseña y vuelve a activarlo.',
+        });
+      } else if (rechazado) {
         await Swal.fire({
           icon: 'error',
           title: 'Credenciales inválidas',
@@ -202,6 +300,181 @@ export class LoginComponent implements OnInit {
     } finally {
       this.loading = false;
     }
+  }
+
+  // ── Acceso rápido: activar ───────────────────────────────────────────────
+
+  /**
+   * Tras un login correcto, propone guardar el acceso en este dispositivo.
+   * Se muestra si el usuario marcó "recordarme" o si nunca ha respondido
+   * (y no dijo "ahora no" en los últimos 30 días).
+   */
+  private async ofrecerAccesoRapido(login: string, password: string, user: any): Promise<void> {
+    try {
+      if (!this.accesoRapidoPosible() || !this.metodosDisponibles.length) return;
+      const pidioRecordar = this.loginForm.get('recordar')?.value === true;
+      if (!pidioRecordar && !(await this.qa.debeOfrecer())) return;
+      if (this.accesoRapido()) return;
+
+      const datos: DatosSetupAcceso = {
+        metodos: this.metodosDisponibles,
+        etiquetaBiometria: this.etiquetaBiometria,
+        etiquetaUsuario: nombreVisible(user, login),
+      };
+
+      const eleccion = await firstValueFrom(
+        this.dialog.open(QuickAccessSetupComponent, {
+          data: datos,
+          width: '540px',
+          maxWidth: '94vw',
+          disableClose: false,
+          autoFocus: false,
+        }).afterClosed(),
+      ) as ResultadoSetupAcceso | null | undefined;
+
+      if (!eleccion) {
+        await this.qa.marcarRechazo();
+        return;
+      }
+
+      await this.qa.guardar(
+        eleccion.metodo,
+        { login, password },
+        { etiqueta: datos.etiquetaUsuario, id: String(user?.numero_de_documento ?? login) },
+        eleccion.pin,
+      );
+      const guardado = this.qa.estado();
+      this.accesoRapido.set(guardado);
+
+      // En navegador, si no se concedió almacenamiento persistente, hay que
+      // decirlo: el propio navegador puede desalojar los datos sin avisar.
+      const aviso = guardado && !guardado.persistente
+        ? ' Nota: tu navegador podría borrar estos datos si se queda sin espacio; '
+          + 'si pasa, entra con tu contraseña y vuelve a activarlo.'
+        : '';
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Acceso rápido activado',
+        text: this.textoConfirmacion(eleccion.metodo) + aviso,
+        timer: aviso ? 6000 : 3200,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      const err = e as ErrorAccesoRapido;
+      // Nunca bloquea el login: si no se pudo guardar, se entra igual.
+      await Swal.fire({
+        icon: 'info',
+        title: 'No se pudo activar el acceso rápido',
+        text: err?.message || 'Puedes intentarlo luego desde Configuración → Cuenta.',
+        timer: 4000,
+        showConfirmButton: false,
+      });
+    }
+  }
+
+  private textoConfirmacion(metodo: MetodoAcceso): string {
+    switch (metodo) {
+      case 'biometria':
+        return 'La próxima vez entra con tu huella o rostro desde este dispositivo.';
+      case 'pin':
+        return 'La próxima vez entra con tu PIN desde este dispositivo.';
+      default:
+        return 'La próxima vez entra con un solo toque desde este dispositivo.';
+    }
+  }
+
+  // ── Acceso rápido: usar ──────────────────────────────────────────────────
+
+  /** Desbloquea con el método guardado y entra sin escribir la contraseña. */
+  async desbloquearAccesoRapido(): Promise<void> {
+    const estado = this.accesoRapido();
+    if (!estado || this.desbloqueando() || this.loading) return;
+
+    this.desbloqueando.set(true);
+    try {
+      let credenciales: CredencialesGuardadas | null = null;
+
+      if (estado.metodo === 'pin') {
+        const datos: DatosUnlockAcceso = {
+          etiquetaUsuario: estado.etiquetaUsuario,
+          loginEnmascarado: estado.loginEnmascarado,
+          intentosRestantes: estado.intentosRestantes,
+        };
+        credenciales = (await firstValueFrom(
+          this.dialog.open(QuickAccessUnlockComponent, {
+            data: datos,
+            width: '380px',
+            maxWidth: '94vw',
+            autoFocus: false,
+          }).afterClosed(),
+        )) as CredencialesGuardadas | null;
+      } else {
+        credenciales = await this.qa.desbloquear();
+      }
+
+      // Refrescamos el estado: el diálogo pudo consumir intentos o autodestruirse.
+      this.accesoRapido.set(await this.qa.cargarEstado());
+
+      if (!credenciales) return;
+      await this.autenticar(credenciales.login, credenciales.password, 'acceso-rapido');
+    } catch (e) {
+      const err = e as ErrorAccesoRapido;
+      this.accesoRapido.set(await this.qa.cargarEstado());
+      if (err?.codigo === 'cancelado') return;
+      await Swal.fire({
+        icon: err?.codigo === 'bloqueado' ? 'error' : 'warning',
+        title: err?.codigo === 'bloqueado' ? 'Acceso rápido bloqueado' : 'No se pudo desbloquear',
+        text: err?.message || 'Intenta con tu contraseña.',
+      });
+    } finally {
+      this.desbloqueando.set(false);
+    }
+  }
+
+  /** Icono Material que representa el método guardado. */
+  iconoMetodo(metodo: MetodoAcceso | null): string {
+    switch (metodo) {
+      case 'biometria': return 'fingerprint';
+      case 'pin': return 'pin';
+      default: return 'bolt';
+    }
+  }
+
+  /** Texto del botón de desbloqueo, según el método guardado. */
+  textoMetodo(metodo: MetodoAcceso | null): string {
+    switch (metodo) {
+      case 'biometria': return 'Entrar con huella o rostro';
+      case 'pin': return 'Entrar con mi PIN';
+      default: return 'Entrar ahora';
+    }
+  }
+
+  /** Iniciales para el avatar de la tarjeta. */
+  inicialesAccesoRapido(): string {
+    const partes = (this.accesoRapido()?.etiquetaUsuario || '?').trim().split(/\s+/);
+    return ((partes[0]?.[0] ?? '') + (partes[1]?.[0] ?? '')).toUpperCase() || '?';
+  }
+
+  /** Quita el acceso guardado de este dispositivo (previa confirmación). */
+  async olvidarDispositivo(): Promise<void> {
+    const estado = this.accesoRapido();
+    if (!estado) return;
+
+    const r = await Swal.fire({
+      icon: 'question',
+      title: '¿Quitar el acceso guardado?',
+      text: `Se borrarán de este dispositivo los datos de ${estado.etiquetaUsuario}. `
+        + 'Podrás volver a activarlo la próxima vez que entres con tu contraseña.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitarlo',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+    });
+    if (!r.isConfirmed) return;
+
+    await this.qa.olvidar();
+    this.accesoRapido.set(null);
   }
 
   // ── OTP: Paso 1 ─ Solicitar código ────────────────────────────────────────
