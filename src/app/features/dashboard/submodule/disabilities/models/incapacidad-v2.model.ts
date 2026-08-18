@@ -443,6 +443,12 @@ export interface IncapacidadV2 {
   soportesCargados?: string[];
   activo?: boolean;
 
+  // ── Historico importado (V45) ───────────────────────────────────────
+  /** `HISTORICO` = importada de los formularios viejos; null = nacida aqui. */
+  origen?: string | null;
+  /** Link de Drive del documento original de la fila importada. */
+  docExternoUrl?: string | null;
+
   // ── Auditoria (ISO-8601) ────────────────────────────────────────────
   creadoPor?: string;
   creadoEn?: string;

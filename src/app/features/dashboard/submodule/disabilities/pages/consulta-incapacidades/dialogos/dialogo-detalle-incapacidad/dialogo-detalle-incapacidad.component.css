@@ -633,3 +633,9 @@
     justify-content: center;
   }
 }
+
+/* ── Historico importado (V45) ─────────────────────────────────────── */
+
+.det-doc-historico {
+  margin-bottom: 10px;
+}

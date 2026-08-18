@@ -189,6 +189,13 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
     () => (this.detalle()?.estado ?? this.datos.resumen?.estado) === 'RECIBIDA',
   );
 
+  // ── Historico importado (V45) ─────────────────────────────────────────
+
+  readonly esHistorico = computed(() => this.detalle()?.origen === 'HISTORICO');
+
+  /** Link de Drive del documento original (los PDF del historico NO se copiaron). */
+  readonly docHistorico = computed(() => this.detalle()?.docExternoUrl ?? '');
+
   // ── Ficha ─────────────────────────────────────────────────────────────
 
   readonly grupos = computed<GrupoFicha[]>(() => {

@@ -19,6 +19,15 @@
       <span class="det-chip" [style.color]="chipResponsable().estilo.color" [style.backgroundColor]="chipResponsable().estilo.background">
         {{ chipResponsable().texto }}
       </span>
+      @if (esHistorico()) {
+        <span
+          class="det-chip"
+          style="color: #5b4a00; background-color: #fff3cd"
+          matTooltip="Importada del historico de formularios anterior al aplicativo"
+        >
+          Historico
+        </span>
+      }
     </div>
   </div>
 
@@ -105,10 +114,30 @@
       }
     </header>
 
+    @if (docHistorico()) {
+      <div class="det-doc-historico">
+        <a
+          mat-stroked-button
+          class="det-soporte-btn"
+          [href]="docHistorico()"
+          target="_blank"
+          rel="noopener"
+          matTooltip="El documento del historico vive en el Drive de cartera (abre con tu cuenta de Google)"
+        >
+          <mat-icon>history</mat-icon>
+          <span>Documento del historico (Drive)</span>
+        </a>
+      </div>
+    }
+
     @if (soportes().length === 0) {
       <div class="det-vacio">
         <mat-icon>folder_off</mat-icon>
-        <span>Esta incapacidad no tiene soportes registrados.</span>
+        <span>
+          {{ esHistorico()
+            ? 'Incapacidad importada del historico: su documento esta en el enlace de Drive.'
+            : 'Esta incapacidad no tiene soportes registrados.' }}
+        </span>
       </div>
     } @else {
       <ul class="det-soportes">
