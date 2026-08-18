@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
+import { dynamicFormRouteMatch } from './submodule/dynamic-forms/dynamic-form-route.guard';
 
 export const routes: Routes = [
   {
@@ -30,6 +31,10 @@ export const routes: Routes = [
       { path: 'merchandise', loadChildren: () => import('./submodule/merchandise/merchandise.routes').then(m => m.routes) },
       { path: 'market', loadChildren: () => import('./submodule/market/market.routes').then(m => m.routes) },
       { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.routes').then(m => m.routes) },
+      { path: 'office-management', loadChildren: () => import('./submodule/office-management/office-management.routes').then(m => m.routes) },
+      // Carné digital: 'mi-carnet' es para cualquiera con sesión; 'identificar' es el panel
+      // que se asigna por permisos (administrativos, portería, otras áreas).
+      { path: 'carnet', loadChildren: () => import('./submodule/carnet/carnet.routes').then(m => m.routes) },
       // Administración: el grupo ya no es solo un redirect, tiene pantallas propias
       // (Correos electrónicos). Su ruta '' conserva el redirect al primer hijo del grupo.
       { path: 'gestion-del-programa', loadChildren: () => import('./submodule/gestion-del-programa/gestion-del-programa.routes').then(m => m.routes) },
@@ -55,6 +60,17 @@ export const routes: Routes = [
       { path: 'contratacion/reportes',       redirectTo: 'hiring/hiring-report',              pathMatch: 'full' },
       { path: 'gestion-documental',          redirectTo: 'document-management/company-docs-access', pathMatch: 'full' },
       { path: 'traslados',                   redirectTo: 'eps-transfers/process-transfers',   pathMatch: 'full' },
+
+      // Formularios dinámicos como VISTA de cualquier módulo: se registra JUSTO ANTES del
+      // catch-all. El guard pregunta al backend si la URL (que no matcheó ninguna ruta
+      // real) es un formulario; si no, devuelve false y cae al `**` → home. Así un
+      // formulario colgado de p. ej. Nómina › Novedades vive en su URL canónica.
+      {
+        path: '**',
+        canMatch: [dynamicFormRouteMatch],
+        loadComponent: () =>
+          import('./submodule/dynamic-forms/pages/form-runtime/form-runtime.component').then(m => m.FormRuntimeComponent),
+      },
 
       { path: '**', redirectTo: '' },
     ],

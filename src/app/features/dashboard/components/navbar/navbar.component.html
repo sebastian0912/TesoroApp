@@ -95,7 +95,7 @@
                 <div class="tree-wrap" [style.paddingLeft.px]="(level - 2) * 14">
                   <button type="button" class="submodule-button" (click)="onNodeClick(node)"
                     [attr.aria-expanded]="hasChildren(node) ? isExpanded(node.id) : null"
-                    [class.active-submodule]="!hasChildren(node) && isRouteActive(getNodeRoute(node))">
+                    [class.active-submodule]="(!hasChildren(node) || hasOwnScreen(node)) && isRouteActive(getNodeRoute(node))">
                     <mat-icon fontSet="material-symbols-outlined">
                       {{ hasChildren(node) ? 'folder' : getNodeIcon(node) }}
                     </mat-icon>

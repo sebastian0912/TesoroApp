@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Title } from '@angular/platform-browser';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable, finalize } from 'rxjs';
@@ -21,6 +22,7 @@ import {
 import { DynamicFormService } from '../../services/dynamic-form.service';
 import { SubmissionService } from '../../services/submission.service';
 import { MediaOffloadService } from '../../services/media-offload.service';
+import { PlacementService } from '../../services/placement.service';
 
 /** Estado de carga de la estructura del formulario. */
 type EstadoCarga = 'cargando' | 'listo' | 'error';
@@ -52,6 +54,8 @@ export class FormRuntimeComponent {
   private forms = inject(DynamicFormService);
   private submissions = inject(SubmissionService);
   private media = inject(MediaOffloadService);
+  private placement = inject(PlacementService);
+  private titleService = inject(Title);
   private snack = inject(MatSnackBar);
 
   readonly structure = signal<FormStructure | null>(null);
@@ -82,15 +86,76 @@ export class FormRuntimeComponent {
 
   readonly downloadUrlFn = (ref: DocumentRef): string => this.media.downloadUrl(ref);
 
+  /** Etiqueta del menú (para el título de página); la trae el placement/resolve. */
+  private menuLabel: string | null = null;
+
   constructor() {
-    // El componente se reusa si se navega entre `llenar/:formId` distintos.
+    // Dos formas de entrar:
+    //  (a) ruta canónica del módulo anfitrión (…/nomina/novedades/x, SIN :formId): se
+    //      resuelve el formId por route_path — así el formulario es una vista del módulo.
+    //  (b) ruta vieja `llenar/:formId`: se conserva por compat; si el formulario ya está
+    //      LINKED, se redirige a su ruta canónica (replaceUrl).
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe(pm => {
-      const id = Number(pm.get('formId'));
-      this.formId = Number.isFinite(id) && id > 0 ? id : 0;
-      this.reiniciar();
-      this.structure.set(null);
-      this.cargar();
+      const idParam = Number(pm.get('formId'));
+      if (Number.isFinite(idParam) && idParam > 0) {
+        this.entrarPorId(idParam);
+      } else {
+        this.entrarPorRuta();
+      }
     });
+  }
+
+  private entrarPorId(id: number): void {
+    // Redirige la ruta vieja a la canónica cuando el formulario está publicado.
+    this.placement.getPlacement(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: p => {
+        if (p.placement_status === 'LINKED' && p.route_path) {
+          this.router.navigateByUrl('/dashboard/' + p.route_path, { replaceUrl: true });
+        } else {
+          this.iniciar(id, p.menu_label ?? null);
+        }
+      },
+      error: () => this.iniciar(id, null),
+    });
+  }
+
+  private entrarPorRuta(): void {
+    const routePath = this.rutaActual();
+    this.placement.resolveRoute(routePath).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: res => {
+        if (res && res.form_id) {
+          if (res.canonical_route_path && res.canonical_route_path !== routePath) {
+            this.router.navigateByUrl('/dashboard/' + res.canonical_route_path, { replaceUrl: true });
+            return;
+          }
+          this.iniciar(res.form_id, res.menu_label ?? null);
+        } else {
+          this.errorCarga.set('Esta vista no corresponde a ningún formulario disponible.');
+          this.estado.set('error');
+        }
+      },
+      error: () => {
+        this.errorCarga.set('No se pudo resolver la vista. Intenta de nuevo.');
+        this.estado.set('error');
+      },
+    });
+  }
+
+  private iniciar(id: number, menuLabel: string | null): void {
+    this.formId = id;
+    this.menuLabel = menuLabel;
+    if (menuLabel) this.titleService.setTitle(menuLabel);
+    this.reiniciar();
+    this.structure.set(null);
+    this.cargar();
+  }
+
+  /** URL actual relativa a /dashboard (sin query ni fragment), como espera el backend. */
+  private rutaActual(): string {
+    let url = this.router.url.split('?')[0].split('#')[0];
+    if (url.startsWith('/dashboard/')) url = url.substring('/dashboard/'.length);
+    else if (url.startsWith('/')) url = url.substring(1);
+    return url.replace(/\/+$/, '');
   }
 
   // ── Carga de estructura ─────────────────────────────────────────────
@@ -113,6 +178,8 @@ export class FormRuntimeComponent {
         next: st => {
           this.structure.set(st);
           this.estado.set('listo');
+          // Título de página = etiqueta del menú, o el nombre del formulario como respaldo.
+          if (!this.menuLabel && st.form_name) this.titleService.setTitle(st.form_name);
         },
         error: (err: HttpErrorResponse) => {
           const p = this.comoProblema(err);

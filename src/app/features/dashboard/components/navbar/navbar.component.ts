@@ -505,10 +505,23 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public onNodeClick(node: PermNode): void {
     if (this.hasChildren(node)) {
       this.toggleNode(node.id);
+      // Un nodo CON hijos que además tiene pantalla propia (p. ej. "Novedades" con un
+      // formulario dinámico colgado debajo) debe SEGUIR navegando a su pantalla, no solo
+      // expandir. Los contenedores puros (sin ruta propia) solo expanden.
+      if (this.hasOwnScreen(node)) {
+        this.router.navigateByUrl(this.getNodeRoute(node));
+        this.onLeafClick();
+      }
       return;
     }
     this.router.navigateByUrl(this.getNodeRoute(node));
     this.onLeafClick();
+  }
+
+  /** ¿El nodo tiene pantalla propia navegable (no es un contenedor puro sin ruta)? */
+  public hasOwnScreen(node: PermNode): boolean {
+    const route = this.getNodeRoute(node);
+    return !!node.ruta && route !== '/dashboard' && route !== '/dashboard/';
   }
 
   // ===== expand/collapse =====
