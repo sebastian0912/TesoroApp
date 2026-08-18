@@ -534,34 +534,47 @@
                   @if (completarManual('correo')) { <mat-hint>Completar manualmente</mat-hint> }
                 </mat-form-field>
 
+                <!-- EPS de afiliacion: SIEMPRE elegible de la matriz de cartera
+                     (mientras contratacion corrige su base de EPS) -->
                 <mat-form-field
                   appearance="outline"
                   class="reg-campo"
-                  [class.reg-campo--auto]="soloLectura('epsAfiliacion')"
                   [class.reg-campo--manual]="completarManual('epsAfiliacion')"
                 >
                   <mat-label>EPS de afiliacion</mat-label>
                   <mat-icon matPrefix aria-hidden="true">local_hospital</mat-icon>
-                  <input
-                    matInput
+                  <mat-select
                     formControlName="epsAfiliacion"
-                    [readonly]="soloLectura('epsAfiliacion')"
-                  />
+                    (selectionChange)="alCambiarEpsAfiliacion($event.value)"
+                  >
+                    @for (eps of opcionesEps(); track eps) {
+                      <mat-option [value]="eps">{{ eps }}</mat-option>
+                    }
+                    @if (!opcionesEps().length) {
+                      <div class="reg-select-vacio">
+                        {{ cargandoEps() ? 'Cargando EPS…' : 'Sin EPS disponibles' }}
+                      </div>
+                    }
+                  </mat-select>
                   @if (completarManual('epsAfiliacion')) {
-                    <mat-hint>Completar manualmente</mat-hint>
+                    <mat-hint>Contratacion no la trajo: eligela de la lista</mat-hint>
+                  } @else {
+                    <mat-hint>Puedes corregirla eligiendo otra de la lista</mat-hint>
                   }
                 </mat-form-field>
 
-                <!-- ARL: no existe como dato en ninguna tabla, se elige a mano -->
-                <mat-form-field appearance="outline" class="reg-campo">
+                <!-- ARL: SIEMPRE ARL SURA (definicion de la funcional). Fija, no editable. -->
+                <mat-form-field appearance="outline" class="reg-campo reg-campo--auto">
                   <mat-label>ARL</mat-label>
                   <mat-icon matPrefix aria-hidden="true">health_and_safety</mat-icon>
-                  <mat-select formControlName="arl">
-                    @for (arl of arlConocidas; track arl) {
-                      <mat-option [value]="arl">{{ arl }}</mat-option>
-                    }
-                  </mat-select>
-                  <mat-hint>La ARL no viene de contratacion: verificala</mat-hint>
+                  <input matInput formControlName="arl" readonly />
+                  <mat-icon
+                    matSuffix
+                    class="reg-icono-candado"
+                    matTooltip="La ARL es siempre ARL SURA: no se puede cambiar"
+                    >lock</mat-icon
+                  >
+                  <mat-hint>Siempre ARL SURA para todos los clientes</mat-hint>
                 </mat-form-field>
               </div>
             </section>

@@ -224,6 +224,43 @@ export const COLUMNAS_EXPORTABLES: readonly ColumnaExportable[] = [
     enTabla: false,
     obtener: (f) => fechaHoraLegible(f.actualizadoEn),
   },
+  // ── Radicacion (V44) ────────────────────────────────────────────────
+  {
+    clave: 'numeroRadicado',
+    etiqueta: 'Numero de radicado',
+    enTabla: true,
+    obtener: (f) => texto(f.numeroRadicado),
+  },
+  {
+    clave: 'fechaRadicado',
+    etiqueta: 'Fecha de radicado',
+    enTabla: true,
+    obtener: (f) => fechaLegible(f.fechaRadicado),
+  },
+  {
+    clave: 'semanaRadicacion',
+    etiqueta: 'Semana de radicacion',
+    enTabla: true,
+    obtener: (f) => numero(f.semanaRadicacion),
+  },
+  {
+    clave: 'entidadGrupo',
+    etiqueta: 'Entidad (carpeta)',
+    enTabla: true,
+    obtener: (f) => texto(f.entidadGrupoEtiqueta ?? f.entidadGrupo),
+  },
+  {
+    clave: 'dondeRadicado',
+    etiqueta: 'Donde se radico',
+    enTabla: true,
+    obtener: (f) => texto(f.dondeRadicadoEtiqueta ?? f.dondeRadicado),
+  },
+  {
+    clave: 'radicadoPor',
+    etiqueta: 'Radicado por',
+    enTabla: true,
+    obtener: (f) => texto(f.radicadoPor),
+  },
   { clave: 'id', etiqueta: 'Id interno', enTabla: false, obtener: (f) => numero(f.id) },
 ];
 

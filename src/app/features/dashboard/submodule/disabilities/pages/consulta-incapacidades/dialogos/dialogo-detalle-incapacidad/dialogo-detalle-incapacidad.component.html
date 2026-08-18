@@ -164,6 +164,231 @@
     }
   </section>
 
+  <!-- ════════ Radicacion (V44) ════════ -->
+  @if (muestraRadicacion()) {
+    <section class="det-bloque">
+      <header class="det-bloque-cabecera">
+        <mat-icon class="det-bloque-icono">outgoing_mail</mat-icon>
+        <h3 class="det-bloque-titulo">Radicacion</h3>
+        @if (radicacion(); as rad) {
+          <span class="det-bloque-hint">
+            {{ rad.epsDestino || 'Sin entidad destino' }} · {{ rad.formaCargueEtiqueta }}
+            @if (carpetaCartera()) {
+              · Carpeta: {{ carpetaCartera() }}
+            }
+          </span>
+        }
+      </header>
+
+      @if (cargandoRadicacion()) {
+        <div class="det-cargando">
+          <mat-spinner diameter="26"></mat-spinner>
+          <span>Cargando la radicacion…</span>
+        </div>
+      }
+
+      @if (errorRadicacion()) {
+        <div class="det-aviso det-aviso-error" role="alert">
+          <mat-icon>error_outline</mat-icon>
+          <span>{{ errorRadicacion() }}</span>
+        </div>
+      }
+
+      @if (radicacion(); as rad) {
+        <!-- Datos del radicado (si ya existe) -->
+        @if (yaRadicada()) {
+          <dl class="det-ficha">
+            <div class="det-campo">
+              <dt>Numero de radicado</dt>
+              <dd class="rad-numero">{{ rad.numeroRadicado }}</dd>
+            </div>
+            <div class="det-campo">
+              <dt>Fecha de radicado</dt>
+              <dd>{{ rad.fechaRadicado || '—' }}</dd>
+            </div>
+            <div class="det-campo">
+              <dt>Donde se radico</dt>
+              <dd>{{ rad.dondeRadicadoEtiqueta || '—' }}</dd>
+            </div>
+            <div class="det-campo">
+              <dt>Radicado por</dt>
+              <dd>{{ rad.radicadoPor || '—' }}</dd>
+            </div>
+          </dl>
+        }
+
+        <!-- Archivos EXACTOS para el portal de la EPS/ARL -->
+        @if (rad.archivos.length === 0) {
+          <div class="det-vacio">
+            <mat-icon>picture_as_pdf</mat-icon>
+            <span>
+              Aun no se ha generado el paquete de radicacion. Al pasar a "Pendiente de
+              radicacion" se generan los PDF con el nombre exacto que exige
+              {{ rad.epsDestino || 'la entidad' }}.
+            </span>
+          </div>
+        } @else {
+          <ul class="det-soportes">
+            @for (archivo of rad.archivos; track trackArchivoRadicacion($index, archivo)) {
+              <li class="det-soporte">
+                <span class="det-soporte-icono rad-icono-pdf">
+                  <mat-icon>picture_as_pdf</mat-icon>
+                </span>
+
+                <div class="det-soporte-textos">
+                  <span class="det-soporte-titulo rad-nombre-archivo">
+                    {{ archivo.nombreArchivo }}
+                  </span>
+                  <span class="det-soporte-meta">
+                    {{ archivo.tipoEtiqueta }}
+                    @if (tamanoArchivo(archivo.sizeBytes)) {
+                      · {{ tamanoArchivo(archivo.sizeBytes) }}
+                    }
+                    ·
+                    @if (archivo.sincronizado) {
+                      <span class="rad-sync rad-sync-ok">
+                        <mat-icon inline>cloud_done</mat-icon> En gestion documental
+                      </span>
+                    } @else {
+                      <span class="rad-sync rad-sync-pend">
+                        <mat-icon inline>cloud_off</mat-icon> Pendiente de sincronizar
+                      </span>
+                    }
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  mat-icon-button
+                  matTooltip="Ver el PDF en otra pestana"
+                  [disabled]="descargandoArchivoId() === archivo.id"
+                  (click)="descargarArchivoRadicacion(archivo, true)"
+                  [attr.aria-label]="'Ver ' + archivo.nombreArchivo"
+                >
+                  <mat-icon>visibility</mat-icon>
+                </button>
+                <button
+                  type="button"
+                  mat-stroked-button
+                  class="det-soporte-btn"
+                  [disabled]="descargandoArchivoId() === archivo.id"
+                  (click)="descargarArchivoRadicacion(archivo)"
+                  [attr.aria-label]="'Descargar ' + archivo.nombreArchivo"
+                  matTooltip="Descargar con el nombre exacto que exige el portal"
+                >
+                  @if (descargandoArchivoId() === archivo.id) {
+                    <mat-spinner diameter="16"></mat-spinner>
+                  } @else {
+                    <mat-icon>download</mat-icon>
+                  }
+                  <span>Descargar</span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+
+        <!-- Mini-formulario para registrar el radicado -->
+        @if (radicarAbierto()) {
+          <div class="rad-form">
+            <div class="rad-form-campos">
+              <label class="rad-campo">
+                <span>Numero de radicado *</span>
+                <input
+                  type="text"
+                  [value]="radicarNumero()"
+                  (input)="radicarNumero.set($any($event.target).value)"
+                  placeholder="El numero que entrego la EPS/ARL"
+                />
+              </label>
+              <label class="rad-campo">
+                <span>Fecha de radicado</span>
+                <input
+                  type="date"
+                  [value]="radicarFecha()"
+                  (input)="radicarFecha.set($any($event.target).value)"
+                />
+              </label>
+              <div class="rad-campo">
+                <span>Donde se radico</span>
+                <div class="rad-dondes">
+                  @for (donde of dondesRadicado(); track donde.codigo) {
+                    <button
+                      type="button"
+                      class="rad-donde"
+                      [class.rad-donde-activo]="radicarDonde() === donde.codigo"
+                      (click)="radicarDonde.set($any(donde.codigo))"
+                    >
+                      {{ donde.etiqueta }}
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
+            <div class="rad-form-acciones">
+              <button type="button" mat-stroked-button (click)="cancelarRadicar()">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                mat-flat-button
+                class="det-btn-editar"
+                [disabled]="accionRadicacion()"
+                (click)="confirmarRadicar()"
+              >
+                <mat-icon>task_alt</mat-icon>
+                <span>{{ yaRadicada() ? 'Actualizar radicado' : 'Confirmar radicado' }}</span>
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Acciones de radicacion -->
+        <div class="rad-acciones">
+          @if (puedePasarAPendiente()) {
+            <button
+              type="button"
+              mat-flat-button
+              class="det-btn-editar"
+              [disabled]="accionRadicacion()"
+              (click)="pasarAPendiente()"
+              matTooltip="Genera los PDF renombrados y los guarda en la gestion documental"
+            >
+              <mat-icon>drive_file_move</mat-icon>
+              <span>Pasar a pendiente de radicacion</span>
+            </button>
+          }
+          @if (puedeRadicar() && !radicarAbierto()) {
+            <button
+              type="button"
+              mat-stroked-button
+              [disabled]="accionRadicacion()"
+              (click)="abrirRadicar()"
+            >
+              <mat-icon>task_alt</mat-icon>
+              <span>{{ yaRadicada() ? 'Actualizar radicado' : 'Radicar' }}</span>
+            </button>
+          }
+          @if (rad.archivos.length > 0) {
+            <button
+              type="button"
+              mat-stroked-button
+              [disabled]="accionRadicacion()"
+              (click)="regenerarPaquete()"
+              matTooltip="Rehace los PDF (por ejemplo tras reemplazar un soporte)"
+            >
+              <mat-icon>refresh</mat-icon>
+              <span>Regenerar paquete</span>
+            </button>
+          }
+          @if (accionRadicacion()) {
+            <mat-spinner diameter="22"></mat-spinner>
+          }
+        </div>
+      }
+    </section>
+  }
+
   <!-- ════════ Linea de tiempo ════════ -->
   <section class="det-bloque">
     <header class="det-bloque-cabecera">

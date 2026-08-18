@@ -1,0 +1,194 @@
+<div class="umb-hero">
+  <div class="umb-hero-icono">
+    <mat-icon>timelapse</mat-icon>
+  </div>
+
+  <div class="umb-hero-textos">
+    <h2 class="umb-hero-titulo" mat-dialog-title>Informe de umbrales de incapacidad</h2>
+    <p class="umb-hero-sub">
+      Personas proximas a (o por encima de) los 180 dias (fondo de pensiones) y 540 dias (EPS)
+    </p>
+  </div>
+
+  <button
+    type="button"
+    mat-icon-button
+    class="umb-cerrar"
+    (click)="cerrar()"
+    aria-label="Cerrar"
+    matTooltip="Cerrar"
+  >
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<mat-dialog-content class="umb-cuerpo">
+
+  <!-- ════════ Margen + filtro rapido ════════ -->
+  <section class="umb-controles">
+    <div class="umb-margen">
+      <span class="umb-margen-etiqueta">
+        <mat-icon>notifications_active</mat-icon>
+        Margen de anticipacion
+      </span>
+
+      <mat-button-toggle-group
+        class="umb-toggle"
+        [value]="margen()"
+        (change)="cambiarMargen($event.value)"
+        [disabled]="cargando()"
+        aria-label="Margen de anticipacion en dias"
+      >
+        @for (opcion of margenes; track opcion) {
+          <mat-button-toggle [value]="opcion">{{ opcion }} dias</mat-button-toggle>
+        }
+      </mat-button-toggle-group>
+    </div>
+
+    <label class="umb-filtro">
+      <mat-icon>search</mat-icon>
+      <input
+        #entradaFiltro
+        type="text"
+        placeholder="Filtrar por cedula o nombre"
+        aria-label="Filtrar por cedula o nombre"
+        [value]="filtro()"
+        (input)="cambiarFiltro(entradaFiltro.value)"
+      />
+      @if (filtro()) {
+        <button
+          type="button"
+          class="umb-filtro-limpiar"
+          aria-label="Limpiar filtro"
+          matTooltip="Limpiar filtro"
+          (click)="entradaFiltro.value = ''; cambiarFiltro('')"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </label>
+  </section>
+
+  <!-- ════════ Contadores por tramo ════════ -->
+  <section class="umb-contadores">
+    @for (definicion of tramos; track definicion.tramo) {
+      <div class="umb-contador" [matTooltip]="definicion.ayuda">
+        <span
+          class="umb-chip umb-contador-chip"
+          [style.color]="estiloTramo(definicion.tramo).color"
+          [style.background]="estiloTramo(definicion.tramo).background"
+        >
+          <mat-icon>{{ definicion.icono }}</mat-icon>
+          {{ definicion.etiqueta }}
+        </span>
+        <span class="umb-contador-valor">{{ conteoTramo(definicion.tramo) }}</span>
+      </div>
+    }
+  </section>
+
+  <!-- ════════ Estados / tabla ════════ -->
+  @if (cargando()) {
+    <div class="umb-estado" aria-live="polite">
+      <mat-spinner diameter="42"></mat-spinner>
+      <p>Cargando el informe...</p>
+    </div>
+  } @else if (error()) {
+    <div class="umb-estado umb-estado-error" role="alert">
+      <mat-icon>error_outline</mat-icon>
+      <p>{{ error() }}</p>
+      <button type="button" mat-stroked-button class="umb-btn" (click)="reintentar()">
+        <mat-icon>refresh</mat-icon>
+        <span>Reintentar</span>
+      </button>
+    </div>
+  } @else if (informeVacio()) {
+    <div class="umb-estado umb-estado-vacio">
+      <mat-icon>task_alt</mat-icon>
+      <p>Nadie esta proximo a los umbrales con este margen.</p>
+    </div>
+  } @else if (totalInforme() > 0) {
+    <div class="umb-tabla-contenedor">
+      <table class="umb-tabla">
+        <thead>
+          <tr>
+            <th>Cedula</th>
+            <th>Nombre</th>
+            <th>Empresa</th>
+            <th>EPS</th>
+            <th>AFP</th>
+            <th>Diagnostico</th>
+            <th class="umb-th-dias">Dias acum.</th>
+            <th>Fin ultima</th>
+            <th>Responsable de pago</th>
+            <th>Tramo</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (fila of filasVisibles(); track fila.incapacidadId) {
+            <tr>
+              <td class="umb-cedula">{{ fila.cedula }}</td>
+              <td class="umb-nombre">{{ fila.nombreCompleto }}</td>
+              <td>{{ fila.empresa || '—' }}</td>
+              <td>{{ fila.eps || '—' }}</td>
+              <td>{{ fila.afp || '—' }}</td>
+              <td class="umb-diagnostico">
+                <span class="umb-diagnostico-codigo">{{ fila.codigoDiagnostico || '—' }}</span>
+                @if (fila.descripcionDiagnostico) {
+                  <span
+                    class="umb-diagnostico-texto"
+                    [matTooltip]="fila.descripcionDiagnostico"
+                  >
+                    {{ fila.descripcionDiagnostico }}
+                  </span>
+                }
+              </td>
+              <td class="umb-dias">{{ fila.diasAcumulados }}</td>
+              <td class="umb-fecha">{{ fecha(fila.fechaFinUltima) }}</td>
+              <td>{{ fila.responsablePagoEtiqueta || fila.responsablePago || '—' }}</td>
+              <td>
+                <span
+                  class="umb-chip"
+                  [style.color]="estiloTramo(fila.tramo).color"
+                  [style.background]="estiloTramo(fila.tramo).background"
+                >
+                  {{ etiquetaTramo(fila) }}
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      @if (filtroSinResultados()) {
+        <p class="umb-filtro-vacio">
+          <mat-icon>search_off</mat-icon>
+          Ninguna persona coincide con "{{ filtro() }}".
+        </p>
+      }
+    </div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions class="umb-acciones">
+  <span class="umb-resumen">
+    <mat-icon>groups</mat-icon>
+    {{ filasVisibles().length }} de {{ totalInforme() }} personas · margen {{ margen() }} dias
+  </span>
+
+  <span class="umb-espaciador"></span>
+
+  <button type="button" mat-stroked-button class="umb-btn" (click)="cerrar()">
+    <span>Cerrar</span>
+  </button>
+
+  <button
+    type="button"
+    mat-flat-button
+    class="umb-btn umb-btn-exportar"
+    [disabled]="!puedeExportar()"
+    (click)="exportarExcel()"
+  >
+    <mat-icon>download</mat-icon>
+    <span>Exportar a Excel</span>
+  </button>
+</mat-dialog-actions>

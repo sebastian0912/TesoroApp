@@ -137,6 +137,8 @@ export interface CatalogosIncapacidad {
   estadosDocumento: OpcionCatalogo<EstadoDocumento>[];
   responsablesPago: OpcionCatalogo<ResponsablePago>[];
   tiposSoporte: OpcionCatalogo<TipoSoporte>[];
+  /** Canales de radicacion (V44). Opcional: backends anteriores no lo envian. */
+  dondesRadicado?: OpcionCatalogo[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -455,7 +457,10 @@ export interface IncapacidadV2 {
 /** Fila de la tabla: `IncapacidadResumenResponse` del backend. */
 export interface IncapacidadResumen {
   id: number;
-  consecutivoSistema: string;
+  /** Lo que el backend v2 REALMENTE serializa como identificador de negocio. */
+  codigoUnico?: string;
+  /** Nombre del contrato viejo; el backend v2 no lo envia (se cae a codigoUnico). */
+  consecutivoSistema?: string;
   cedula: string;
   nombreCompleto: string;
   tipoIncapacidad: TipoIncapacidad;
@@ -476,6 +481,16 @@ export interface IncapacidadResumen {
   /** Para pintar el punto rojo/amarillo en la fila. */
   nivelAlertaMaximo?: NivelAlerta | null;
   creadoEn?: string;
+  // ── Radicacion (V44); opcionales para tolerar backends anteriores ────
+  numeroRadicado?: string | null;
+  /** `yyyy-MM-dd`. */
+  fechaRadicado?: string | null;
+  dondeRadicado?: DondeRadicado | null;
+  dondeRadicadoEtiqueta?: string | null;
+  radicadoPor?: string | null;
+  semanaRadicacion?: number | null;
+  entidadGrupo?: 'APOYO' | 'ALIANZA' | null;
+  entidadGrupoEtiqueta?: string | null;
 }
 
 /** Filtros aceptados por `GET /Incapacidades/v2`. */
@@ -491,10 +506,17 @@ export interface FiltrosIncapacidadV2 {
   empresa?: string;
   centroCosto?: string;
   oficina?: string;
-  /** Rango sobre `fechaInicio`, `yyyy-MM-dd`. */
+  /** Rango sobre `fechaInicio` (extremo inferior), `yyyy-MM-dd`. */
   desde?: string;
-  /** Rango sobre `fechaFin`, `yyyy-MM-dd`. */
+  /** Rango sobre `fechaInicio` (extremo superior; el backend lo aliasa a fechaInicioHasta). */
   hasta?: string;
+  // ── Radicacion (V44) ─────────────────────────────────────────────────
+  numeroRadicado?: string;
+  semanaRadicacion?: number | string;
+  entidadGrupo?: 'APOYO' | 'ALIANZA' | '';
+  /** Rango sobre `fechaRadicado`, `yyyy-MM-dd`. */
+  fechaRadicadoDesde?: string;
+  fechaRadicadoHasta?: string;
 }
 
 /**
@@ -655,20 +677,148 @@ export function etiquetaTemporal(codigo: string | null | undefined): string {
 }
 
 /**
- * ARL conocidas para el desplegable EDITABLE del formulario.
- * La ARL no existe como dato en ninguna tabla: el usuario la elige.
+ * ARL de la plataforma. Definicion de la funcional (2026-08): la ARL es
+ * SIEMPRE Sura para todos los clientes y NO se puede cambiar en el registro.
+ * El campo se muestra bloqueado y siempre se envia este valor.
  */
-export const ARL_CONOCIDAS: readonly string[] = [
-  'ARL SURA',
-  'POSITIVA',
-  'COLMENA SEGUROS',
-  'SEGUROS BOLIVAR',
-  'LIBERTY SEGUROS',
-  'AXA COLPATRIA',
-  'MAPFRE',
-  'EQUIDAD SEGUROS',
-  'ALFA',
-] as const;
-
-/** Valor por defecto de la ARL segun la funcional. */
 export const ARL_POR_DEFECTO = 'ARL SURA';
+
+// ─────────────────────────────────────────────────────────────────────────
+// Matriz de EPS (V43): lista cerrada del selector + forma de cargue
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Como exige cada EPS que se le entregue la documentacion al radicar. */
+export type FormaCargueEps = 'UN_SOLO_PDF' | 'PDF_POR_DOCUMENTO';
+
+/**
+ * Una EPS de la matriz oficial de cartera (`GET /Incapacidades/v2/eps-matriz`).
+ * Es la lista CERRADA que ofrece el selector del registro mientras contratacion
+ * corrige su base de EPS.
+ */
+export interface EpsMatrizItem {
+  nombre: string;
+  formaCargue: FormaCargueEps;
+  formaCargueEtiqueta: string;
+  /** Solo Salud Total hoy: exige ademas su formulario propio (sufijo Sop). */
+  requiereSoporteEps: boolean;
+  orden: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Radicacion (V44)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Canal por el que se radico ante la EPS/ARL. */
+export type DondeRadicado = 'CORREO' | 'PAGINA' | 'PUNTO_FISICO';
+
+/** Un PDF de radicacion generado, con el nombre EXACTO que exige el portal. */
+export interface ArchivoRadicacion {
+  id: number;
+  tipo: string;
+  tipoEtiqueta: string;
+  nombreArchivo: string;
+  sizeBytes: number | null;
+  documentId: number | null;
+  /** `true` si ya quedo guardado en la gestion documental (ms-documents). */
+  sincronizado: boolean;
+  generadoEn: string | null;
+}
+
+/** Estado completo de la radicacion (`GET /Incapacidades/v2/{id}/radicacion`). */
+export interface RadicacionIncapacidad {
+  id: number;
+  codigoUnico: string;
+  estado: EstadoIncapacidad;
+  estadoEtiqueta: string;
+  /** "ARL SURA" en accidente/enfermedad laboral; la EPS en el resto. */
+  epsDestino: string | null;
+  formaCargue: FormaCargueEps;
+  formaCargueEtiqueta: string;
+  entidadGrupo: 'APOYO' | 'ALIANZA' | null;
+  entidadGrupoEtiqueta: string | null;
+  semanaRadicacion: number | null;
+  numeroRadicado: string | null;
+  fechaRadicado: string | null;
+  dondeRadicado: DondeRadicado | null;
+  dondeRadicadoEtiqueta: string | null;
+  radicadoPor: string | null;
+  archivos: ArchivoRadicacion[];
+}
+
+/** Registrar el radicado de UNA incapacidad. */
+export interface RadicarPeticion {
+  numeroRadicado: string;
+  /** yyyy-MM-dd; por defecto hoy (lo pone el backend). */
+  fechaRadicado?: string | null;
+  dondeRadicado?: DondeRadicado | null;
+  actor?: string;
+  actorRol?: string;
+}
+
+/** Resultado por fila de la carga masiva de radicados. */
+export interface FilaCargaMasivaRadicados {
+  fila: number;
+  cedula: string;
+  fechaInicio: string;
+  numeroRadicado: string;
+  ok: boolean;
+  mensaje: string;
+  incapacidadId: number | null;
+}
+
+export interface ResultadoCargaMasivaRadicados {
+  total: number;
+  exitosos: number;
+  fallidos: number;
+  filas: FilaCargaMasivaRadicados[];
+}
+
+/** Trabajos asincronos de exportacion masiva. */
+export type TipoExportJob = 'ZIP_SOPORTES' | 'EXCEL_CONSOLIDADO';
+export type EstadoExportJob = 'PENDIENTE' | 'EN_PROCESO' | 'COMPLETADO' | 'ERROR';
+
+export interface ExportJob {
+  id: string;
+  tipo: TipoExportJob;
+  tipoEtiqueta: string;
+  estado: EstadoExportJob;
+  estadoEtiqueta: string;
+  totalRegistros: number | null;
+  procesados: number | null;
+  nombreResultado: string | null;
+  tamanoBytes: number | null;
+  mensajeError: string | null;
+  creadoEn: string | null;
+}
+
+/** Conteos de la cabecera en UNA llamada (`GET /Incapacidades/v2/resumen`). */
+export interface ResumenIncapacidades {
+  total: number;
+  porEstado: Record<string, number>;
+  porEstadoDocumento: Record<string, number>;
+  sinSoportes: number;
+}
+
+/** Informe de proximos a 180/540 dias. */
+export interface FilaInformeUmbral {
+  incapacidadId: number;
+  cedula: string;
+  nombreCompleto: string;
+  empresa: string | null;
+  eps: string | null;
+  afp: string | null;
+  codigoDiagnostico: string | null;
+  descripcionDiagnostico: string | null;
+  diasAcumulados: number;
+  fechaFinUltima: string | null;
+  responsablePago: string | null;
+  responsablePagoEtiqueta: string | null;
+  tramo: 'PROXIMO_180' | 'SUPERA_180' | 'PROXIMO_540' | 'SUPERA_540';
+  tramoEtiqueta: string;
+}
+
+export interface InformeUmbral {
+  margenDias: number;
+  total: number;
+  filas: FilaInformeUmbral[];
+}

@@ -79,13 +79,13 @@ import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
 import { IncapacidadService } from '../../services/incapacidad/incapacidad.service';
 import { IncapacidadV2Service } from '../../services/incapacidad-v2/incapacidad-v2.service';
 import {
-  ARL_CONOCIDAS,
   ARL_POR_DEFECTO,
   AlertaValidacion,
   CodigoDiagnostico,
   CrearIncapacidadV2Request,
   DatosContratacionResponse,
   EmpleadoBusqueda,
+  EpsMatrizItem,
   EstadoDocumento,
   IncapacidadV2,
   IpsBusqueda,
@@ -307,7 +307,6 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   // ── Constantes expuestas a la plantilla ───────────────────────────────
-  readonly arlConocidas = ARL_CONOCIDAS;
   readonly tiposDocumento = TIPOS_DOCUMENTO;
   readonly opcionesSexo = OPCIONES_SEXO;
   readonly aceptaArchivos = '.pdf,.jpg,.jpeg,.png';
@@ -478,6 +477,8 @@ export class RegistroIncapacidadComponent implements OnDestroy {
 
   // ── EPS (desplegable con buscador incorporado) ────────────────────────
   private readonly listaEps = signal<string[]>([]);
+  /** Matriz completa (con forma de cargue), por si la plantilla necesita el detalle. */
+  readonly epsMatrizLista = signal<EpsMatrizItem[]>([]);
   readonly filtroEps = signal('');
   readonly cargandoEps = signal(false);
 
@@ -786,11 +787,20 @@ export class RegistroIncapacidadComponent implements OnDestroy {
 
   readonly opcionesEps = computed<string[]>(() => {
     const base = this.listaEps();
-    const propia = (this.valores().personal.epsAfiliacion || '').trim();
-    if (propia && !base.some((e) => normalizar(e) === normalizar(propia))) {
-      return [propia, ...base];
+    // Se rescatan los valores YA puestos en el formulario (la EPS de afiliacion
+    // de contratacion y la EPS de una incapacidad guardada antes de la matriz):
+    // un mat-select solo muestra valores que EXISTAN como opcion, asi que
+    // cualquier valor sin coincidencia EXACTA se antepone tal cual.
+    const extras: string[] = [];
+    for (const valor of [
+      (this.valores().personal.epsAfiliacion || '').trim(),
+      (this.valores().incapacidad.eps || '').trim(),
+    ]) {
+      if (valor && !base.includes(valor) && !extras.includes(valor)) {
+        extras.push(valor);
+      }
     }
-    return base;
+    return extras.length ? [...extras, ...base] : base;
   });
 
   readonly epsFiltradas = computed<string[]>(() => {
@@ -870,9 +880,52 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       });
   }
 
-  /** Lista de EPS del endpoint legacy (se filtra en cliente). */
+  /**
+   * Lista de EPS del selector. La fuente es la MATRIZ oficial de cartera
+   * (`GET /Incapacidades/v2/eps-matriz`, V43): lista CERRADA para elegir
+   * mientras contratacion corrige su base de EPS. Si el backend aun no la
+   * expone, degrada a la lista del endpoint legacy para no dejar el selector
+   * vacio (misma politica de degradacion que los catalogos de la consulta).
+   */
   private cargarListaEps(): void {
     this.cargandoEps.set(true);
+    this.srv
+      .epsMatriz()
+      .pipe(
+        catchError(() => of<EpsMatrizItem[] | null>(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((matriz) => {
+        if (matriz && matriz.length) {
+          this.cargandoEps.set(false);
+          this.epsMatrizLista.set(matriz);
+          // El orden lo manda la matriz (columna `orden`), no el alfabeto.
+          this.listaEps.set(matriz.map((e) => e.nombre.trim()).filter((n) => n.length > 0));
+          this.recanonizarEpsDelFormulario();
+          return;
+        }
+        this.cargarListaEpsLegacy();
+      });
+  }
+
+  /**
+   * La matriz puede llegar DESPUES de que contratacion o el modo edicion ya
+   * sembraran las EPS del formulario: se re-canonizan para que casen con las
+   * opciones del selector (un valor que difiere solo en mayusculas dejaria el
+   * mat-select en blanco).
+   */
+  private recanonizarEpsDelFormulario(): void {
+    const afiliacion = this.form.controls.personal.controls.epsAfiliacion;
+    const canonAfiliacion = this.canonizarEps(afiliacion.value);
+    if (canonAfiliacion !== afiliacion.value) afiliacion.setValue(canonAfiliacion);
+
+    const eps = this.form.controls.incapacidad.controls.eps;
+    const canonEps = this.canonizarEps(eps.value);
+    if (canonEps !== eps.value) eps.setValue(canonEps);
+  }
+
+  /** Respaldo: lista de EPS del endpoint legacy (solo si la matriz fallo). */
+  private cargarListaEpsLegacy(): void {
     this.srvLegacy
       .traerDatosListas()
       .pipe(
@@ -895,6 +948,25 @@ export class RegistroIncapacidadComponent implements OnDestroy {
         const unicas = Array.from(new Set(nombres)).sort((a, b) => a.localeCompare(b, 'es'));
         this.listaEps.set(unicas);
       });
+  }
+
+  /**
+   * Devuelve el nombre CANONICO de la matriz si el valor coincide con una EPS
+   * de la lista (ignorando tildes y mayusculas); si no, el valor tal cual.
+   * Sin esto, un "Nueva Eps" de contratacion no casaria con la opcion
+   * "NUEVA EPS" del `mat-select` y el campo se veria vacio.
+   */
+  private canonizarEps(valor: string | null | undefined): string {
+    const limpio = (valor ?? '').trim();
+    if (!limpio) return '';
+    const hallada = this.listaEps().find((e) => normalizar(e) === normalizar(limpio));
+    return hallada ?? limpio;
+  }
+
+  /** Al elegir la EPS de afiliacion, siembra la EPS de la incapacidad si esta vacia. */
+  alCambiarEpsAfiliacion(valor: string): void {
+    const control = this.form.controls.incapacidad.controls.eps;
+    if (valor && !control.value) control.setValue(valor);
   }
 
   /**
@@ -1034,7 +1106,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       fechaFin: parsearFechaFlexible(inc.fechaFin),
       codigoDiagnostico: (inc.codigoDiagnostico ?? '').trim(),
       descripcionDiagnostico: (inc.descripcionDiagnostico ?? '').trim(),
-      eps: (inc.eps ?? '').trim(),
+      eps: this.canonizarEps(inc.eps),
       nitIps: (inc.nitIps ?? '').trim(),
       nombreIps: (inc.ipsNombre ?? '').trim(),
       numeroIncapacidad: (inc.numeroIncapacidad ?? '').trim(),
@@ -1042,7 +1114,9 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       observaciones: (inc.observaciones ?? '').trim(),
     });
 
-    this.form.controls.personal.patchValue({ arl: (inc.arl ?? ARL_POR_DEFECTO).trim() });
+    // La ARL es SIEMPRE Sura (definicion de la funcional): aunque el registro
+    // guardado traiga otra cosa, el campo fijo la corrige al reguardar.
+    this.form.controls.personal.patchValue({ arl: ARL_POR_DEFECTO });
 
     // Los datos del trabajador son maestros de contratacion: se recargan
     // por el mismo camino que el alta, no se copian del registro guardado.
@@ -1086,8 +1160,9 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       temporal: etiquetaTemporal(emp.temporal),
       numeroContrato: (emp.numeroContrato ?? '').trim(),
       fechaIngreso: parsearFechaFlexible(emp.fechaIngreso),
-      // La EPS llega con espacios finales ("NUEVA EPS ", "SURA ").
-      epsAfiliacion: (emp.eps ?? '').trim(),
+      // La EPS llega con espacios finales ("NUEVA EPS ", "SURA ") y se
+      // canoniza contra la matriz para que case con el selector.
+      epsAfiliacion: this.canonizarEps(emp.eps),
       fondoPension: (emp.afp ?? '').trim(),
     });
   }
@@ -1128,7 +1203,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       numeroContrato: primerTexto(c.codigo_contrato, emp?.numeroContrato),
       // OJO: `a.afp` es pension obligatoria. `a.afc` son CESANTIAS.
       fondoPension: primerTexto(a.afp, c.nombre_afp, emp?.afp),
-      epsAfiliacion: primerTexto(c.nombre_eps_afiliada, a.eps, emp?.eps),
+      epsAfiliacion: this.canonizarEps(primerTexto(c.nombre_eps_afiliada, a.eps, emp?.eps)),
     };
 
     this.form.controls.personal.patchValue({

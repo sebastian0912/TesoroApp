@@ -16,14 +16,22 @@ import {
   CrearIncapacidadV2Request,
   DatosContratacionResponse,
   EmpleadoBusqueda,
+  EpsMatrizItem,
+  ExportJob,
   FiltrosIncapacidadV2,
   IncapacidadResumen,
   IncapacidadV2,
+  InformeUmbral,
   IpsBusqueda,
   ListaSoportesResponse,
   Page,
+  RadicacionIncapacidad,
+  RadicarPeticion,
+  ResultadoCargaMasivaRadicados,
   ResultadoPromocion,
+  ResumenIncapacidades,
   SoporteIncapacidad,
+  TipoExportJob,
   TipoSoporte,
   ValidacionResponse,
   ValidarIncapacidadRequest,
@@ -74,6 +82,13 @@ export class IncapacidadV2Service {
 
   /** Peticion en vuelo compartida, para que N componentes no disparen N GET. */
   private peticionCatalogos$: Observable<CatalogosIncapacidad> | null = null;
+
+  // ── Cache de la matriz de EPS (V43) ───────────────────────────────────
+  private readonly _epsMatriz = signal<EpsMatrizItem[] | null>(null);
+  /** Matriz de EPS ya cacheada (`null` mientras no se haya pedido). */
+  readonly epsMatrizCache = this._epsMatriz.asReadonly();
+  /** Peticion en vuelo compartida de la matriz. */
+  private peticionEpsMatriz$: Observable<EpsMatrizItem[]> | null = null;
 
   // ── Cabeceras ─────────────────────────────────────────────────────────
 
@@ -289,6 +304,176 @@ export class IncapacidadV2Service {
   invalidarCatalogos(): void {
     this._catalogos.set(null);
     this.peticionCatalogos$ = null;
+  }
+
+  /**
+   * `GET /Incapacidades/v2/eps-matriz`.
+   *
+   * Lista CERRADA de EPS de la matriz oficial de cartera, con la forma de
+   * cargue que exige cada una al radicar (un solo PDF o PDF por documento).
+   * Misma politica de cache que los catalogos: una peticion por sesion,
+   * compartida entre suscriptores, con reintento posible tras un error.
+   */
+  epsMatriz(): Observable<EpsMatrizItem[]> {
+    const cacheada = this._epsMatriz();
+    if (cacheada) return of(cacheada);
+
+    if (!this.peticionEpsMatriz$) {
+      this.peticionEpsMatriz$ = this.http
+        .get<EpsMatrizItem[]>(`${this.base}/eps-matriz`, { headers: this.cabeceras() })
+        .pipe(
+          tap((resp) => this._epsMatriz.set(resp ?? [])),
+          catchError((error: unknown) => {
+            // Se libera la peticion fallida para poder reintentar.
+            this.peticionEpsMatriz$ = null;
+            return throwError(() => error);
+          }),
+          shareReplay({ bufferSize: 1, refCount: false }),
+        );
+    }
+
+    return this.peticionEpsMatriz$;
+  }
+
+  // ── Radicacion (V44) ──────────────────────────────────────────────────
+
+  /** `GET /Incapacidades/v2/{id}/radicacion` — estado completo + archivos generados. */
+  obtenerRadicacion(id: number): Observable<RadicacionIncapacidad> {
+    return this.http.get<RadicacionIncapacidad>(`${this.base}/${id}/radicacion`, {
+      headers: this.cabeceras(),
+    });
+  }
+
+  /** `POST /{id}/pendiente-radicacion` — genera el paquete de PDF y clasifica. 409 = motivo. */
+  pasarAPendienteRadicacion(id: number): Observable<RadicacionIncapacidad> {
+    return this.http.post<RadicacionIncapacidad>(
+      `${this.base}/${id}/pendiente-radicacion`,
+      this.cuerpoActor(),
+      { headers: this.cabecerasJson() },
+    );
+  }
+
+  /** `POST /{id}/radicacion/regenerar` — rehace los PDF (p. ej. tras cambiar un soporte). */
+  regenerarRadicacion(id: number): Observable<RadicacionIncapacidad> {
+    return this.http.post<RadicacionIncapacidad>(
+      `${this.base}/${id}/radicacion/regenerar`,
+      this.cuerpoActor(),
+      { headers: this.cabecerasJson() },
+    );
+  }
+
+  /** `POST /{id}/radicar` — registra el numero de radicado y deja la incapacidad RADICADA. */
+  radicar(id: number, peticion: RadicarPeticion): Observable<RadicacionIncapacidad> {
+    return this.http.post<RadicacionIncapacidad>(
+      `${this.base}/${id}/radicar`,
+      { ...this.cuerpoActor(), ...peticion },
+      { headers: this.cabecerasJson() },
+    );
+  }
+
+  /**
+   * `GET /{id}/radicacion/archivos/{archivoId}/descargar` — el PDF con su nombre EXACTO,
+   * como Blob (la descarga lleva el token: un `<a href>` plano no lo llevaria).
+   */
+  descargarArchivoRadicacion(id: number, archivoId: number): Observable<Blob> {
+    return this.http.get(`${this.base}/${id}/radicacion/archivos/${archivoId}/descargar`, {
+      headers: this.cabeceras(),
+      responseType: 'blob',
+    });
+  }
+
+  /** `POST /radicados/carga-masiva` — radica en lote (.xlsx/.csv) y devuelve fila a fila. */
+  cargaMasivaRadicados(archivo: File): Observable<ResultadoCargaMasivaRadicados> {
+    const cuerpo = new FormData();
+    cuerpo.append('file', archivo, archivo.name);
+    const actor = this.cuerpoActor();
+    if (actor.actor) cuerpo.append('actor', actor.actor);
+    if (actor.actorRol) cuerpo.append('actorRol', actor.actorRol);
+    return this.http.post<ResultadoCargaMasivaRadicados>(
+      `${this.base}/radicados/carga-masiva`,
+      cuerpo,
+      { headers: this.cabeceras() },
+    );
+  }
+
+  // ── Exportaciones masivas asincronas (V44) ────────────────────────────
+
+  /** `POST /exports` — crea y encola el trabajo (202). Se sondea con `estadoExport`. */
+  crearExport(tipo: TipoExportJob, filtros: FiltrosIncapacidadV2 = {}): Observable<ExportJob> {
+    return this.http.post<ExportJob>(
+      `${this.base}/exports`,
+      { tipo, filtros, ...this.cuerpoActor() },
+      { headers: this.cabecerasJson() },
+    );
+  }
+
+  /** `GET /exports/{id}` — estado y progreso del trabajo. */
+  estadoExport(id: string): Observable<ExportJob> {
+    return this.http.get<ExportJob>(`${this.base}/exports/${id}`, {
+      headers: this.cabeceras(),
+    });
+  }
+
+  /** `GET /exports/{id}/descargar` — el resultado (ZIP o XLSX) como Blob autenticado. */
+  descargarExport(id: string): Observable<Blob> {
+    return this.http.get(`${this.base}/exports/${id}/descargar`, {
+      headers: this.cabeceras(),
+      responseType: 'blob',
+    });
+  }
+
+  // ── Resumen e informes (V44) ──────────────────────────────────────────
+
+  /** `GET /resumen` — los conteos de la cabecera en UNA llamada, con los mismos filtros. */
+  resumen(filtros: FiltrosIncapacidadV2 = {}): Observable<ResumenIncapacidades> {
+    let params = new HttpParams();
+    for (const [clave, valor] of Object.entries(filtros)) {
+      if (valor === null || valor === undefined) continue;
+      const texto = String(valor).trim();
+      if (!texto) continue;
+      params = params.set(clave, texto);
+    }
+    return this.http.get<ResumenIncapacidades>(`${this.base}/resumen`, {
+      headers: this.cabeceras(),
+      params,
+    });
+  }
+
+  /** `GET /informes/proximos-umbral` — personas proximas a (o sobre) 180/540 dias. */
+  proximosUmbral(margen = 30): Observable<InformeUmbral> {
+    const params = new HttpParams().set('margen', String(margen));
+    return this.http.get<InformeUmbral>(`${this.base}/informes/proximos-umbral`, {
+      headers: this.cabeceras(),
+      params,
+    });
+  }
+
+  /**
+   * Actor para la bitacora: hoy el gateway no inyecta X-User-*, asi que el nombre viaja en
+   * el cuerpo (mismo respaldo que usa el registro). Lee el usuario de localStorage con
+   * tolerancia total: sin usuario, la bitacora queda como "anonimo" y nada revienta.
+   */
+  private cuerpoActor(): { actor?: string; actorRol?: string } {
+    try {
+      const crudo = getLocalStorageItem('user');
+      if (!crudo) return {};
+      const usuario = JSON.parse(crudo) as {
+        email?: string;
+        datos_basicos?: { nombres?: string; apellidos?: string };
+        rol?: { nombre?: string };
+      };
+      const nombre =
+        usuario.email ||
+        [usuario.datos_basicos?.nombres, usuario.datos_basicos?.apellidos]
+          .filter(Boolean)
+          .join(' ');
+      return {
+        actor: nombre || undefined,
+        actorRol: usuario.rol?.nombre || undefined,
+      };
+    } catch {
+      return {};
+    }
   }
 
   // ── Endpoints de contratacion reutilizados ────────────────────────────

@@ -262,6 +262,49 @@
                 <mat-hint>Cuando se cargo al sistema</mat-hint>
               </mat-form-field>
 
+              <!-- ── Radicacion (V44) ── -->
+              <mat-form-field appearance="outline" class="filtro-campo">
+                <mat-label>Numero de radicado</mat-label>
+                <mat-icon matPrefix class="prefijo">tag</mat-icon>
+                <input matInput formControlName="numeroRadicado" placeholder="Como lo entrego la EPS" />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="filtro-campo">
+                <mat-label>Semana de radicacion</mat-label>
+                <mat-icon matPrefix class="prefijo">date_range</mat-icon>
+                <input
+                  matInput
+                  type="number"
+                  min="1"
+                  formControlName="semanaRadicacion"
+                  placeholder="Numero de semana"
+                />
+                <mat-hint>Consecutivo del aplicativo (lunes a sabado)</mat-hint>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="filtro-campo">
+                <mat-label>Entidad (carpeta)</mat-label>
+                <mat-icon matPrefix class="prefijo">folder_shared</mat-icon>
+                <mat-select formControlName="entidadGrupo">
+                  <mat-option value="">Ambas</mat-option>
+                  <mat-option value="APOYO">Apoyo</mat-option>
+                  <mat-option value="ALIANZA">Alianza</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <!-- Rango: fecha de radicado -->
+              <mat-form-field appearance="outline" class="filtro-campo">
+                <mat-label>Fecha de radicado</mat-label>
+                <mat-icon matPrefix class="prefijo">outgoing_mail</mat-icon>
+                <mat-date-range-input formGroupName="rangoRadicado" [rangePicker]="pickerRadicado">
+                  <input matStartDate formControlName="start" placeholder="Desde" />
+                  <input matEndDate formControlName="end" placeholder="Hasta" />
+                </mat-date-range-input>
+                <mat-datepicker-toggle matIconSuffix [for]="pickerRadicado"></mat-datepicker-toggle>
+                <mat-date-range-picker #pickerRadicado></mat-date-range-picker>
+                <mat-hint>Cuando se radico ante la EPS/ARL</mat-hint>
+              </mat-form-field>
+
               <!-- Soportes -->
               <div class="filtro-campo filtro-toggle">
                 <span class="filtro-toggle-etiqueta">
@@ -322,16 +365,51 @@
             <h2 class="disab-section-title">Resultados</h2>
             <span class="disab-section-hint">{{ textoRango() }}</span>
 
-            <button
-              type="button"
-              mat-flat-button
-              class="btn-exportar"
-              (click)="abrirExportacion()"
-              matTooltip="Elegir columnas, formato y alcance de la exportacion"
-            >
-              <mat-icon>file_download</mat-icon>
-              <span>Exportar</span>
-            </button>
+            <div class="acciones-toolbar">
+              <button
+                type="button"
+                mat-stroked-button
+                class="btn-toolbar"
+                (click)="abrirInformeUmbral()"
+                matTooltip="Personas proximas a 180 dias (fondo de pensiones) o 540 dias (vuelve a la EPS)"
+              >
+                <mat-icon>campaign</mat-icon>
+                <span>Informe 180/540</span>
+              </button>
+
+              <button
+                type="button"
+                mat-stroked-button
+                class="btn-toolbar"
+                (click)="abrirCargaMasivaRadicados()"
+                matTooltip="Subir el archivo de numeros de radicado (codigo unico: cedula + fecha de inicio)"
+              >
+                <mat-icon>upload_file</mat-icon>
+                <span>Carga masiva radicados</span>
+              </button>
+
+              <button
+                type="button"
+                mat-stroked-button
+                class="btn-toolbar"
+                (click)="abrirExportMasivo()"
+                matTooltip="ZIP de soportes renombrados (carpetas Apoyo|Alianza / Semana / EPS) o Excel completo del servidor"
+              >
+                <mat-icon>cloud_download</mat-icon>
+                <span>Descarga masiva</span>
+              </button>
+
+              <button
+                type="button"
+                mat-flat-button
+                class="btn-exportar"
+                (click)="abrirExportacion()"
+                matTooltip="Elegir columnas, formato y alcance de la exportacion"
+              >
+                <mat-icon>file_download</mat-icon>
+                <span>Exportar</span>
+              </button>
+            </div>
           </header>
 
           @if (error()) {

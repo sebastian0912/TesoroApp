@@ -1,0 +1,185 @@
+<div class="exm-hero">
+  <div class="exm-hero-icono">
+    <mat-icon>cloud_sync</mat-icon>
+  </div>
+
+  <div class="exm-hero-textos">
+    <h2 class="exm-hero-titulo" mat-dialog-title>Exportacion masiva</h2>
+    <p class="exm-hero-sub">El servidor genera el archivo completo; aqui solo esperas y descargas</p>
+  </div>
+
+  <button
+    type="button"
+    mat-icon-button
+    class="exm-cerrar"
+    (click)="cerrar()"
+    aria-label="Cerrar"
+    matTooltip="Cerrar"
+  >
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<mat-dialog-content class="exm-cuerpo">
+
+  <!-- ════════ Paso 1: elegir tipo ════════ -->
+  @if (fase() === 'seleccion') {
+    <section class="exm-bloque">
+      <header class="exm-bloque-cabecera">
+        <span class="exm-paso">1</span>
+        <h3 class="exm-bloque-titulo">Que quieres generar</h3>
+      </header>
+
+      <div class="exm-tarjetas">
+        @for (tarjeta of tarjetas; track trackTarjeta($index, tarjeta)) {
+          <button
+            type="button"
+            class="exm-tarjeta"
+            [class.exm-tarjeta-activa]="tipo() === tarjeta.tipo"
+            [attr.aria-pressed]="tipo() === tarjeta.tipo"
+            (click)="seleccionarTipo(tarjeta.tipo)"
+          >
+            <mat-icon class="exm-tarjeta-icono">{{ tarjeta.icono }}</mat-icon>
+            <span class="exm-tarjeta-titulo">{{ tarjeta.titulo }}</span>
+            <span class="exm-tarjeta-descripcion">{{ tarjeta.descripcion }}</span>
+            @if (tipo() === tarjeta.tipo) {
+              <mat-icon class="exm-tarjeta-check">check_circle</mat-icon>
+            }
+          </button>
+        }
+      </div>
+
+      <p class="exm-nota">
+        <mat-icon>filter_alt</mat-icon>
+        Se exporta con los filtros YA aplicados en la consulta:
+        @if (datos.totalEstimado !== null) {
+          <strong>{{ datos.totalEstimado }}</strong> registros estimados.
+        } @else {
+          total de registros sin calcular.
+        }
+      </p>
+
+      @if (sinRegistros()) {
+        <p class="exm-aviso">
+          <mat-icon>warning_amber</mat-icon>
+          El filtro actual no tiene registros: no hay nada que exportar. Ajusta los
+          filtros y vuelve a intentarlo.
+        </p>
+      }
+    </section>
+  }
+
+  <!-- ════════ Progreso ════════ -->
+  @if (fase() === 'progreso') {
+    <section class="exm-bloque exm-progreso" aria-live="polite">
+      <div class="exm-progreso-texto">
+        <mat-icon class="exm-progreso-icono">hourglass_top</mat-icon>
+        <span class="exm-progreso-detalle">
+          <strong>{{ job()?.tipoEtiqueta }}</strong> · {{ job()?.estadoEtiqueta }}
+          @if (progresoDeterminado()) {
+            · {{ job()?.procesados ?? 0 }} de {{ job()?.totalRegistros }} registros
+          }
+        </span>
+      </div>
+
+      @if (progresoDeterminado()) {
+        <mat-progress-bar mode="determinate" [value]="progreso()"></mat-progress-bar>
+      } @else {
+        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+      }
+    </section>
+  }
+
+  <!-- ════════ Completado ════════ -->
+  @if (fase() === 'completado') {
+    <section class="exm-bloque exm-listo" aria-live="polite">
+      <mat-icon class="exm-listo-icono">check_circle</mat-icon>
+      <div class="exm-listo-textos">
+        <p class="exm-listo-titulo">Archivo listo</p>
+        <p class="exm-listo-detalle">
+          {{ job()?.nombreResultado }}
+          @if (tamanoLegible(job()?.tamanoBytes ?? null)) {
+            · {{ tamanoLegible(job()?.tamanoBytes ?? null) }}
+          }
+        </p>
+        <p class="exm-listo-nota">
+          La descarga arranca sola la primera vez; si el navegador la bloqueo,
+          usa el boton "Descargar".
+        </p>
+      </div>
+    </section>
+  }
+
+  <!-- ════════ Error del trabajo ════════ -->
+  @if (fase() === 'error') {
+    <section class="exm-bloque exm-fallo" role="alert">
+      <mat-icon class="exm-fallo-icono">error_outline</mat-icon>
+      <div class="exm-fallo-textos">
+        <p class="exm-fallo-titulo">La exportacion fallo en el servidor</p>
+        <p class="exm-fallo-detalle">
+          {{ job()?.mensajeError || 'El servidor no informo el motivo del error.' }}
+        </p>
+      </div>
+    </section>
+  }
+
+  <!-- ════════ Errores locales (crear / sondear / descargar) ════════ -->
+  @if (error()) {
+    <p class="exm-error-inline" role="alert">
+      <mat-icon>error_outline</mat-icon>
+      {{ error() }}
+    </p>
+  }
+
+  <p class="exm-nota-persistente">
+    <mat-icon>info_outline</mat-icon>
+    Puedes cerrar este dialogo; el trabajo sigue en el servidor. Al reabrir no se
+    retoma y el resultado expira a los 7 dias.
+  </p>
+</mat-dialog-content>
+
+<mat-dialog-actions class="exm-acciones">
+  <span class="exm-espaciador"></span>
+
+  <button type="button" mat-stroked-button class="exm-btn" (click)="cerrar()">
+    <span>Cerrar</span>
+  </button>
+
+  @switch (fase()) {
+    @case ('seleccion') {
+      <button
+        type="button"
+        mat-flat-button
+        class="exm-btn exm-btn-primario"
+        [disabled]="!puedeGenerar()"
+        (click)="generar()"
+      >
+        <mat-icon>rocket_launch</mat-icon>
+        <span>{{ generando() ? 'Creando trabajo...' : 'Generar' }}</span>
+      </button>
+    }
+    @case ('completado') {
+      <button
+        type="button"
+        mat-flat-button
+        class="exm-btn exm-btn-primario"
+        [disabled]="descargando()"
+        (click)="descargar()"
+      >
+        <mat-icon>download</mat-icon>
+        <span>{{ descargando() ? 'Descargando...' : 'Descargar' }}</span>
+      </button>
+    }
+    @case ('error') {
+      <button
+        type="button"
+        mat-flat-button
+        class="exm-btn exm-btn-primario"
+        (click)="reintentar()"
+      >
+        <mat-icon>replay</mat-icon>
+        <span>Intentar de nuevo</span>
+      </button>
+    }
+  }
+</mat-dialog-actions>

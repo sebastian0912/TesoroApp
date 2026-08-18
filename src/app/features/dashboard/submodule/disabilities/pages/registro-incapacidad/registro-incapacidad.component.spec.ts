@@ -174,14 +174,39 @@ describe('RegistroIncapacidadComponent', () => {
   let comp: RegistroIncapacidadComponent;
   let http: HttpTestingController;
 
+  /** Matriz de EPS minima (V43): la lista CERRADA que puebla el selector. */
+  const EPS_MATRIZ = [
+    {
+      nombre: 'NUEVA EPS',
+      formaCargue: 'UN_SOLO_PDF',
+      formaCargueEtiqueta: 'Un solo PDF',
+      requiereSoporteEps: false,
+      orden: 90,
+    },
+    {
+      nombre: 'SALUD TOTAL EPS',
+      formaCargue: 'PDF_POR_DOCUMENTO',
+      formaCargueEtiqueta: 'PDF por cada documento',
+      requiereSoporteEps: true,
+      orden: 100,
+    },
+    {
+      nombre: 'SURA EPS',
+      formaCargue: 'UN_SOLO_PDF',
+      formaCargueEtiqueta: 'Un solo PDF',
+      requiereSoporteEps: false,
+      orden: 110,
+    },
+  ];
+
   /** Resuelve las peticiones que el componente dispara al construirse. */
   function resolverCargaInicial(): void {
     http
       .expectOne((r) => r.url.endsWith('/Incapacidades/v2/catalogos'))
       .flush(CATALOGOS);
     http
-      .expectOne((r) => r.url.endsWith('/Incapacidades/traerTodaslistas'))
-      .flush({ codigos: [], eps: [{ nombreeps: 'NUEVA EPS ' }, { nombreeps: 'SURA ' }], IPSNames: [] });
+      .expectOne((r) => r.url.endsWith('/Incapacidades/v2/eps-matriz'))
+      .flush(EPS_MATRIZ);
   }
 
   /** Selecciona al empleado y responde la consulta de contratacion. */
@@ -256,6 +281,30 @@ describe('RegistroIncapacidadComponent', () => {
   it('se crea y pide los catalogos una sola vez', () => {
     expect(comp).toBeTruthy();
     resolverCargaInicial();
+    http.verify();
+  });
+
+  it('el selector de EPS ofrece la matriz de cartera EN SU ORDEN, no alfabetico', () => {
+    resolverCargaInicial();
+    expect(comp.opcionesEps()).toEqual(['NUEVA EPS', 'SALUD TOTAL EPS', 'SURA EPS']);
+    http.verify();
+  });
+
+  it('si la matriz de EPS falla, degrada a la lista del endpoint legacy', () => {
+    http.expectOne((r) => r.url.endsWith('/Incapacidades/v2/catalogos')).flush(CATALOGOS);
+    http
+      .expectOne((r) => r.url.endsWith('/Incapacidades/v2/eps-matriz'))
+      .flush({ error: 'sin matriz' }, { status: 503, statusText: 'Service Unavailable' });
+    http
+      .expectOne((r) => r.url.endsWith('/Incapacidades/traerTodaslistas'))
+      .flush({ codigos: [], eps: [{ nombreeps: 'NUEVA EPS ' }, { nombreeps: 'SURA ' }], IPSNames: [] });
+    expect(comp.opcionesEps()).toEqual(['NUEVA EPS', 'SURA']);
+    http.verify();
+  });
+
+  it('la ARL nace fija en ARL SURA (la funcional: nunca cambia)', () => {
+    resolverCargaInicial();
+    expect(comp.form.controls.personal.controls.arl.value).toBe('ARL SURA');
     http.verify();
   });
 

@@ -17,6 +17,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatSelectModule } from '@angular/material/select';
 import { MatCardModule } from '@angular/material/card';
 import { provideNativeDateAdapter } from '@angular/material/core';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -79,6 +80,15 @@ import {
   DatosDialogoExportar,
   DialogoExportarIncapacidadesComponent,
 } from './dialogos/dialogo-exportar-incapacidades/dialogo-exportar-incapacidades.component';
+import {
+  DialogoCargaMasivaRadicadosComponent,
+  ResultadoDialogoCargaMasiva,
+} from './dialogos/dialogo-carga-masiva-radicados/dialogo-carga-masiva-radicados.component';
+import {
+  DatosDialogoExportMasivo,
+  DialogoExportMasivoComponent,
+} from './dialogos/dialogo-export-masivo/dialogo-export-masivo.component';
+import { DialogoInformeUmbralComponent } from './dialogos/dialogo-informe-umbral/dialogo-informe-umbral.component';
 import { indicadorSoportes, soportesCompletos } from './exportacion-incapacidades';
 
 // Los KPI se pintan con separador de miles colombiano (1.234, no 1,234).
@@ -115,6 +125,14 @@ export interface FilaTabla {
   creadoPor: string;
   creadoEn: Date | null;
 
+  // ── Radicacion (V44) ────────────────────────────────────────────────
+  numeroRadicado: string;
+  fechaRadicado: Date | null;
+  semanaRadicacion: string;
+  entidadGrupo: string;
+  dondeRadicado: string;
+  radicadoPor: string;
+
   // ── Metadatos (no son columnas) ─────────────────────────────────────
   estadoCodigo: EstadoIncapacidad;
   puedeValidarse: boolean;
@@ -129,8 +147,10 @@ export interface FilaTabla {
  * Lo que no este aqui se manda tal cual.
  */
 const CAMPO_ORDEN: Readonly<Record<string, string>> = {
-  consecutivoSistema: 'consecutivoSistema',
-  nombreCompleto: 'nombreCompleto',
+  // La lista blanca del backend (CAMPOS_ORDENABLES) no tiene campos derivados:
+  // se traducen a los atributos reales de la entidad o el sort responde 400.
+  consecutivoSistema: 'codigoUnico',
+  nombreCompleto: 'primerApellido',
   creadoEn: 'creadoEn',
 };
 
@@ -186,6 +206,7 @@ function numeroONulo(valor: unknown): number | null {
     MatFormFieldModule,
     MatInputModule,
     MatDatepickerModule,
+    MatSelectModule,
     MatButtonToggleModule,
     MatDividerModule,
     MatTooltipModule,
@@ -275,6 +296,9 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
     creadoPor: [],
   });
 
+  /** Nombres de la matriz oficial de EPS (V43): base del filtro de EPS. */
+  private readonly epsMatrizNombres = signal<string[]>([]);
+
   // ── UI ────────────────────────────────────────────────────────────────
 
   readonly panelFiltrosAbierto = signal(true);
@@ -295,11 +319,19 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
     responsablePago: new FormControl('', { nonNullable: true }),
     soportesCompletos: new FormControl<'' | 'true' | 'false'>('', { nonNullable: true }),
     registradoPor: new FormControl('', { nonNullable: true }),
+    // ── Radicacion (V44) ────────────────────────────────────────────────
+    numeroRadicado: new FormControl('', { nonNullable: true }),
+    semanaRadicacion: new FormControl('', { nonNullable: true }),
+    entidadGrupo: new FormControl<'' | 'APOYO' | 'ALIANZA'>('', { nonNullable: true }),
     rangoInicio: new FormGroup({
       start: new FormControl<Date | null>(null),
       end: new FormControl<Date | null>(null),
     }),
     rangoRegistro: new FormGroup({
+      start: new FormControl<Date | null>(null),
+      end: new FormControl<Date | null>(null),
+    }),
+    rangoRadicado: new FormGroup({
       start: new FormControl<Date | null>(null),
       end: new FormControl<Date | null>(null),
     }),
@@ -311,6 +343,19 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
   private readonly recargarKpis$ = new Subject<void>();
 
   constructor() {
+    // Matriz de EPS (V43): siembra las opciones del filtro de EPS aunque las
+    // filas ya cargadas aun no hayan mostrado todas las EPS. Si falla, el
+    // filtro sigue funcionando solo con las facetas observadas.
+    this.srv
+      .epsMatriz()
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((matriz) => {
+        if (matriz?.length) this.epsMatrizNombres.set(matriz.map((e) => e.nombre));
+      });
+
     // Listado (switchMap: la respuesta vieja se descarta si llega tarde).
     this.subs.add(
       this.recargarLista$
@@ -546,12 +591,59 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
         filterable: false,
         sortable: false,
       },
+      // ── Radicacion (V44) ───────────────────────────────────────────────
+      {
+        name: 'numeroRadicado',
+        header: 'Numero de radicado',
+        type: 'text',
+        width: '160px',
+        filterable: false,
+      },
+      {
+        name: 'fechaRadicado',
+        header: 'Fecha de radicado',
+        type: 'date',
+        width: '140px',
+        filterable: false,
+      },
+      {
+        name: 'semanaRadicacion',
+        header: 'Semana',
+        type: 'text',
+        width: '90px',
+        filterable: false,
+      },
+      {
+        name: 'entidadGrupo',
+        header: 'Entidad (carpeta)',
+        type: 'text',
+        width: '130px',
+        filterable: false,
+      },
+      {
+        name: 'dondeRadicado',
+        header: 'Donde se radico',
+        type: 'text',
+        width: '140px',
+        filterable: false,
+        sortable: false,
+      },
+      {
+        name: 'radicadoPor',
+        header: 'Radicado por',
+        type: 'text',
+        width: '160px',
+        filterable: false,
+        sortable: false,
+      },
       {
         name: 'creadoPor',
         header: 'Registrado por',
         type: 'text',
         width: '170px',
         filterable: false,
+        // El backend no acepta ordenar por creadoPor (lista blanca): seria un 400.
+        sortable: false,
       },
       {
         name: 'creadoEn',
@@ -611,7 +703,14 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
 
   readonly opcionesEmpresa = computed(() => this.opcionesFaceta('empresa'));
   readonly opcionesCentroCosto = computed(() => this.opcionesFaceta('centroCosto'));
-  readonly opcionesEps = computed(() => this.opcionesFaceta('eps'));
+  /** EPS: la matriz oficial de cartera (V43) + lo que haya devuelto el backend. */
+  readonly opcionesEps = computed<OpcionSelect[]>(() => {
+    const nombres = new Set<string>(this.epsMatrizNombres());
+    for (const vista of this.facetas()['eps'] ?? []) nombres.add(vista);
+    return [...nombres]
+      .sort((a, b) => a.localeCompare(b, 'es'))
+      .map((v) => ({ valor: v, etiqueta: v }));
+  });
   readonly opcionesAfp = computed(() => this.opcionesFaceta('afp'));
   readonly opcionesOficina = computed(() => this.opcionesFaceta('oficina'));
   readonly opcionesRegistradoPor = computed(() => this.opcionesFaceta('creadoPor'));
@@ -691,6 +790,29 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
       );
     }
 
+    // ── Radicacion (V44) ────────────────────────────────────────────────
+    agregar(['numeroRadicado'], 'Numero de radicado', f.numeroRadicado ?? '', 'tag');
+    agregar(
+      ['semanaRadicacion'],
+      'Semana',
+      f.semanaRadicacion ? `Semana ${f.semanaRadicacion}` : '',
+      'date_range',
+    );
+    agregar(
+      ['entidadGrupo'],
+      'Entidad',
+      f.entidadGrupo === 'APOYO' ? 'Apoyo' : f.entidadGrupo === 'ALIANZA' ? 'Alianza' : '',
+      'folder_shared',
+    );
+    if (f.fechaRadicadoDesde || f.fechaRadicadoHasta) {
+      agregar(
+        ['rangoRadicado'],
+        'Fecha de radicado',
+        rangoLegible(f.fechaRadicadoDesde, f.fechaRadicadoHasta),
+        'outgoing_mail',
+      );
+    }
+
     return lista;
   });
 
@@ -752,6 +874,20 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
     if (registroDesde) filtros.registradoDesde = registroDesde;
     if (registroHasta) filtros.registradoHasta = registroHasta;
 
+    // ── Radicacion (V44) ────────────────────────────────────────────────
+    if (texto(v.numeroRadicado)) filtros.numeroRadicado = texto(v.numeroRadicado);
+    const semana = Number(texto(v.semanaRadicacion));
+    if (texto(v.semanaRadicacion) && Number.isInteger(semana) && semana > 0) {
+      filtros.semanaRadicacion = semana;
+    }
+    if (v.entidadGrupo === 'APOYO' || v.entidadGrupo === 'ALIANZA') {
+      filtros.entidadGrupo = v.entidadGrupo;
+    }
+    const radicadoDesde = aIsoCorto(v.rangoRadicado.start);
+    const radicadoHasta = aIsoCorto(v.rangoRadicado.end);
+    if (radicadoDesde) filtros.fechaRadicadoDesde = radicadoDesde;
+    if (radicadoHasta) filtros.fechaRadicadoHasta = radicadoHasta;
+
     return filtros;
   }
 
@@ -787,15 +923,19 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
       responsablePago: '',
       soportesCompletos: '',
       registradoPor: '',
+      numeroRadicado: '',
+      semanaRadicacion: '',
+      entidadGrupo: '',
       rangoInicio: { start: null, end: null },
       rangoRegistro: { start: null, end: null },
+      rangoRadicado: { start: null, end: null },
     });
   }
 
   /** Quita un chip concreto. */
   quitarChip(chip: ChipFiltro): void {
     for (const clave of chip.claves) {
-      if (clave === 'rangoInicio' || clave === 'rangoRegistro') {
+      if (clave === 'rangoInicio' || clave === 'rangoRegistro' || clave === 'rangoRadicado') {
         this.formulario.controls[clave].setValue({ start: null, end: null });
       } else {
         const control = this.formulario.get(clave);
@@ -811,12 +951,27 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
   // ── KPI ───────────────────────────────────────────────────────────────
 
   /**
-   * Los conteos salen del backend: se pide cada faceta con `size=1` y se lee
-   * `totalElements`. Es la unica forma honesta con el contrato actual (no hay
-   * endpoint de resumen). Cada tarjeta respeta los filtros del panel salvo el
-   * campo que ella misma fija.
+   * Los conteos salen del backend en UNA llamada (`GET /Incapacidades/v2/resumen`, V44),
+   * con los MISMOS filtros del panel. Si ese endpoint falla (backend anterior), se degrada
+   * al camino viejo de una peticion `size=1` por tarjeta.
    */
   private consultarKpis(): Observable<ConteosKpi> {
+    const base = this.filtrosAplicados();
+    return this.srv.resumen(base).pipe(
+      map((r): ConteosKpi => ({
+        total: r.total,
+        recibidas: r.porEstado?.['RECIBIDA'] ?? 0,
+        validadas: r.porEstado?.['VALIDADA'] ?? 0,
+        prescritas: r.porEstadoDocumento?.['PRESCRITA'] ?? 0,
+        noCumplen: r.porEstadoDocumento?.['NO_CUMPLE'] ?? 0,
+        soportesIncompletos: r.sinSoportes,
+      })),
+      catchError(() => this.consultarKpisPorTarjeta()),
+    );
+  }
+
+  /** Camino de respaldo: 6 peticiones `size=1` (el contrato viejo, sin /resumen). */
+  private consultarKpisPorTarjeta(): Observable<ConteosKpi> {
     const base = this.filtrosAplicados();
 
     // Una peticion por tarjeta, todas en paralelo y con `size=1`: solo interesa
@@ -1012,6 +1167,53 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ── Radicacion (V44): carga masiva, descarga masiva e informe ─────────
+
+  /** Carga masiva de numeros de radicado; al cerrar con exitos, recarga la tabla. */
+  abrirCargaMasivaRadicados(): void {
+    const ref = this.dialogo.open(DialogoCargaMasivaRadicadosComponent, {
+      width: '860px',
+      maxWidth: '95vw',
+      maxHeight: '92vh',
+      autoFocus: false,
+      panelClass: 'disab-dialogo',
+    });
+    this.subs.add(
+      ref.afterClosed().subscribe((resultado?: ResultadoDialogoCargaMasiva) => {
+        if (resultado?.recargar) this.recargar();
+      }),
+    );
+  }
+
+  /** ZIP de soportes renombrados o Excel consolidado del servidor (jobs asincronos). */
+  abrirExportMasivo(): void {
+    const datos: DatosDialogoExportMasivo = {
+      filtros: this.filtrosAplicados(),
+      // El 0 es informacion (el dialogo avisa "no hay nada que exportar"): no se
+      // convierte en null.
+      totalEstimado: this.total(),
+    };
+    this.dialogo.open(DialogoExportMasivoComponent, {
+      data: datos,
+      width: '640px',
+      maxWidth: '95vw',
+      maxHeight: '92vh',
+      autoFocus: false,
+      panelClass: 'disab-dialogo',
+    });
+  }
+
+  /** Informe de personas proximas a 180/540 dias de incapacidad acumulada. */
+  abrirInformeUmbral(): void {
+    this.dialogo.open(DialogoInformeUmbralComponent, {
+      width: '1000px',
+      maxWidth: '95vw',
+      maxHeight: '92vh',
+      autoFocus: false,
+      panelClass: 'disab-dialogo',
+    });
+  }
+
   // ── Mapeo backend -> fila ─────────────────────────────────────────────
 
   private aFila(r: IncapacidadResumenExtendido): FilaTabla {
@@ -1019,7 +1221,9 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
 
     return {
       id: r.id,
-      consecutivoSistema: textoOVacio(r.consecutivoSistema),
+      // El backend v2 serializa `codigoUnico`; `consecutivoSistema` era el nombre
+      // especulativo del contrato viejo y se conserva como respaldo.
+      consecutivoSistema: textoOVacio(r.consecutivoSistema ?? r.codigoUnico),
       cedula: textoOVacio(r.cedula),
       nombreCompleto: textoOVacio(r.nombreCompleto),
       empresa: textoOVacio(r.empresa),
@@ -1040,6 +1244,13 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
       soportes: indicadorSoportes(r) || VACIO,
       creadoPor: textoOVacio(r.creadoPor),
       creadoEn: r.creadoEn ? new Date(r.creadoEn) : null,
+
+      numeroRadicado: textoOVacio(r.numeroRadicado),
+      fechaRadicado: parsearFechaFlexible(r.fechaRadicado),
+      semanaRadicacion: r.semanaRadicacion ? String(r.semanaRadicacion) : VACIO,
+      entidadGrupo: textoOVacio(r.entidadGrupoEtiqueta),
+      dondeRadicado: textoOVacio(r.dondeRadicadoEtiqueta),
+      radicadoPor: textoOVacio(r.radicadoPor),
 
       estadoCodigo: r.estado,
       puedeValidarse: r.estado === 'RECIBIDA',

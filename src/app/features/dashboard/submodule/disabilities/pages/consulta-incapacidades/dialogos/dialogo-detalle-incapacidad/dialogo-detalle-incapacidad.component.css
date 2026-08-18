@@ -505,3 +505,131 @@
     justify-content: center;
   }
 }
+
+/* ════════ Radicacion (V44) ════════ */
+
+.rad-nombre-archivo {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
+
+.rad-numero {
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+
+.rad-icono-pdf mat-icon {
+  color: #b3261e;
+}
+
+.rad-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.78rem;
+}
+
+.rad-sync mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.rad-sync-ok {
+  color: #1b873f;
+}
+
+.rad-sync-pend {
+  color: #b26a00;
+}
+
+.rad-form {
+  border: 1px dashed rgba(15, 43, 90, 0.25);
+  border-radius: 12px;
+  padding: 14px;
+  margin: 10px 0 4px;
+  background: rgba(15, 43, 90, 0.03);
+}
+
+.rad-form-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.rad-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: rgba(0, 0, 0, 0.62);
+}
+
+.rad-campo input {
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  color: rgba(0, 0, 0, 0.87);
+  background: #fff;
+}
+
+.rad-campo input:focus {
+  outline: 2px solid #0f2b5a;
+  outline-offset: 1px;
+}
+
+.rad-dondes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rad-donde {
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  border-radius: 999px;
+  background: #fff;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.rad-donde:hover {
+  background: rgba(15, 43, 90, 0.06);
+}
+
+.rad-donde-activo {
+  background: #0f2b5a;
+  border-color: #0f2b5a;
+  color: #fff;
+}
+
+.rad-form-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rad-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@media (max-width: 640px) {
+  .rad-acciones {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rad-acciones button {
+    justify-content: center;
+  }
+}

@@ -19,10 +19,16 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Subscription } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Observable, Subscription } from 'rxjs';
+import { saveAs } from 'file-saver';
 
 import {
   AlertaValidacion,
+  ArchivoRadicacion,
+  DondeRadicado,
+  RadicacionIncapacidad,
+  RadicarPeticion,
   SoporteRequerido,
   TipoSoporte,
 } from '../../../../models/incapacidad-v2.model';
@@ -85,6 +91,13 @@ export interface SoporteVista {
 }
 
 const VACIO = '—';
+
+/** Canales de radicacion si el catalogo del backend aun no los envia. */
+const DONDES_RESPALDO: { codigo: DondeRadicado; etiqueta: string }[] = [
+  { codigo: 'PAGINA', etiqueta: 'Portal web' },
+  { codigo: 'CORREO', etiqueta: 'Correo electronico' },
+  { codigo: 'PUNTO_FISICO', etiqueta: 'Punto fisico' },
+];
 
 /**
  * Ficha completa de una incapacidad.
@@ -389,6 +402,196 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
     return ICONO_NIVEL_ALERTA[alerta.nivel] ?? 'info';
   }
 
+  // ── Radicacion (V44) ──────────────────────────────────────────────────
+
+  readonly radicacion = signal<RadicacionIncapacidad | null>(null);
+  readonly cargandoRadicacion = signal(false);
+  readonly errorRadicacion = signal('');
+  /** `true` mientras corre una transicion (pendiente/radicar/regenerar). */
+  readonly accionRadicacion = signal(false);
+  readonly radicarAbierto = signal(false);
+  readonly radicarNumero = signal('');
+  /** yyyy-MM-dd del input nativo type=date. */
+  readonly radicarFecha = signal('');
+  readonly radicarDonde = signal<DondeRadicado | ''>('');
+  readonly descargandoArchivoId = signal<number | null>(null);
+  /** Hubo transicion o radicado: al cerrar, la pagina recarga el listado. */
+  private huboCambiosRadicacion = false;
+
+  private readonly estadoActual = computed(
+    () => this.detalle()?.estado ?? this.datos.resumen?.estado ?? '',
+  );
+
+  /** La seccion solo aplica desde VALIDADA en adelante (o si ya hay archivos). */
+  readonly muestraRadicacion = computed(() => {
+    const e = this.estadoActual();
+    return (
+      e === 'VALIDADA' ||
+      e === 'PENDIENTE_RADICACION' ||
+      e === 'RADICADA' ||
+      e === 'EN_REVISION_EPS' ||
+      (this.radicacion()?.archivos.length ?? 0) > 0
+    );
+  });
+
+  readonly puedePasarAPendiente = computed(() => this.estadoActual() === 'VALIDADA');
+
+  readonly puedeRadicar = computed(() => {
+    const e = this.estadoActual();
+    return e === 'VALIDADA' || e === 'PENDIENTE_RADICACION' || e === 'RADICADA';
+  });
+
+  readonly yaRadicada = computed(() => !!this.radicacion()?.numeroRadicado);
+
+  readonly dondesRadicado = computed(() => {
+    const delCatalogo = this.srv.catalogosCache()?.dondesRadicado;
+    return delCatalogo?.length ? delCatalogo : DONDES_RESPALDO;
+  });
+
+  /** Carpeta de cartera: "Apoyo · Semana 3" (o vacio si aun no se clasifica). */
+  readonly carpetaCartera = computed(() => {
+    const r = this.radicacion();
+    if (!r?.entidadGrupoEtiqueta && !r?.semanaRadicacion) return '';
+    return [r.entidadGrupoEtiqueta, r.semanaRadicacion ? `Semana ${r.semanaRadicacion}` : '']
+      .filter(Boolean)
+      .join(' · ');
+  });
+
+  private cargarRadicacion(): void {
+    this.cargandoRadicacion.set(true);
+    this.errorRadicacion.set('');
+    this.subs.add(
+      this.srv.obtenerRadicacion(this.datos.id).subscribe({
+        next: (r) => {
+          this.radicacion.set(r);
+          this.cargandoRadicacion.set(false);
+          this.sembrarFormularioRadicar(r);
+        },
+        error: () => {
+          this.cargandoRadicacion.set(false);
+          // Sin aviso ruidoso: con un backend anterior simplemente no hay seccion.
+        },
+      }),
+    );
+  }
+
+  private sembrarFormularioRadicar(r: RadicacionIncapacidad): void {
+    if (r.numeroRadicado && !this.radicarNumero()) this.radicarNumero.set(r.numeroRadicado);
+    if (r.fechaRadicado && !this.radicarFecha()) this.radicarFecha.set(r.fechaRadicado);
+    if (r.dondeRadicado && !this.radicarDonde()) this.radicarDonde.set(r.dondeRadicado);
+  }
+
+  pasarAPendiente(): void {
+    this.ejecutarAccionRadicacion(
+      this.srv.pasarAPendienteRadicacion(this.datos.id),
+      'No se pudo pasar a pendiente de radicacion.',
+    );
+  }
+
+  regenerarPaquete(): void {
+    this.ejecutarAccionRadicacion(
+      this.srv.regenerarRadicacion(this.datos.id),
+      'No se pudo regenerar el paquete.',
+    );
+  }
+
+  abrirRadicar(): void {
+    this.radicarAbierto.set(true);
+  }
+
+  cancelarRadicar(): void {
+    this.radicarAbierto.set(false);
+  }
+
+  confirmarRadicar(): void {
+    const numero = this.radicarNumero().trim();
+    if (!numero) {
+      this.errorRadicacion.set('Escribe el numero de radicado que entrego la EPS/ARL.');
+      return;
+    }
+    const peticion: RadicarPeticion = {
+      numeroRadicado: numero,
+      fechaRadicado: this.radicarFecha() || null,
+      dondeRadicado: (this.radicarDonde() || null) as DondeRadicado | null,
+    };
+    this.ejecutarAccionRadicacion(
+      this.srv.radicar(this.datos.id, peticion),
+      'No se pudo registrar el radicado.',
+      () => this.radicarAbierto.set(false),
+    );
+  }
+
+  /** Descarga (o abre en otra pestana) un PDF de radicacion con su nombre EXACTO. */
+  descargarArchivoRadicacion(archivo: ArchivoRadicacion, abrir = false): void {
+    this.descargandoArchivoId.set(archivo.id);
+    this.subs.add(
+      this.srv.descargarArchivoRadicacion(this.datos.id, archivo.id).subscribe({
+        next: (blob) => {
+          this.descargandoArchivoId.set(null);
+          const pdf = new Blob([blob], { type: 'application/pdf' });
+          if (abrir) {
+            const url = URL.createObjectURL(pdf);
+            window.open(url, '_blank', 'noopener');
+            // Margen amplio para que la pestana alcance a leer el blob.
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          } else {
+            saveAs(pdf, archivo.nombreArchivo);
+          }
+        },
+        error: (err: unknown) => {
+          this.descargandoArchivoId.set(null);
+          this.errorRadicacion.set(
+            motivoHttp(err) || `No se pudo descargar ${archivo.nombreArchivo}.`,
+          );
+        },
+      }),
+    );
+  }
+
+  tamanoArchivo(bytes: number | null): string {
+    if (!bytes || bytes <= 0) return '';
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  private ejecutarAccionRadicacion(
+    peticion: Observable<RadicacionIncapacidad>,
+    mensajeError: string,
+    alTerminar?: () => void,
+  ): void {
+    this.accionRadicacion.set(true);
+    this.errorRadicacion.set('');
+    this.subs.add(
+      peticion.subscribe({
+        next: (r) => {
+          this.radicacion.set(r);
+          this.accionRadicacion.set(false);
+          this.huboCambiosRadicacion = true;
+          alTerminar?.();
+          this.refrescarDetalle();
+        },
+        error: (err: unknown) => {
+          this.accionRadicacion.set(false);
+          this.errorRadicacion.set(motivoHttp(err) || mensajeError);
+        },
+      }),
+    );
+  }
+
+  /** Tras una transicion el estado y el historial cambiaron: se relee el detalle. */
+  private refrescarDetalle(): void {
+    this.subs.add(
+      this.srv.obtener(this.datos.id).subscribe({
+        next: (detalle) => this.detalle.set(detalle as IncapacidadV2Detalle),
+        error: () => {
+          /* el dialogo ya muestra la radicacion actualizada */
+        },
+      }),
+    );
+  }
+
+  trackArchivoRadicacion = (_: number, archivo: ArchivoRadicacion) => archivo.id;
+
   // ── Ciclo de vida ─────────────────────────────────────────────────────
 
   ngOnInit(): void {
@@ -409,6 +612,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
           },
         }),
     );
+    this.cargarRadicacion();
   }
 
   ngOnDestroy(): void {
@@ -418,7 +622,8 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
   // ── Acciones ──────────────────────────────────────────────────────────
 
   cerrar(): void {
-    this.ref.close();
+    // Si hubo transiciones de radicacion, la pagina debe refrescar la tabla.
+    this.ref.close(this.huboCambiosRadicacion ? { accion: 'recargar' } : undefined);
   }
 
   editar(): void {
@@ -457,6 +662,26 @@ function estiloDe<C extends string>(
 ): EstiloChip {
   const encontrado = (mapa as Record<string, EstiloChip>)[codigo];
   return encontrado ?? ESTILO_CHIP_NEUTRO;
+}
+
+/** Motivo legible de un error HTTP del backend ({"error": "..."}). */
+function motivoHttp(err: unknown): string {
+  if (err instanceof HttpErrorResponse) {
+    const cuerpo: unknown = err.error;
+    if (cuerpo && typeof cuerpo === 'object') {
+      const mensaje = (cuerpo as { error?: unknown }).error;
+      if (typeof mensaje === 'string' && mensaje.trim()) return mensaje.trim();
+    }
+    if (typeof cuerpo === 'string' && cuerpo.trim()) {
+      try {
+        const parseado = JSON.parse(cuerpo) as { error?: unknown };
+        if (typeof parseado.error === 'string') return parseado.error;
+      } catch {
+        /* texto plano */
+      }
+    }
+  }
+  return '';
 }
 
 function comparaFechas(a?: string, b?: string): number {

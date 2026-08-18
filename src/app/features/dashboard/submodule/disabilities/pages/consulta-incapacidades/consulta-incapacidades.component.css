@@ -722,3 +722,30 @@
     justify-content: center;
   }
 }
+
+/* ── Toolbar de resultados (radicacion V44) ─────────────────────────── */
+
+.acciones-toolbar {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn-toolbar mat-icon {
+  margin-right: 4px;
+}
+
+@media (max-width: 760px) {
+  .acciones-toolbar {
+    width: 100%;
+    justify-content: stretch;
+    flex-direction: column;
+  }
+
+  .acciones-toolbar button {
+    width: 100%;
+    justify-content: center;
+  }
+}

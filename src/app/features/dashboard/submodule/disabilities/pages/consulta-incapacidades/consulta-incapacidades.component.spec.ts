@@ -151,10 +151,12 @@ describe('ConsultaIncapacidadesComponent', () => {
   let cola: TestRequest[] = [];
 
   const capturar = (): void => {
-    cola = cola.concat(httpMock.match((r) => r.url === BASE));
+    cola = cola.concat(httpMock.match((r) => r.url === BASE || r.url === `${BASE}/resumen`));
   };
 
-  const esKpi = (r: TestRequest): boolean => r.request.params.get('size') === '1';
+  /** KPI = la llamada unica a /resumen (V44) o, en el camino de respaldo, los size=1. */
+  const esKpi = (r: TestRequest): boolean =>
+    r.request.url.endsWith('/resumen') || r.request.params.get('size') === '1';
 
   /** La peticion del listado principal (la unica que NO pide `size=1`). */
   const peticionPrincipal = (): TestRequest => {
@@ -173,9 +175,24 @@ describe('ConsultaIncapacidadesComponent', () => {
     return kpis;
   };
 
-  /** Responde las 6 peticiones de KPI con los totales indicados. */
+  /** Responde los KPI: la llamada unica a /resumen o las 6 size=1 del respaldo. */
   const responderKpis = (totales: Partial<Record<string, number>> = {}): void => {
     for (const peticion of peticionesKpi()) {
+      if (peticion.request.url.endsWith('/resumen')) {
+        peticion.flush({
+          total: totales['total'] ?? 0,
+          porEstado: {
+            RECIBIDA: totales['recibidas'] ?? 0,
+            VALIDADA: totales['validadas'] ?? 0,
+          },
+          porEstadoDocumento: {
+            PRESCRITA: totales['prescritas'] ?? 0,
+            NO_CUMPLE: totales['noCumplen'] ?? 0,
+          },
+          sinSoportes: totales['soportesIncompletos'] ?? 0,
+        });
+        continue;
+      }
       const p = peticion.request.params;
       let clave = 'total';
       if (p.get('estado') === 'RECIBIDA') clave = 'recibidas';
@@ -219,6 +236,9 @@ describe('ConsultaIncapacidadesComponent', () => {
 
     fixture.detectChanges();
     httpMock.expectOne(`${BASE}/catalogos`).flush(CATALOGOS);
+    // Matriz de EPS (V43): vacia en estas pruebas para que los desplegables
+    // sigan derivandose SOLO de las facetas observadas (lo que se afirma abajo).
+    httpMock.expectOne(`${BASE}/eps-matriz`).flush([]);
   });
 
   afterEach(() => {
@@ -408,7 +428,7 @@ describe('ConsultaIncapacidadesComponent', () => {
   // ═══════════════════════════════════════════════════════════════════
 
   describe('KPI', () => {
-    it('pide un conteo por tarjeta con size=1 y arrastra los filtros activos', () => {
+    it('pide los conteos con UNA llamada a /resumen arrastrando los filtros activos', () => {
       peticionPrincipal().flush(pagina([FILA_A], 1));
       responderKpis();
 
@@ -417,17 +437,27 @@ describe('ConsultaIncapacidadesComponent', () => {
       peticionPrincipal().flush(pagina([FILA_A], 1));
 
       const kpis = peticionesKpi();
-      expect(kpis.length).toBe(6);
-      // Todas respetan el filtro del panel...
-      expect(kpis.every((r) => r.request.params.get('empresa') === 'TU ALIANZA SAS')).toBeTrue();
-      // ...y cada una anade el suyo.
-      expect(kpis.some((r) => r.request.params.get('estado') === 'RECIBIDA')).toBeTrue();
-      expect(kpis.some((r) => r.request.params.get('estado') === 'VALIDADA')).toBeTrue();
-      expect(kpis.some((r) => r.request.params.get('estadoDocumento') === 'PRESCRITA')).toBeTrue();
-      expect(kpis.some((r) => r.request.params.get('estadoDocumento') === 'NO_CUMPLE')).toBeTrue();
-      expect(kpis.some((r) => r.request.params.get('soportesCompletos') === 'false')).toBeTrue();
+      expect(kpis.length).toBe(1);
+      expect(kpis[0].request.url.endsWith('/resumen')).toBeTrue();
+      expect(kpis[0].request.params.get('empresa')).toBe('TU ALIANZA SAS');
+      kpis[0].flush({ total: 0, porEstado: {}, porEstadoDocumento: {}, sinSoportes: 0 });
+    });
 
-      kpis.forEach((r) => r.flush(pagina([], 0, 0, 1)));
+    it('si /resumen falla, degrada a las seis peticiones size=1 del contrato viejo', () => {
+      peticionPrincipal().flush(pagina([FILA_A], 1));
+      const resumen = peticionesKpi();
+      expect(resumen.length).toBe(1);
+      resumen[0].flush({ error: 'sin resumen' }, { status: 503, statusText: 'Service Unavailable' });
+
+      const tarjetas = peticionesKpi();
+      expect(tarjetas.length).toBe(6);
+      expect(tarjetas.some((r) => r.request.params.get('estado') === 'RECIBIDA')).toBeTrue();
+      expect(tarjetas.some((r) => r.request.params.get('estado') === 'VALIDADA')).toBeTrue();
+      expect(tarjetas.some((r) => r.request.params.get('estadoDocumento') === 'PRESCRITA')).toBeTrue();
+      expect(tarjetas.some((r) => r.request.params.get('estadoDocumento') === 'NO_CUMPLE')).toBeTrue();
+      expect(tarjetas.some((r) => r.request.params.get('soportesCompletos') === 'false')).toBeTrue();
+
+      tarjetas.forEach((r) => r.flush(pagina([], 0, 0, 1)));
     });
 
     it('usa el totalElements del backend, no el numero de filas cargadas', () => {
@@ -477,8 +507,13 @@ describe('ConsultaIncapacidadesComponent', () => {
       expect(textos[5]).toContain('100');
     });
 
-    it('si un conteo falla, esa tarjeta queda vacia y las demas se pintan', () => {
+    it('en el respaldo, si un conteo falla esa tarjeta queda vacia y las demas se pintan', () => {
       peticionPrincipal().flush(pagina([FILA_A], 10));
+
+      // El /resumen agregado falla -> el componente degrada a las 6 peticiones size=1.
+      const resumen = peticionesKpi();
+      expect(resumen.length).toBe(1);
+      resumen[0].flush('boom', { status: 500, statusText: 'Server Error' });
 
       for (const peticion of peticionesKpi()) {
         if (peticion.request.params.get('estadoDocumento') === 'PRESCRITA') {
