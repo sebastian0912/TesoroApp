@@ -4,8 +4,10 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Title } from '@angular/platform-browser';
+import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,7 +21,8 @@ import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import {
-  CruceRespuesta, EnvioCorreosService, FilaCruce, PeriodoDisponible, TipoRef,
+  CargaDisponible, CruceRespuesta, DocumentoCruce, EnvioCorreosService, FilaCruce,
+  PeriodoDisponible, Plantilla, TipoRef,
 } from '../../service/envio-correos/envio-correos.service';
 import {
   VisorDocumentoComponent, VisorDocumentoData,
@@ -43,7 +46,7 @@ import {
   imports: [
     CommonModule, FormsModule, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule,
     MatIconModule, MatInputModule, MatPaginatorModule, MatProgressBarModule,
-    MatSelectModule, MatTableModule, MatTooltipModule,
+    MatCheckboxModule, MatSelectModule, MatTableModule, MatTooltipModule,
   ],
   templateUrl: './envio-correos-cruce.component.html',
   styleUrl: './envio-correos-cruce.component.css',
@@ -52,6 +55,10 @@ export class EnvioCorreosCruceComponent implements OnInit {
   private srv = inject(EnvioCorreosService);
   private titulo = inject(Title);
   private dialog = inject(MatDialog);
+  private router = inject(Router);
+
+  /** NOMINA | LIQUIDACION: decide qué plantilla aplica al borrador. */
+  readonly tipoEnvioSel = signal<'NOMINA' | 'LIQUIDACION'>('NOMINA');
 
   readonly cargando = signal(false);
   readonly periodos = signal<PeriodoDisponible[]>([]);
@@ -67,22 +74,50 @@ export class EnvioCorreosCruceComponent implements OnInit {
   readonly pagina = signal(0);
   readonly tamanoPagina = signal(50);
 
+  /**
+   * Cargas elegidas. Vacío = todas las de la quincena.
+   *
+   * Es la pieza que faltaba: una liquidación no es un documento sino un juego
+   * —liquidación, carta de retiro, certificación, cesantías— y cada pieza se
+   * sube desde una CARPETA distinta. Sin poder elegir varias cargas no había
+   * forma de armar el envío completo.
+   */
+  readonly cargasSel = signal<number[]>([]);
+  readonly plantillas = signal<Plantilla[]>([]);
+  readonly plantillaSel = signal<number | null>(null);
+  readonly creandoBorrador = signal(false);
+
   readonly filas = computed<FilaCruce[]>(() => this.datos()?.content ?? []);
   readonly resumen = computed(() => this.datos()?.resumen ?? null);
   readonly advertencias = computed<string[]>(() => this.datos()?.advertencias ?? []);
+  readonly cargas = computed<CargaDisponible[]>(() => this.datos()?.cargas_disponibles ?? []);
+  readonly tiposPresentes = computed<string[]>(() => this.datos()?.tipos_presentes ?? []);
 
-  readonly columnas = ['cedula', 'nombre', 'finca', 'correo', 'archivo', 'enviado'];
+  /**
+   * Columnas de la tabla: las fijas más UNA POR TIPO documental presente.
+   *
+   * Es lo que reproduce la hoja original (Desprendibles, Certificaciones,
+   * Cartas de retiro, Cesantías, Entrevista): de un vistazo se ve a quién le
+   * falta QUÉ, no solo si le falta "algo".
+   */
+  readonly columnas = computed<string[]>(() => [
+    'cedula', 'nombre', 'correo',
+    ...this.tiposPresentes().map((t) => `tipo:${t}`),
+    'enviado',
+  ]);
 
   async ngOnInit(): Promise<void> {
     this.titulo.setTitle('Cruce por quincena | Envío de correos (modelo antiguo)');
     this.cargando.set(true);
     try {
-      const [periodos, tipos] = await Promise.all([
+      const [periodos, tipos, plantillas] = await Promise.all([
         firstValueFrom(this.srv.periodos()),
         firstValueFrom(this.srv.tiposDisponibles()),
+        firstValueFrom(this.srv.plantillas()),
       ]);
       this.periodos.set(periodos.content);
       this.tipos.set(tipos);
+      this.plantillas.set(plantillas.content.filter((p) => p.activo));
       // La lista viene de la más reciente a la más antigua: arrancar en la
       // primera es lo que quiere ver quien entra a revisar el corte del día.
       if (periodos.content.length) {
@@ -109,6 +144,7 @@ export class EnvioCorreosCruceComponent implements OnInit {
         empresa: this.empresaSel(),
         estado: this.estadoSel(),
         q: this.busqueda().trim() || undefined,
+        loteIds: this.cargasSel(),
         page: this.pagina(),
         size: this.tamanoPagina(),
       })));
@@ -144,6 +180,112 @@ export class EnvioCorreosCruceComponent implements OnInit {
       width: '900px',
       maxWidth: '95vw',
     });
+  }
+
+  /** Marca/desmarca una carga y vuelve a cruzar. */
+  alternarCarga(loteId: number): void {
+    this.cargasSel.update((sel) =>
+      sel.includes(loteId) ? sel.filter((x) => x !== loteId) : [...sel, loteId]);
+    this.consultar(true);
+  }
+
+  cargaSeleccionada(loteId: number): boolean {
+    return this.cargasSel().includes(loteId);
+  }
+
+  limpiarCargas(): void {
+    this.cargasSel.set([]);
+    this.consultar(true);
+  }
+
+  /** Documento de esa persona para ese tipo, o null si le falta. */
+  documentoDeTipo(fila: FilaCruce, tipo: string): DocumentoCruce | null {
+    return fila.documentos?.find((d) => d.type_name === tipo) ?? null;
+  }
+
+  /** Nombre del tipo a partir de la clave de columna 'tipo:NOMBRE'. */
+  tipoDeColumna(columna: string): string {
+    return columna.startsWith('tipo:') ? columna.slice(5) : columna;
+  }
+
+  esColumnaTipo(columna: string): boolean {
+    return columna.startsWith('tipo:');
+  }
+
+  verDocumentoDe(fila: FilaCruce, doc: DocumentoCruce): void {
+    this.dialog.open<VisorDocumentoComponent, VisorDocumentoData>(VisorDocumentoComponent, {
+      data: {
+        documentId: doc.document_id,
+        nombreArchivo: doc.nombre_archivo,
+        cedula: fila.cedula,
+        titulo: `${fila.nombre} · ${doc.type_name ?? ''}`,
+      },
+      width: '900px',
+      maxWidth: '95vw',
+    });
+  }
+
+  /**
+   * Crea el BORRADOR del envío con las cargas elegidas.
+   *
+   * No manda nada: deja el lote en PREPARADO con sus destinatarios y adjuntos
+   * resueltos, para revisarlo y dispararlo desde la pantalla de envío.
+   */
+  async crearBorrador(): Promise<void> {
+    const periodo = this.periodoSel();
+    if (!periodo) return;
+
+    const cargas = this.cargasSel();
+    const r = this.resumen();
+    const confirma = await Swal.fire({
+      icon: 'question',
+      title: '¿Crear el borrador de envío?',
+      html: `Quincena <b>${this.datos()?.periodo_etiqueta}</b>
+             ${cargas.length
+               ? `con <b>${cargas.length}</b> carga(s) de documentos seleccionadas`
+               : 'con <b>todas</b> las cargas de la quincena'}.<br><br>
+             Se prepara el envío para <b>${r?.total_personas ?? 0}</b> persona(s).
+             <b>No se manda ningún correo todavía.</b>`,
+      showCancelButton: true,
+      confirmButtonText: 'Crear borrador',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!confirma.isConfirmed) return;
+
+    this.creandoBorrador.set(true);
+    try {
+      const detalle = await firstValueFrom(this.srv.prepararLote({
+        periodo_clave: periodo,
+        empresa: this.empresaSel(),
+        type_id: this.tipoSel(),
+        tipo: this.tipoEnvioSel(),
+        plantilla_id: this.plantillaSel(),
+        omitir_ya_enviados: true,
+        lote_ids: cargas,
+      }));
+      const res = await Swal.fire({
+        icon: 'success',
+        title: 'Borrador creado',
+        html: `<b>${detalle.listos_para_enviar}</b> destinatario(s) listos.<br>
+               ${detalle.advertencias.length
+                 ? `<small>${detalle.advertencias.join('<br>')}</small>`
+                 : ''}`,
+        showCancelButton: true,
+        confirmButtonText: 'Ir a enviar',
+        cancelButtonText: 'Seguir aquí',
+      });
+      if (res.isConfirmed) this.router.navigate(['/dashboard/nomina/envio-correos/enviar']);
+    } catch (e: any) {
+      this.error(e?.error?.error ?? 'No se pudo crear el borrador.');
+    } finally {
+      this.creandoBorrador.set(false);
+    }
+  }
+
+  nombreEmpresa(v: string | null): string {
+    if (v === 'APOYO_LABORAL') return 'Apoyo Laboral';
+    if (v === 'ALIANZA') return 'Tu Alianza';
+    return 'Ambas';
   }
 
   porcentaje(parte: number, total: number): number {

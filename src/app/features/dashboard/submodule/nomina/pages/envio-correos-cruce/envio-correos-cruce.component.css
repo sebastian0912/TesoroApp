@@ -164,3 +164,103 @@
   .fila-filtros mat-form-field,
   .fila-filtros .buscador { width: 100%; }
 }
+
+/* ── Selector de cargas de documentos ─────────────────────────────────── */
+.fila-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.fila-cabecera h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.ayuda {
+  margin: 0 0 14px;
+  max-width: 82ch;
+  color: rgba(0, 0, 0, .6);
+  font-size: .85rem;
+  line-height: 1.45;
+}
+
+.cargas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+/* Tarjeta clicable: el borde cambia al elegirla, para que se vea de un
+   vistazo cuáles entran en el envío. */
+.carga {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, .14);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+
+.carga:hover { border-color: rgba(19, 77, 168, .5); }
+
+.carga.elegida {
+  border-color: #134DA8;
+  background: #f2f6fd;
+}
+
+.carga-datos { min-width: 0; }
+
+.carga-datos strong {
+  display: block;
+  font-size: .88rem;
+  word-break: break-word;
+}
+
+.tipos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.pill-tipo {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .07);
+  color: rgba(0, 0, 0, .7);
+  font-size: .68rem;
+}
+
+/* ── Crear borrador ───────────────────────────────────────────────────── */
+.borrador { border-left: 4px solid #134DA8; }
+
+.borrador .fila-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.acciones-borrador {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.acciones-borrador .plantilla { width: 240px; }
+
+.acciones-borrador .plantilla ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .cargas { grid-template-columns: 1fr; }
+  .acciones-borrador .plantilla { width: 100%; }
+}

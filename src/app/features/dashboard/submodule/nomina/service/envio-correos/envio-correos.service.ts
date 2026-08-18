@@ -106,6 +106,26 @@ export interface PeriodoDisponible {
   total_filas: number;
 }
 
+/** Un documento de la persona, con su tipo y la carga de la que salió. */
+export interface DocumentoCruce {
+  document_id: number;
+  type_id: number | null;
+  type_name: string | null;
+  nombre_archivo: string | null;
+  tamano_bytes: number | null;
+  lote_id: number | null;
+  carpeta_raiz: string | null;
+}
+
+/** Una carga de documentos que se puede cruzar contra la quincena. */
+export interface CargaDisponible {
+  lote_id: number;
+  carpeta_raiz: string;
+  empresa: string | null;
+  total_cargados: number;
+  tipos: string[];
+}
+
 export interface FilaCruce {
   id: number;
   cedula: string;
@@ -122,6 +142,8 @@ export interface FilaCruce {
   document_id: number | null;
   nombre_archivo: string | null;
   tamano_bytes: number | null;
+  /** Todos los documentos: una liquidación son varios, de carpetas distintas. */
+  documentos: DocumentoCruce[];
   sin_correo: boolean;
 }
 
@@ -139,6 +161,9 @@ export interface CruceRespuesta {
   empresa: string | null;
   type_id: number | null;
   resumen: ResumenCruce;
+  cargas_disponibles: CargaDisponible[];
+  /** Tipos presentes en las cargas elegidas: una columna por cada uno. */
+  tipos_presentes: string[];
   content: FilaCruce[];
   total_elements: number;
   total_pages: number;
@@ -347,6 +372,8 @@ export class EnvioCorreosService {
     empresa?: string | null;
     estado?: string;
     q?: string;
+    /** Cargas concretas a cruzar; vacío = todas las de la quincena. */
+    loteIds?: number[];
     page?: number;
     size?: number;
   }): Observable<CruceRespuesta> {
@@ -355,6 +382,8 @@ export class EnvioCorreosService {
     if (opts.empresa) params = params.set('empresa', opts.empresa);
     if (opts.estado) params = params.set('estado', opts.estado);
     if (opts.q) params = params.set('q', opts.q);
+    // Repetido, no separado por comas: es como Spring enlaza List<Long>.
+    for (const id of opts.loteIds ?? []) params = params.append('lote_ids', id);
     params = params.set('page', opts.page ?? 0).set('size', opts.size ?? 50);
     return this.http.get<CruceRespuesta>(`${this.nomina}/cruce`, { params });
   }
@@ -432,6 +461,8 @@ export class EnvioCorreosService {
     tipo: string | null;
     plantilla_id: number | null;
     omitir_ya_enviados: boolean;
+    /** Cargas que alimentan el envío: varias para una liquidación. */
+    lote_ids?: number[];
   }): Observable<LoteDetalle> {
     return this.http.post<LoteDetalle>(`${this.nomina}/lotes/preparar`, body);
   }
