@@ -11,9 +11,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-import { AdminService, ActualizarUsuarioPayload, UsuarioDetail, AuthResponse } from '../../services/admin.service';
-import { forkJoin, Observable, of, switchMap } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { AdminService, ActualizarUsuarioPayload, UsuarioDetail } from '../../services/admin.service';
+import { forkJoin, Observable, of } from 'rxjs';
 import Swal from 'sweetalert2';
 
 export interface UserUpsertData {
@@ -205,32 +204,25 @@ export class UserUpsertDialogComponent implements OnInit {
       ...(this.isCreate() || this.changePw() ? { password: trim(raw.password) } : {}),
     };
 
-    // Unificamos a Observable<UsuarioDetail>
-    const rolId = raw.rol_id as string | null;
-
+    // Unificamos a Observable<UsuarioDetail>.
+    // El alta va en UNA sola llamada al endpoint admin: antes creaba contra /auth/register/
+    // (que ignora el rol por seguridad) y parcheaba el rol después con cambiarRol, cuyo error
+    // se tragaba un catchError — el usuario quedaba creado como SIN-ASIGNAR sin avisar.
     const req$: Observable<UsuarioDetail> =
       this.data.mode === 'create'
-        ? this.adminService
-            .crear({
-              numero_de_documento: payload.numero_de_documento!,
-              tipo_documento: payload.tipo_documento!,
-              correo_electronico: payload.correo_electronico!,
-              password: (payload as any).password!, // garantizado en create
-              estado_solicitudes: payload.estado_solicitudes,
-              empresa: payload.empresa ?? null,
-              sede: payload.sede ?? null,
-              nombres: payload.nombres,
-              apellidos: payload.apellidos,
-              celular: payload.celular ?? null,
-            } as any)
-            .pipe(
-              map((r: AuthResponse) => r.user),
-              switchMap((user: UsuarioDetail) =>
-                rolId
-                  ? this.adminService.cambiarRol(user.id, rolId).pipe(map(() => user), catchError(() => of(user)))
-                  : of(user)
-              )
-            )
+        ? this.adminService.crear({
+            numero_de_documento: payload.numero_de_documento!,
+            tipo_documento: payload.tipo_documento!,
+            correo_electronico: payload.correo_electronico!,
+            password: (payload as any).password!, // garantizado en create
+            estado_solicitudes: payload.estado_solicitudes,
+            empresa: payload.empresa ?? null,
+            sede: payload.sede ?? null,
+            rol: payload.rol ?? null,
+            nombres: payload.nombres,
+            apellidos: payload.apellidos,
+            celular: payload.celular ?? null,
+          })
         : this.adminService.actualizar(this.data.user!.id, payload, true);
 
     req$.subscribe({
@@ -243,20 +235,21 @@ export class UserUpsertDialogComponent implements OnInit {
         const msg = err?.error?.message;
         let detalle = 'No fue posible guardar el usuario.';
         if (errors && typeof errors === 'object') {
-          detalle = Object.entries(errors).map(([k, v]) => `${k}: ${v}`).join('\n');
-          Object.entries(errors).forEach(([field, errMsg]) => {
-            const ctrl = this.form.get(field);
-            if (ctrl) { ctrl.setErrors({ serverError: errMsg }); ctrl.markAsTouched(); }
-          });
+          detalle = Object.values(errors).join('\n');
+          Object.entries(errors).forEach(([field, errMsg]) => this.marcarError(field, errMsg));
         } else if (msg) {
           detalle = msg;
-          // Cédula o correo duplicados → resaltar ambos campos
-          if (msg.includes('No se puede crear')) {
-            const hint = 'Cédula o correo ya están registrados';
-            ['numero_de_documento', 'correo_electronico'].forEach(f => {
-              const ctrl = this.form.get(f);
-              if (ctrl) { ctrl.setErrors({ serverError: hint }); ctrl.markAsTouched(); }
-            });
+          // El backend responde en prosa ("Ya existe un usuario con la cédula 123"):
+          // resaltamos el campo concreto que menciona en vez de ambos a ciegas.
+          const low = msg.toLowerCase();
+          if (low.includes('cedula') || low.includes('cédula')) {
+            this.marcarError('numero_de_documento', msg);
+          }
+          if (low.includes('correo')) {
+            this.marcarError('correo_electronico', msg);
+          }
+          if (low.includes('contrase')) {
+            this.marcarError('password', msg);
           }
         }
         Swal.fire({ title: 'Error', text: detalle, icon: 'error', customClass: { container: 'swal-over-dialog' } });
@@ -264,4 +257,20 @@ export class UserUpsertDialogComponent implements OnInit {
       },
     });
   }
+
+  /**
+   * Pinta el error del servidor sobre el control correspondiente.
+   * El validador de Spring devuelve las claves con el nombre Java (camelCase:
+   * `numeroDeDocumento`), mientras que los controles del formulario son snake_case,
+   * así que se prueban ambas formas antes de descartar el error.
+   */
+  private marcarError(field: string, mensaje: unknown): void {
+    const snake = field.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
+    const ctrl = this.form.get(field) ?? this.form.get(snake) ?? this.form.get(field === 'rol' ? 'rol_id' : field);
+    if (ctrl) {
+      ctrl.setErrors({ serverError: mensaje });
+      ctrl.markAsTouched();
+    }
+  }
+
 }

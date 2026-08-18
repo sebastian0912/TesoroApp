@@ -1132,9 +1132,14 @@ button {
   max-height: none !important;
 }
 
-/* SweetAlert2 SIEMPRE por encima de los diálogos/overlays de Angular Material
-   (el overlay CDK usa z-index 1000; sin esto los Swal abiertos desde un
-   MatDialog quedan por detrás). */
+/* SweetAlert2 SIEMPRE por encima de los diálogos/overlays de Angular Material.
+   Se fija LOS DOS extremos a propósito: el overlay del CDK abajo y el Swal
+   arriba. Dejar sólo el de arriba dependía de que nadie subiera el del CDK
+   (Material lo inyecta por JS en runtime, después de esta hoja). */
+.cdk-overlay-container {
+  z-index: 1000;
+}
+
 .swal2-container {
   z-index: 100000 !important;
 }
@@ -1263,8 +1268,13 @@ button {
   width: 18px; height: 18px; font-size: 18px; margin-right: 0;
 }
 
-/* SweetAlert2 sobre mat-dialog (z-index del CDK overlay = 1000) */
-.swal-over-dialog { z-index: 99999 !important; }
+/* Alias que usan los Swal lanzados desde dentro de un mat-dialog
+   (customClass.container). NO declara z-index a propósito: la regla de
+   `.swal2-container` de más arriba ya lo resuelve para todos los Swal, y la
+   versión anterior de esta línea (99999) tenía la misma especificidad pero venía
+   después, así que BAJABA el z-index en vez de subirlo — justo lo contrario de
+   lo que decía su comentario. */
+.swal-over-dialog { }
 
 /* =========================================================
    RESPONSIVE GLOBAL — patrones comunes en submodulos

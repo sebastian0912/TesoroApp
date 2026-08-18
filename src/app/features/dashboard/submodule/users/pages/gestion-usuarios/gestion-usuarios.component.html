@@ -75,8 +75,15 @@
             class="action-btn-perm">
             <mat-icon>admin_panel_settings</mat-icon>
           </button>
-          <button mat-icon-button (click)="deleteUser(row)" matTooltip="Eliminar" class="action-btn-delete">
-            <mat-icon>delete</mat-icon>
+          <!-- Baja reversible: conserva la fila y su historial. La destructiva es la de al lado. -->
+          <button mat-icon-button (click)="toggleActivo(row)"
+            [matTooltip]="row.estado ? 'Inactivar (conserva los datos)' : 'Activar'"
+            [class.action-btn-activate]="!row.estado" [class.action-btn-deactivate]="row.estado">
+            <mat-icon>{{ row.estado ? 'block' : 'check_circle' }}</mat-icon>
+          </button>
+          <button mat-icon-button (click)="deleteUser(row)" matTooltip="Eliminar definitivamente"
+            class="action-btn-delete">
+            <mat-icon>delete_forever</mat-icon>
           </button>
         </div>
       </ng-template>

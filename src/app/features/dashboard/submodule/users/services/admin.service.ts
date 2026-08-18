@@ -42,6 +42,18 @@ export type CrearUsuarioPayload = {
 
 export type ActualizarUsuarioPayload = Partial<CrearUsuarioPayload>;
 
+export interface EliminarUsuarioResponse {
+  ok: boolean;
+  deleted: boolean;
+  id: string;
+  correo: string;
+}
+
+export interface EstadoUsuarioResponse {
+  ok: boolean;
+  estado_solicitudes: boolean;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -74,14 +86,27 @@ export class AdminService {
     ) as T;
   }
 
-  /** Crear usuario (backend: RegisterView). Devuelve token + user detail */
-  crear(body: CrearUsuarioPayload): Observable<AuthResponse> {
-    // si usas prefijo como en tu ejemplo:
-    // return this.http.post<AuthResponse>(`${this.apiUrl}/gestion_admin/auth/register/`, this.compact(body));
-    return this.http.post<AuthResponse>(`${this.apiUrl}/gestion_admin/auth/register/`, this.compact(body));
+  /**
+   * Crear usuario desde el panel de administración.
+   *
+   * Pega al endpoint admin (requiere JWT), NO a /gestion_admin/auth/register/: ese es el
+   * registro PÚBLICO y por seguridad ignora el rol que le manden, forzando SIN-ASIGNAR.
+   * Con este el rol, la empresa, la sede y el estado se guardan en la misma llamada.
+   */
+  crear(body: CrearUsuarioPayload): Observable<UsuarioDetail> {
+    return this.http.post<UsuarioDetail>(`${this.apiUrl}/gestion_admin/usuarios/`, this.compact(body));
   }
 
-  /** Actualizar usuario (PATCH por defecto). Devuelve UsuarioDetail */
+  /** Detalle de un usuario (incluye permisos efectivos y árbol de permisos). */
+  detalle(id: string): Observable<UsuarioDetail> {
+    return this.http.get<UsuarioDetail>(`${this.apiUrl}/gestion_admin/usuarios/${id}/`);
+  }
+
+  /**
+   * Actualizar usuario (PATCH por defecto). Devuelve UsuarioDetail.
+   * OJO: `compact` conserva los `null` a propósito — el backend interpreta
+   * `empresa: null` / `sede: null` / `rol: null` como "quitar la asignación".
+   */
   actualizar(id: string, body: ActualizarUsuarioPayload, partial = true): Observable<UsuarioDetail> {
     const url = `${this.apiUrl}/gestion_admin/usuarios/${id}/`;
     const payload = this.compact(body);
@@ -90,8 +115,17 @@ export class AdminService {
       : this.http.put<UsuarioDetail>(url, payload);
   }
 
-  eliminar(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/gestion_admin/usuarios/${id}/`);
+  /** Borrado DEFINITIVO: elimina la fila y sus dependientes (permisos, datos básicos, MFA). */
+  eliminar(id: string): Observable<EliminarUsuarioResponse> {
+    return this.http.delete<EliminarUsuarioResponse>(`${this.apiUrl}/gestion_admin/usuarios/${id}/`);
+  }
+
+  /** Baja/alta reversible: conserva la fila y su historial, solo conmuta estado_solicitudes. */
+  setActivo(id: string, activo: boolean): Observable<EstadoUsuarioResponse> {
+    return this.http.post<EstadoUsuarioResponse>(
+      `${this.apiUrl}/gestion_admin/usuarios/${id}/inactivar/`,
+      { activo }
+    );
   }
 
   // Extras útiles con tus acciones del ViewSet:

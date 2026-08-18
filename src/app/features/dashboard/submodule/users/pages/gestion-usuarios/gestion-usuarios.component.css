@@ -233,6 +233,8 @@ app-standard-filter-table {
 /* En reposo todo es navy neutro: el color solo aparece al interactuar */
 .action-btn-edit,
 .action-btn-perm,
+.action-btn-activate,
+.action-btn-deactivate,
 .action-btn-delete {
   color: var(--navy);
   transition: color 0.2s ease, background-color 0.2s ease;
@@ -242,6 +244,17 @@ app-standard-filter-table {
 .action-btn-perm:hover {
   background-color: rgba(140, 213, 10, 0.12);
   color: var(--navy);
+}
+
+/* Inactivar es reversible: ámbar, no rojo. El rojo queda reservado al borrado real. */
+.action-btn-deactivate:hover {
+  background-color: #fffaeb;
+  color: #b54708;
+}
+
+.action-btn-activate:hover {
+  background-color: #ecfdf3;
+  color: #067647;
 }
 
 .action-btn-delete:hover {
@@ -360,6 +373,8 @@ app-standard-filter-table {
   .btn-refresh,
   .action-btn-edit,
   .action-btn-perm,
+  .action-btn-activate,
+  .action-btn-deactivate,
   .action-btn-delete {
     transition: none !important;
   }

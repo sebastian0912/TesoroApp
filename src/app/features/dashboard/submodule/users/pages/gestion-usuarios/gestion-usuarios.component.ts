@@ -49,28 +49,63 @@ export class GestionUsuariosComponent implements OnInit {
   public readonly rows = computed(() => {
     return this.users().map(u => ({
       id: u.id,
+      estado: !!u.estado_solicitudes,
       correo: u.correo_electronico ?? '—',
+      tipo_documento: u.tipo_documento ?? '—',
       cedula: u.numero_de_documento ?? '—',
-      nombres: u.datos_basicos?.nombres ?? '—',
-      apellidos: u.datos_basicos?.apellidos ?? '—',
+      nombres: u.datos_basicos?.nombres || '—',
+      apellidos: u.datos_basicos?.apellidos || '—',
+      celular: u.datos_basicos?.celular || '—',
+      empresa: u.empresa?.nombre ?? '—',
       sede: u.sede?.nombre ?? '—',
       rol: u.rol?.nombre ?? '—',
-      fecha_registro: u.fecha_registro
-        ? new Date(Number(u.fecha_registro) * 1000).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : '—',
+      fecha_registro: this.formatFecha(u.fecha_registro),
     }));
   });
 
+  /**
+   * `fecha_registro` llega como ISO-8601 (el backend corre con
+   * spring.jackson.serialization.write-dates-as-timestamps=false). La versión previa hacía
+   * `Number(iso) * 1000`, que da NaN y pintaba "Invalid Date" en toda la columna. Se aceptan
+   * también los dos formatos epoch por si algún endpoint legacy los devuelve.
+   */
+  private formatFecha(valor: unknown): string {
+    if (valor === null || valor === undefined || valor === '') return '—';
+
+    let fecha: Date;
+    if (typeof valor === 'number' || /^\d+(\.\d+)?$/.test(String(valor))) {
+      const n = Number(valor);
+      fecha = new Date(n > 3e10 ? n : n * 1000); // > 3e10 ya son milisegundos
+    } else {
+      fecha = new Date(String(valor));
+    }
+
+    if (isNaN(fecha.getTime())) return '—';
+    return fecha.toLocaleDateString('es-CO', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+  }
+
   // --- DEFINICIÓN DE COLUMNAS ---
   public readonly columns: ColumnDefinition[] = [
+    {
+      name: 'estado', header: 'Estado', type: 'status', width: '110px',
+      statusConfig: {
+        'true': { color: '#067647', background: '#ecfdf3' },
+        'false': { color: '#b42318', background: '#fef3f2' },
+      }
+    },
     { name: 'fecha_registro', header: 'Fecha registro', type: 'text', width: '160px' },
     { name: 'correo', header: 'Correo', type: 'text', width: '260px' },
+    { name: 'tipo_documento', header: 'Tipo doc.', type: 'text', width: '110px' },
     { name: 'cedula', header: 'Cédula', type: 'text', width: '140px' },
     { name: 'nombres', header: 'Nombres', type: 'text' },
     { name: 'apellidos', header: 'Apellidos', type: 'text' },
+    { name: 'celular', header: 'Celular', type: 'text', width: '140px' },
+    { name: 'empresa', header: 'Empresa', type: 'text', width: '160px' },
     { name: 'sede', header: 'Sede', type: 'text', width: '140px' },
     { name: 'rol', header: 'Rol', type: 'text', width: '150px' },
-    { name: 'actions', header: 'Acciones', type: 'custom', width: '142px', stickyEnd: true, sortable: false, filterable: false },
+    { name: 'actions', header: 'Acciones', type: 'custom', width: '184px', stickyEnd: true, sortable: false, filterable: false },
   ];
 
   ngOnInit(): void {
@@ -143,22 +178,70 @@ export class GestionUsuariosComponent implements OnInit {
     }
   }
 
-  /** Elimina un usuario con confirmación */
+  /**
+   * Activa / inactiva un usuario (baja reversible).
+   * Conserva la fila y todo su historial: es lo que hay que usar cuando alguien deja de
+   * trabajar pero sus registros deben seguir existiendo. Para borrar de verdad, deleteUser.
+   */
+  async toggleActivo(row: { id: string; estado: boolean }): Promise<void> {
+    const user = this.users().find(u => u.id === row.id);
+    if (!user) return;
+
+    const activar = !user.estado_solicitudes;
+    const nombre = user.correo_electronico ?? 'este usuario';
+
+    const result = await Swal.fire({
+      title: activar ? '¿Activar usuario?' : '¿Inactivar usuario?',
+      html: activar
+        ? `<b>${nombre}</b> volverá a poder iniciar sesión.`
+        : `<b>${nombre}</b> no podrá iniciar sesión. Sus datos y su historial se conservan y puede reactivarlo cuando quiera.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: activar ? '#067647' : '#b54708',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: activar ? 'Sí, activar' : 'Sí, inactivar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      await firstValueFrom(this.adminService.setActivo(row.id, activar));
+      this.showSuccessToast(activar ? 'Usuario activado' : 'Usuario inactivado');
+      this.reloadUsers();
+    } catch (err) {
+      this.showErrorToast(this.mensajeDeError(err, 'No se pudo cambiar el estado del usuario.'));
+    }
+  }
+
+  /**
+   * Borrado DEFINITIVO, con confirmación escrita.
+   * Antes el backend resolvía este DELETE como un simple "inactivar", así que la fila volvía
+   * a aparecer al recargar y el botón parecía no hacer nada. Ahora borra de verdad, por eso
+   * se pide escribir ELIMINAR y se ofrece "Inactivar" como alternativa no destructiva.
+   */
   async deleteUser(row: { id: string }): Promise<void> {
     const user = this.users().find(u => u.id === row.id);
     const nombre = user?.correo_electronico ?? 'este usuario';
 
     const result = await Swal.fire({
-      title: '¿Eliminar usuario?',
-      html: `Se eliminará <b>${nombre}</b>. Esta acción no se puede deshacer.`,
+      title: '¿Eliminar definitivamente?',
+      html:
+        `Se eliminará <b>${nombre}</b> junto con sus permisos, datos básicos y configuración de MFA.<br><br>` +
+        `<b>Esta acción no se puede deshacer.</b> Si solo quiere impedirle el acceso, cancele y use <b>Inactivar</b>.<br><br>` +
+        `Escriba <b>ELIMINAR</b> para confirmar:`,
+      input: 'text',
+      inputPlaceholder: 'ELIMINAR',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#b42318',
       cancelButtonColor: '#64748b',
-      confirmButtonText: 'Sí, eliminar',
+      confirmButtonText: 'Eliminar definitivamente',
       cancelButtonText: 'Cancelar',
       reverseButtons: true,
-      focusCancel: true
+      focusCancel: true,
+      inputValidator: (value) =>
+        (value ?? '').trim().toUpperCase() === 'ELIMINAR' ? null : 'Escriba ELIMINAR para confirmar'
     });
 
     if (result.isConfirmed) {
@@ -176,9 +259,16 @@ export class GestionUsuariosComponent implements OnInit {
         this.showSuccessToast('Usuario eliminado');
         this.reloadUsers();
       } catch (err) {
-        Swal.fire('Error', 'No se pudo eliminar el usuario.', 'error');
+        // El backend bloquea borrarse a uno mismo y borrar al último ADMIN activo:
+        // ese motivo hay que mostrarlo tal cual, no como un error genérico.
+        Swal.fire('No se pudo eliminar', this.mensajeDeError(err, 'No se pudo eliminar el usuario.'), 'error');
       }
     }
+  }
+
+  /** Extrae el motivo que manda el backend (`{ok:false, message}`) o cae a uno genérico. */
+  private mensajeDeError(err: any, fallback: string): string {
+    return err?.error?.message ?? fallback;
   }
 
   openPermsDialog(row: { id: string }): void {
