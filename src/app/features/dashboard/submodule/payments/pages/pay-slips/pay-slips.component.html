@@ -60,12 +60,23 @@
           [enableRowClick]="false">
 
           <ng-template #estadoTemplate let-row let-col="col">
-            @if (isValidLink(row[col.name])) {
-              <a [href]="row[col.name]" target="_blank" class="link-style">
+            <!-- Si la quincena ya se migró con la carga por carpeta, manda el
+                 documento interno: está en la plataforma, no depende de que
+                 alguien conserve permisos en Drive. -->
+            @if (documentoInterno(row, col.name); as doc) {
+              <button type="button" class="btn-doc-interno"
+                      (click)="abrirDocumentoInterno(doc)"
+                      [title]="doc.nombre_archivo || 'Documento interno'">
+                Ver documento
+              </button>
+            } @else if (isValidLink(row[col.name])) {
+              <!-- Respaldo del histórico: ~997k filas antiguas solo tienen el
+                   enlace de Drive y no se van a migrar. -->
+              <a [href]="row[col.name]" target="_blank" rel="noopener" class="link-style"
+                 title="Enlace antiguo de Drive (no está en la plataforma)">
                 Ver link
               </a>
-            }
-            @if (!isValidLink(row[col.name])) {
+            } @else {
               <span>
                 {{ row[col.name] || '-' }}
               </span>

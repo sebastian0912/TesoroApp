@@ -55,4 +55,19 @@ export const routes: Routes = [
   { path: 'analitica-nomina-ia', loadComponent: () => import('./pages/analitica-nomina-ia/analitica-nomina-ia.component').then(m => m.AnaliticaNominaIaComponent) },
   { path: 'analitica-ia', redirectTo: 'analitica-nomina-ia', pathMatch: 'full' },
   { path: 'nomina-ia', redirectTo: 'analitica-nomina-ia', pathMatch: 'full' },
+  // Submódulo "Envío de correos (modelo antiguo)": trae a la plataforma el flujo
+  // que hoy vive en Google Sheets + Drive (Nomina Express / LQ Envío Express).
+  // Fase 1 = carga por carpeta + previsualizador + cruce; el envío de correos
+  // con el PDF adjunto llega en la fase 2.
+  // Rutas canónicas: 'envio-correos/carga' y 'envio-correos/cruce' → registrar
+  // el ítem de menú en db_admin.modulo con ruta 'nomina/envio-correos/carga'.
+  { path: 'envio-correos', redirectTo: 'envio-correos/carga', pathMatch: 'full' },
+  { path: 'envio-correos/carga', loadComponent: () => import('./pages/envio-correos-carga/envio-correos-carga.component').then(m => m.EnvioCorreosCargaComponent) },
+  { path: 'envio-correos/cruce', loadComponent: () => import('./pages/envio-correos-cruce/envio-correos-cruce.component').then(m => m.EnvioCorreosCruceComponent) },
+  // Fase 2: el envío en sí y su histórico.
+  { path: 'envio-correos/enviar', loadComponent: () => import('./pages/envio-correos-envio/envio-correos-envio.component').then(m => m.EnvioCorreosEnvioComponent) },
+  { path: 'envio-correos/historico', loadComponent: () => import('./pages/envio-correos-historico/envio-correos-historico.component').then(m => m.EnvioCorreosHistoricoComponent) },
+  // Alias descriptivos por si alguien guarda el bookmark con otro nombre.
+  { path: 'carga-modelo-viejo', redirectTo: 'envio-correos/carga', pathMatch: 'full' },
+  { path: 'modelo-antiguo', redirectTo: 'envio-correos/carga', pathMatch: 'full' },
 ];

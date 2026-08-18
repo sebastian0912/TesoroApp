@@ -157,3 +157,19 @@ input.editable {
   background-color: #8CD50A !important;
   color: #21263C !important;
 }
+
+/* Documento ya migrado a gestión documental. Se distingue del enlace legacy de
+   Drive a propósito: no son la misma cosa ni tienen la misma fiabilidad. */
+.btn-doc-interno {
+  padding: 3px 10px;
+  border: 1px solid #1e8e3e;
+  border-radius: 999px;
+  background: #e6f4ea;
+  color: #14622c;
+  font-size: .78rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-doc-interno:hover { background: #d3ecd9; }

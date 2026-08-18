@@ -8,6 +8,7 @@ import { FormsModule } from '@angular/forms';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { environment } from '@/environments/environment';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -93,6 +94,55 @@ export class PaySlipsComponent implements OnInit {
     return typeof url === 'string' && url.startsWith('https://');
   }
 
+  // ── Documentos internos (sustituyen al enlace de Drive) ───────────────────
+
+  /**
+   * id de la fila de desprendibles → documentos ya migrados a gestión
+   * documental para esa quincena.
+   *
+   * El emparejamiento fila↔documento lo hace ms-payroll por quincena canónica,
+   * no aquí: la hoja escribe "Nom. 01 al 15 de Agosto de 2026" y la carpeta
+   * "pdf NOMINA 1Q AGOSTO 2026", y reconciliarlas en TypeScript sería duplicar
+   * el parser del backend y acabar divergiendo.
+   */
+  private documentosPorFila = new Map<number, any[]>();
+
+  /** Qué tipo documental corresponde a cada columna de la tabla. */
+  private static readonly TIPO_POR_COLUMNA: Record<string, string[]> = {
+    type_desprendibles: ['DESPRENDIBLE', 'LIQUIDACION', 'NOMINA'],
+    type_certificaciones: ['CERTIFICACION'],
+    type_cartas_retiro: ['CARTA_RETIRO'],
+    type_carta_cesantias: ['CESANTIAS'],
+    type_entrevista_retiro: ['ENTREVISTA'],
+  };
+
+  private cargarDocumentosInternos(cedula: string): void {
+    this.paymentsService.historialPersonaConDocumentos(cedula).subscribe((resp: any) => {
+      this.documentosPorFila.clear();
+      for (const fila of resp?.content ?? []) {
+        if (fila?.id != null && (fila.documentos?.length ?? 0) > 0) {
+          this.documentosPorFila.set(fila.id, fila.documentos);
+        }
+      }
+      this.cdr.markForCheck();
+    });
+  }
+
+  /** Documento interno de esa fila y columna, o null si aún no se ha migrado. */
+  documentoInterno(row: any, columna: string): any | null {
+    const docs = this.documentosPorFila.get(row?.id);
+    if (!docs?.length) return null;
+    const prefijos = PaySlipsComponent.TIPO_POR_COLUMNA[columna] ?? [];
+    return docs.find((d: any) =>
+      prefijos.some((p) => (d?.type_name ?? '').toUpperCase().includes(p))) ?? null;
+  }
+
+  abrirDocumentoInterno(doc: any): void {
+    if (!doc?.document_id) return;
+    window.open(`${environment.apiUrl}/api/v1/documents/${doc.document_id}/download`,
+      '_blank', 'noopener');
+  }
+
 
   public buscarDesprendibles(cedula: string): void {
     // Mantener la primera letra (si existe) y limpiar el resto
@@ -162,6 +212,10 @@ export class PaySlipsComponent implements OnInit {
           type_carta_cesantias: item.carta_cesantias,
           type_entrevista_retiro: item.entrevista_retiro
         }));
+        // Enriquecer con los documentos ya migrados a gestión documental. Va
+        // aparte y sin bloquear: si falla, la tabla queda con los enlaces de
+        // Drive, igual que antes.
+        this.cargarDocumentosInternos(cleanedCedula);
         // OnPush: la respuesta llega async; hay que marcar para que se
         // renderice sin necesidad de un segundo click.
         this.cdr.markForCheck();
