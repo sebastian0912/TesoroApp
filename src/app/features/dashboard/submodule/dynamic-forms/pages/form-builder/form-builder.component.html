@@ -12,7 +12,7 @@
           @if (esEdicion()) {
             Al publicar se creará la versión v{{ versionActual() + 1 }} · {{ totalCampos() }} campos
           } @else {
-            Arma la estructura con la paleta, configúrala campo a campo y pruébala en el teléfono · {{ totalCampos() }} campos
+            Crea secciones, agrégales campos y pruébalo en el teléfono · {{ totalCampos() }} campos
           }
         </p>
       </div>
@@ -21,6 +21,19 @@
         <button type="button" class="fb-btn fb-btn--ghost" (click)="irAlListado()">
           <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
           Volver
+        </button>
+        <!-- Ghost como "Volver": en el header oscuro la única acción llena es la de guardar. -->
+        <button type="button" class="fb-btn fb-btn--ghost" (click)="mostrarInicio.set(true)"
+                [disabled]="cargando()"
+                title="Plantillas y borrador con IA">
+          <span class="material-symbols-outlined" aria-hidden="true">dashboard_customize</span>
+          Plantillas
+        </button>
+        <button type="button" class="fb-btn fb-btn--ghost" (click)="asistenteAbierto.set(true)"
+                [disabled]="cargando()"
+                title="Pedirle a la IA las preguntas que faltan">
+          <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
+          Asistente IA
         </button>
         <button type="button" class="fb-btn fb-btn--primary"
                 (click)="guardar()"
@@ -192,15 +205,11 @@
                 }
               </div>
               <div class="fb-portada__acciones">
-                <button type="button" class="fb-btn fb-btn--ia"
-                        (click)="generarPortada()" [disabled]="generandoPortada()">
-                  <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
-                  {{ generandoPortada() ? 'Generando…' : 'Generar con IA' }}
-                </button>
-                <label class="fb-btn fb-btn--claro">
+                <label class="fb-btn fb-btn--claro" [class.fb-btn--ocupado]="generandoPortada()">
                   <span class="material-symbols-outlined" aria-hidden="true">upload</span>
-                  Subir imagen
-                  <input type="file" accept="image/*" hidden (change)="subirPortada($event)" />
+                  {{ generandoPortada() ? 'Subiendo…' : 'Subir imagen' }}
+                  <input type="file" accept="image/*" hidden
+                         [disabled]="generandoPortada()" (change)="subirPortada($event)" />
                 </label>
                 @if (portadaUrl()) {
                   <button type="button" class="fb-btn fb-btn--claro" (click)="quitarPortada()">
@@ -209,6 +218,65 @@
                   </button>
                 }
               </div>
+            </div>
+
+            <!-- Portada con IA: el prompt se escribe, se refina y solo entonces se genera -->
+            <div class="fb-prompt">
+              <div class="fb-campo fb-campo--full">
+                <label for="fb-prompt">Cómo quieres la portada</label>
+                <textarea id="fb-prompt" rows="3" maxlength="900"
+                          [ngModel]="promptPortada()" (ngModelChange)="promptPortada.set($event)"
+                          placeholder="Ej. campos de flores al amanecer con invernaderos al fondo, tonos verdes"></textarea>
+              </div>
+
+              <div class="fb-prompt__barra">
+                <div class="fb-campo fb-prompt__estilo">
+                  <label for="fb-estilo">Estilo</label>
+                  <select id="fb-estilo" [value]="estiloPortada()"
+                          (change)="estiloPortada.set($any($event.target).value)">
+                    <option value="">Sin preferencia</option>
+                    @for (e of estilosPortada; track e.id) {
+                      <option [value]="e.id">{{ e.nombre }}</option>
+                    }
+                  </select>
+                </div>
+
+                <button type="button" class="fb-btn fb-btn--claro"
+                        (click)="refinarPrompt()" [disabled]="refinando() || generandoPortada()">
+                  <span class="material-symbols-outlined" aria-hidden="true">auto_fix_high</span>
+                  {{ refinando() ? 'Refinando…' : 'Refinar prompt' }}
+                </button>
+
+                @if (promptPortada().trim()) {
+                  <button type="button" class="fb-btn fb-btn--claro" (click)="restablecerPrompt()"
+                          [disabled]="refinando() || generandoPortada()">
+                    <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                    Restablecer
+                  </button>
+                }
+
+                <button type="button" class="fb-btn fb-btn--ia"
+                        (click)="generarPortada()" [disabled]="generandoPortada() || refinando()">
+                  <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
+                  {{ generandoPortada() ? 'Generando…' : 'Generar con IA' }}
+                </button>
+              </div>
+
+              <p class="fb-ayuda fb-prompt__nota">
+                Refinar solo reescribe el texto —es gratis y puedes repetirlo—; generar
+                sí crea la imagen y tiene costo.
+              </p>
+
+              @if (notasPrompt(); as notas) {
+                <div class="fb-ia__resultado">
+                  @if (notas.resumen) { <p class="fb-ia__resumen">{{ notas.resumen }}</p> }
+                  @if (notas.tips.length) {
+                    <ul class="fb-ia__tips">
+                      @for (t of notas.tips; track $index) { <li>{{ t }}</li> }
+                    </ul>
+                  }
+                </div>
+              }
             </div>
 
             <!-- Sugerencia de la IA -->
@@ -439,6 +507,12 @@
                 <span class="fb-seccion__badge">Activa</span>
               }
               <span class="fb-seccion__conteo">{{ sec.fields.length }} campos</span>
+              <button type="button" class="fb-seccion__agregar"
+                      (click)="abrirPickerDeCampo(si)"
+                      [attr.aria-label]="'Agregar un campo a la sección ' + (si + 1)">
+                <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                Agregar campo
+              </button>
               <button type="button" class="fb-icono fb-icono--danger"
                       [disabled]="sec.fields.length > 0"
                       (click)="quitarSeccion(si)"
@@ -471,7 +545,14 @@
                       (extractChild)="sacarDeSeccion(si, fi, $event)" />
                 </div>
               } @empty {
-                <p class="fb-vacia">Arrastra un tipo de campo aquí, o haz clic en la paleta con esta sección activa.</p>
+                <div class="fb-vacia">
+                  <p class="fb-vacia__texto">Esta sección todavía no tiene preguntas.</p>
+                  <button type="button" class="fb-vacia__boton" (click)="abrirPickerDeCampo(si)">
+                    <span class="material-symbols-outlined" aria-hidden="true">add_circle</span>
+                    Agregar la primera pregunta
+                  </button>
+                  <p class="fb-vacia__pista">También puedes arrastrar un tipo desde la paleta.</p>
+                </div>
               }
             </div>
           </section>
@@ -493,5 +574,34 @@
             [wizard]="pasoAPaso()" />
       </aside>
     </div>
+
+    <!-- Selector de tipo de campo: única vía en móvil, y el "agregar" de cada sección -->
+    @if (pickerAbierto()) {
+      <app-field-type-picker
+          [types]="tipos()"
+          [destino]="destinoDelPicker()"
+          (elegir)="agregarDesdePicker($event)"
+          (cerrar)="cerrarPickerDeCampo()" />
+    }
+
+    <!-- Asistente de preguntas: propone lo que falta y el usuario elige qué entra -->
+    @if (asistenteAbierto()) {
+      <app-ai-questions-dialog
+          [contexto]="contextoIa()"
+          [tipos]="tipos()"
+          [seccionActiva]="seccionActiva()"
+          (insertar)="insertarPropuestas($event)"
+          (cerrar)="asistenteAbierto.set(false)" />
+    }
+  }
+
+  <!-- Punto de partida: plantilla, borrador con IA o lienzo en blanco. Se abre solo al
+       crear; en edición, a petición (y ahí lo elegido se agrega o reemplaza, con aviso). -->
+  @if (mostrarInicio()) {
+    <app-form-start
+        [tipos]="tipos()"
+        [edicion]="totalCampos() > 0"
+        [contexto]="contextoIa()"
+        (elegir)="aplicarInicio($event)" />
   }
 </div>

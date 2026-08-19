@@ -264,7 +264,8 @@
 .fb-req { color: #c0392b; }
 
 .fb-campo input,
-.fb-campo textarea {
+.fb-campo textarea,
+.fb-campo select {
   width: 100%;
   box-sizing: border-box;
   padding: 9px 12px;
@@ -277,8 +278,11 @@
   resize: vertical;
 }
 
+.fb-campo select { height: 40px; resize: none; }
+
 .fb-campo input:focus-visible,
-.fb-campo textarea:focus-visible {
+.fb-campo textarea:focus-visible,
+.fb-campo select:focus-visible {
   outline: 2px solid var(--lime, #8cd50a);
   outline-offset: 1px;
   border-color: var(--navy, #21263c);
@@ -486,14 +490,71 @@
 }
 
 .fb-vacia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  padding: 14px;
+  padding: 18px 14px;
   border: 2px dashed var(--slate-200, #e8edf3);
   border-radius: var(--r-sm, 10px);
   color: var(--slate-500, #64748b);
   font-size: 0.84rem;
   text-align: center;
 }
+
+.fb-vacia__texto { margin: 0; }
+
+.fb-vacia__pista { margin: 0; font-size: 0.76rem; }
+
+/* La sección vacía es donde se atasca quien empieza: el botón tiene que ser
+   la acción evidente, no una nota al pie del área de arrastre. */
+.fb-vacia__boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid var(--navy, #21263c);
+  border-radius: 999px;
+  background: var(--navy, #21263c);
+  color: #fff;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fb-vacia__boton:hover { filter: brightness(1.12); }
+
+.fb-vacia__boton:focus-visible { outline: 2px solid var(--lime, #8cd50a); outline-offset: 2px; }
+
+.fb-vacia__boton .material-symbols-outlined { font-size: 20px; }
+
+/* Agregar campo desde la cabecera de la sección (en móvil es la única vía). */
+.fb-seccion__agregar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid var(--slate-300, #d8e0ea);
+  border-radius: 999px;
+  background: var(--slate-50, #f8fafc);
+  color: var(--navy, #21263c);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fb-seccion__agregar:hover {
+  border-color: var(--navy, #21263c);
+  background: var(--surface, #fff);
+}
+
+.fb-seccion__agregar:focus-visible { outline: 2px solid var(--lime, #8cd50a); outline-offset: 1px; }
+
+.fb-seccion__agregar .material-symbols-outlined { font-size: 18px; }
 
 /* Tarjeta arrastrable = handle + field-config-card */
 
@@ -765,4 +826,72 @@
 
 .fb-diseno__aplicar {
   align-self: flex-start;
+}
+
+/* ── Portada asistida por IA ───────────────────────────────────────── */
+
+/* El prompt se escribe, se refina cuantas veces haga falta (texto, gratis) y solo
+   entonces se genera la imagen (con costo): por eso "Generar" cierra la fila y no
+   comparte peso visual con el resto. */
+.fb-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: var(--r-sm, 10px);
+  background: var(--slate-50, #f8fafc);
+}
+
+.fb-prompt .fb-campo textarea { background: var(--surface, #fff); }
+
+.fb-prompt__barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.fb-prompt__estilo {
+  flex: 0 1 190px;
+  min-width: 150px;
+}
+
+.fb-prompt__nota { margin: 0; }
+
+.fb-btn--ocupado { opacity: 0.55; cursor: progress; }
+
+/* ── Móvil: el lienzo es la app ────────────────────────────────────── */
+
+/* La paleta lateral pide una tercera columna y un puntero que arrastre: en un
+   teléfono no hay ninguna de las dos, y apilada solo empujaba las secciones —lo que
+   de verdad se está armando— fuera de la primera pantalla. Aquí desaparece y el
+   camino es: crear secciones y, dentro de cada una, "Agregar campo". */
+@media (max-width: 860px) {
+  .fb-col--paleta { display: none; }
+
+  /* El header lleva cuatro acciones (Volver, Plantillas, Asistente IA y guardar):
+     sin envolver, la de guardar se salía de la pantalla en un teléfono. */
+  .header-content { flex-wrap: wrap; }
+  .header-actions { flex-wrap: wrap; justify-content: flex-end; width: 100%; }
+
+  /* Sin paleta, la pista que remite a ella sobra. */
+  .fb-vacia__pista { display: none; }
+
+  .fb-page { padding: 12px; gap: 14px; }
+
+  .fb-seccion__head { gap: 6px; }
+
+  /* Con el botón de agregar en la cabecera, el título necesita la línea entera. */
+  .fb-seccion__titulo { flex: 1 1 100%; min-width: 0; }
+
+  .fb-seccion__agregar { margin-left: auto; }
+}
+
+@media (max-width: 640px) {
+  .fb-prompt__estilo { flex: 1 1 100%; }
+
+  .fb-prompt__barra .fb-btn { flex: 1 1 auto; justify-content: center; }
+
+  .fb-portada__vista { width: 100%; }
 }

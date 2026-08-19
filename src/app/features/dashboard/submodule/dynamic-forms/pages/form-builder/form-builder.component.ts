@@ -22,7 +22,10 @@ import {
   FormTheme, FormUi,
 } from '../../models/dynamic-forms.models';
 import { PRESETS_TEMA, PresetTema, temaEfectivo } from '../../models/form-theme';
-import { FormDesignService, SugerenciaDiseno } from '../../services/form-design.service';
+import { campoDesdeBorrador, seccionesDesdeBorrador } from '../../models/form-drafts';
+import {
+  ESTILOS_PORTADA, EstiloPortada, FormDesignService, SugerenciaDiseno,
+} from '../../services/form-design.service';
 import { ModuleNode, Placement, PlacementRequest } from '../../models/placement.models';
 import { FieldPaletteComponent } from '../../components/field-palette/field-palette.component';
 import {
@@ -30,6 +33,11 @@ import {
 } from '../../components/field-config-card/field-config-card.component';
 import { FormPreviewPhoneComponent } from '../../components/form-preview-phone/form-preview-phone.component';
 import { ModuleTreePickerComponent } from '../../components/module-tree-picker/module-tree-picker.component';
+import { FieldTypePickerComponent } from '../../components/field-type-picker/field-type-picker.component';
+import { FormStartComponent, InicioElegido } from '../../components/form-start/form-start.component';
+import {
+  AiQuestionsDialogComponent, ContextoFormulario, PropuestaAceptada,
+} from '../../components/ai-questions-dialog/ai-questions-dialog.component';
 import { leerUsuarioCrudo } from '@/app/core/utils/usuario-actual';
 import { setLocalStorageItem } from '@/app/core/utils/safe-storage';
 
@@ -45,6 +53,17 @@ function derivarSlug(texto: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Clave corta y única para identificar la portada de un formulario que todavía no
+ * existe en la base. `crypto.randomUUID` no está en todos los WebView del APK, de ahí
+ * el respaldo.
+ */
+function claveAleatoria(): string {
+  const c = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
+  if (c?.randomUUID) return c.randomUUID().slice(0, 12);
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
 /** Paneles plegables de la columna central del constructor. */
@@ -71,7 +90,8 @@ type PanelKey = 'datos' | 'diseno' | 'permisos' | 'ubicacion';
     CommonModule, FormsModule,
     CdkDropListGroup, CdkDropList, CdkDrag, CdkDragHandle, CdkDragPlaceholder,
     FieldPaletteComponent, FieldConfigCardComponent, FormPreviewPhoneComponent,
-    ModuleTreePickerComponent,
+    ModuleTreePickerComponent, FieldTypePickerComponent,
+    FormStartComponent, AiQuestionsDialogComponent,
   ],
   templateUrl: './form-builder.component.html',
   styleUrl: './form-builder.component.css',
@@ -119,6 +139,33 @@ export class FormBuilderComponent {
   generandoPortada = signal(false);
   sugerencia = signal<SugerenciaDiseno | null>(null);
 
+  /**
+   * Prompt de la portada, EDITABLE. Antes se generaba a ciegas con lo que hubiera
+   * devuelto la sugerencia (o el nombre pelado), así que la única forma de cambiar la
+   * imagen era volver a pedir sugerencia y cruzar los dedos. Ahora se escribe aquí, se
+   * puede refinar contra los estándares las veces que haga falta —eso es solo texto, no
+   * cuesta imagen— y solo entonces se gasta una generación.
+   */
+  promptPortada = signal('');
+  readonly estilosPortada = ESTILOS_PORTADA;
+  estiloPortada = signal<EstiloPortada | ''>('');
+  refinando = signal(false);
+  notasPrompt = signal<{ resumen: string; tips: string[] } | null>(null);
+
+  /**
+   * Dueño de la portada EN ms-documents. Allí un documento se identifica por
+   * (ownerId, typeCode): si todas las portadas colgaran del usuario serían versiones
+   * del MISMO documento y cambiar una repintaría las de los demás formularios. Un
+   * formulario ya guardado usa su id; uno en creación, una clave efímera propia de
+   * esta instancia del constructor.
+   */
+  private readonly ownerPortadaNuevo = `dfform-cover-nuevo-${claveAleatoria()}`;
+
+  private ownerPortada(): string {
+    const id = this.formId();
+    return id != null ? `dfform-cover-${id}` : this.ownerPortadaNuevo;
+  }
+
   /** Bloque `ui` que se envía al backend. */
   readonly uiActual = computed<FormUi>(() => ({
     theme: this.tema(),
@@ -128,17 +175,45 @@ export class FormBuilderComponent {
   /** Tema con los defaults rellenos: lo que leen los selectores de color. */
   readonly temaVista = computed(() => temaEfectivo(this.tema()));
 
-  /** Etiquetas de los campos: es lo que la IA usa para entender de qué habla el formulario. */
-  private etiquetasDeCampos(): string[] {
+  /**
+   * CONTENIDO REAL del formulario para la IA: cada línea es un campo con su sección y su
+   * tipo ("Datos del predio › Área sembrada (número)"). Mandar solo etiquetas sueltas
+   * hacía que la sugerencia se apoyara casi únicamente en el nombre; con la sección y el
+   * tipo la IA sabe de qué se pregunta y con qué profundidad.
+   *
+   * Va etiqueta, sección y tipo — NUNCA valores de respuestas.
+   */
+  private contenidoDelFormulario(): string[] {
     const out: string[] = [];
     for (const sec of this.sections()) {
-      if (sec.title?.trim()) out.push(sec.title.trim());
+      const seccion = sec.title?.trim() ?? '';
       for (const f of sec.fields) {
-        if (f.label?.trim()) out.push(f.label.trim());
-        for (const c of f.children ?? []) if (c.label?.trim()) out.push(c.label.trim());
+        const linea = this.lineaDeCampo(f, seccion);
+        if (linea) out.push(linea);
+        for (const c of f.children ?? []) {
+          const hijo = this.lineaDeCampo(c, seccion ? `${seccion} / ${f.label?.trim() ?? ''}` : f.label?.trim() ?? '');
+          if (hijo) out.push(hijo);
+        }
       }
+      // Una sección todavía sin campos igual dice de qué va el formulario.
+      if (seccion && sec.fields.length === 0) out.push(`${seccion} (sección vacía)`);
     }
     return out.slice(0, 40);
+  }
+
+  private lineaDeCampo(f: DynamicField, seccion: string): string {
+    const etiqueta = f.label?.trim();
+    if (!etiqueta) return '';
+    const tipo = this.tipos().find(t => t.code === f.type)?.name ?? f.type;
+    const base = seccion ? `${seccion} - ${etiqueta}` : etiqueta;
+    return `${base} (${tipo}${f.required ? ', obligatorio' : ''})`;
+  }
+
+  /** Colores del tema que se le pasan a la IA para que la portada no desentone. */
+  private paletaActual(): string[] {
+    const t = this.temaVista();
+    return [t.primary, t.accent, t.header_from, t.header_to]
+      .filter((c): c is string => typeof c === 'string' && /^#[0-9a-fA-F]{3,6}$/.test(c));
   }
 
   aplicarPreset(preset: PresetTema): void {
@@ -168,7 +243,8 @@ export class FormBuilderComponent {
     this.designSvc.sugerir({
       nombre,
       descripcion: this.descripcion().trim(),
-      campos: this.etiquetasDeCampos(),
+      categoria: this.categoria().trim(),
+      campos: this.contenidoDelFormulario(),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -176,6 +252,11 @@ export class FormBuilderComponent {
           this.sugiriendo.set(false);
           this.sugerencia.set(sug);
           this.tema.update(t => ({ ...t, ...sug.theme, preset: 'ia' }));
+          // El prompt propuesto solo entra si el usuario no había escrito el suyo:
+          // pisarle lo que escribió sería perder su trabajo.
+          if (!this.promptPortada().trim() && sug.cover_prompt) {
+            this.promptPortada.set(sug.cover_prompt);
+          }
           this.snack.open('Diseño sugerido aplicado. Puedes ajustarlo a mano.', 'OK', { duration: 4000 });
         },
         error: (err: unknown) => {
@@ -185,12 +266,69 @@ export class FormBuilderComponent {
       });
   }
 
+  /**
+   * REFINA el prompt escrito a mano contra los estándares de portada (ilustración
+   * corporativa, sin texto, apaisada, coherente con la paleta). Es solo texto: se puede
+   * repetir sin gastar generaciones de imagen.
+   */
+  refinarPrompt(): void {
+    const borrador = this.promptPortada().trim();
+    const nombre = this.nombre().trim();
+    if (!borrador && !nombre) {
+      this.abrirPanel('datos');
+      this.snack.open('Escribe una idea para la portada, o ponle nombre al formulario.', 'Entendido', { duration: 5000 });
+      return;
+    }
+    this.refinando.set(true);
+    this.designSvc.refinarPrompt({
+      prompt: borrador,
+      nombre,
+      descripcion: this.descripcion().trim(),
+      campos: this.contenidoDelFormulario(),
+      paleta: this.paletaActual(),
+      estilo: this.estiloPortada(),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: r => {
+          this.refinando.set(false);
+          this.promptPortada.set(r.prompt);
+          this.notasPrompt.set({ resumen: r.resumen ?? '', tips: r.tips ?? [] });
+          this.snack.open('Prompt refinado. Revísalo y genera la portada cuando te guste.', 'OK', { duration: 4500 });
+        },
+        error: (err: unknown) => {
+          this.refinando.set(false);
+          this.snack.open(this.mensajeIa(err, 'No se pudo refinar el prompt.'), 'Cerrar', { duration: 6000 });
+        },
+      });
+  }
+
+  /** Vuelve a dejar el prompt en la propuesta de la IA (o en el tema del formulario). */
+  restablecerPrompt(): void {
+    this.promptPortada.set(this.promptPorDefecto());
+    this.notasPrompt.set(null);
+  }
+
+  /** Punto de partida cuando el usuario no ha escrito nada. */
+  private promptPorDefecto(): string {
+    const sugerido = (this.sugerencia()?.cover_prompt || '').trim();
+    if (sugerido) return sugerido;
+    const nombre = this.nombre().trim();
+    return nombre ? `Cover for an internal business form about: ${nombre}` : '';
+  }
+
   /** Genera la portada con IA y la deja subida en ms-documents. */
   generarPortada(): void {
-    const prompt = (this.sugerencia()?.cover_prompt || '').trim()
-      || `Cover for an internal business form about: ${this.nombre().trim()}`;
+    const prompt = this.promptPortada().trim() || this.promptPorDefecto();
+    if (!prompt) {
+      this.abrirPanel('datos');
+      this.snack.open('Describe la portada (o ponle nombre al formulario) antes de generarla.', 'Entendido', { duration: 5000 });
+      return;
+    }
+    // Lo que se envió es lo que queda escrito: si la IA falla, el texto sigue ahí.
+    this.promptPortada.set(prompt);
     this.generandoPortada.set(true);
-    this.designSvc.generarPortada(prompt, this.formId() ?? 0)
+    this.designSvc.generarPortada(prompt, this.formId() ?? 0, this.ownerPortada())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ref => {
@@ -200,7 +338,8 @@ export class FormBuilderComponent {
         },
         error: (err: unknown) => {
           this.generandoPortada.set(false);
-          this.snack.open(this.mensajeIa(err, 'No se pudo generar la imagen.'), 'Cerrar', { duration: 6000 });
+          // La cadena es generar → subir: el motivo puede venir de ms-ai o de ms-documents.
+          this.snack.open(this.mensajeIa(err, 'No se pudo generar la imagen.'), 'Cerrar', { duration: 7000 });
         },
       });
   }
@@ -216,16 +355,19 @@ export class FormBuilderComponent {
       return;
     }
     this.generandoPortada.set(true);
-    this.designSvc.subirPortada(file, this.formId() ?? 0)
+    this.designSvc.subirPortada(file, this.formId() ?? 0, this.ownerPortada())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ref => {
           this.generandoPortada.set(false);
           this.fijarPortada(ref.document_id);
+          this.snack.open('Portada actualizada.', 'OK', { duration: 3000 });
         },
-        error: () => {
+        error: (err: unknown) => {
           this.generandoPortada.set(false);
-          this.snack.open('No se pudo subir la portada.', 'Cerrar', { duration: 5000 });
+          this.snack.open(
+            this.designSvc.motivoDeFallo(err, 'No se pudo subir la portada.'),
+            'Cerrar', { duration: 7000 });
         },
       });
   }
@@ -235,7 +377,8 @@ export class FormBuilderComponent {
     this.portadaUrl.set(null);
     this.tema.update(t => {
       const { cover_document_id, cover_url, cover_alt, ...resto } = t;
-      return resto;
+      // `fijarPortada` había puesto header_style='image'; sin imagen ese valor miente.
+      return resto.header_style === 'image' ? { ...resto, header_style: 'gradient' as const } : resto;
     });
   }
 
@@ -286,6 +429,131 @@ export class FormBuilderComponent {
       if (err.status === 429) return 'Demasiadas peticiones a la IA; espera unos segundos.';
     }
     return porDefecto;
+  }
+
+  // ── Punto de partida y asistente de preguntas ─────────────────────
+  /**
+   * Portada del constructor: plantilla, borrador con IA o lienzo en blanco. Se abre sola
+   * al entrar a /builder (creación) y a petición desde el encabezado — también editando,
+   * donde lo elegido se agrega al final salvo que se pida reemplazar.
+   */
+  mostrarInicio = signal(false);
+  /** Asistente de preguntas: propone lo que falta, en creación y en edición. */
+  asistenteAbierto = signal(false);
+
+  /**
+   * Lo que el asistente necesita saber del formulario: nunca respuestas de nadie.
+   * Es `computed` y no un método porque el diálogo lo recibe como input: recalcularlo
+   * en cada ciclo de detección le cambiaría la identidad del objeto a cada rato.
+   */
+  readonly contextoIa = computed<ContextoFormulario>(() => ({
+    nombre: this.nombre().trim(),
+    descripcion: this.descripcion().trim(),
+    categoria: this.categoria().trim(),
+    secciones: this.sections().map((s, i) => s.title?.trim() || `Sección ${i + 1}`),
+    contenido: this.contenidoDelFormulario(),
+  }));
+
+  /**
+   * Aplica el punto de partida elegido. Lo que trae la plantilla o la IA es un BORRADOR:
+   * entra al constructor como si se hubiera armado a mano y desde ahí se edita.
+   *
+   * Reemplazar es destructivo, así que si ya había campos se pregunta primero (la
+   * portada se puede reabrir con el formulario a medias).
+   */
+  async aplicarInicio(elegido: InicioElegido): Promise<void> {
+    if (elegido.origen === 'blanco' || !elegido.secciones?.length) {
+      this.mostrarInicio.set(false);
+      return;
+    }
+    const secciones = seccionesDesdeBorrador(elegido.secciones);
+    if (!secciones.length) { this.mostrarInicio.set(false); return; }
+
+    // Con el lienzo vacío no hay nada que perder; con contenido, quien decide es el
+    // usuario: agregar al final es lo seguro, reemplazar borra lo que llevaba (y en
+    // edición, además, se publicaría como versión nueva).
+    let reemplazar = this.totalCampos() === 0;
+    if (this.totalCampos() > 0) {
+      const conf = await Swal.fire({
+        icon: 'question',
+        title: 'Ya tienes preguntas',
+        text: 'Puedes agregar lo elegido al final o reemplazar todo lo que llevas.',
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Agregar al final',
+        denyButtonText: 'Reemplazar todo',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!conf.isConfirmed && !conf.isDenied) return;
+      reemplazar = conf.isDenied;
+    }
+
+    if (reemplazar) {
+      this.sections.set(secciones);
+      this.seccionActiva.set(0);
+      // Los metadatos solo se rellenan si el usuario no había escrito los suyos.
+      if (elegido.nombre && !this.nombre().trim()) this.nombre.set(elegido.nombre);
+      if (elegido.descripcion && !this.descripcion().trim()) this.descripcion.set(elegido.descripcion);
+      if (elegido.categoria && !this.categoria().trim()) this.categoria.set(elegido.categoria);
+      // Una plantilla trae además el look con el que fue pensada; al agregar al final no
+      // se toca el tema, que es del formulario que ya existía.
+      const preset = this.presets.find(p => p.id === elegido.preset);
+      if (preset) this.aplicarPreset(preset);
+      if (elegido.icono) this.tema.update(t => ({ ...t, icon: elegido.icono! }));
+    } else {
+      const actuales = this.clonarSecciones();
+      const nuevas = secciones.map((sec, i) => ({ ...sec, order_no: actuales.length + i + 1 }));
+      this.sections.set([...actuales, ...nuevas]);
+      this.seccionActiva.set(actuales.length);
+    }
+
+    this.mostrarInicio.set(false);
+    this.abrirPanel('datos');
+    const cuantas = secciones.reduce((a, sec) => a + sec.fields.length, 0);
+    const que = elegido.origen === 'ia' ? 'Borrador' : 'Plantilla';
+    this.snack.open(
+      reemplazar
+        ? `${que} cargada: ${cuantas} preguntas. Revísalas y ajústalas antes de guardar.`
+        : `${que} agregada al final: ${cuantas} preguntas. Revísalas antes de guardar.`,
+      'OK', { duration: 5000 });
+  }
+
+  /**
+   * Inserta las preguntas que el usuario marcó en el asistente. Es ADITIVO: nunca toca
+   * lo que ya existe. `seccionIndex === -1` crea una sección nueva, y todas las que
+   * pidan el mismo título comparten esa sección en vez de crear una por pregunta.
+   */
+  insertarPropuestas(propuestas: PropuestaAceptada[]): void {
+    if (!propuestas.length) return;
+    const secs = this.clonarSecciones();
+    const nuevasPorTitulo = new Map<string, number>();
+    let ultima = this.seccionActiva();
+
+    for (const p of propuestas) {
+      let destino = p.seccionIndex;
+      if (destino < 0 || destino >= secs.length) {
+        const titulo = (p.nuevaSeccion || 'Preguntas sugeridas').trim();
+        const ya = nuevasPorTitulo.get(titulo.toLowerCase());
+        if (ya != null) {
+          destino = ya;
+        } else {
+          secs.push({ order_no: secs.length + 1, title: titulo, fields: [] });
+          destino = secs.length - 1;
+          nuevasPorTitulo.set(titulo.toLowerCase(), destino);
+        }
+      }
+      secs[destino].fields.push(campoDesdeBorrador(p.campo, secs[destino].fields.length));
+      ultima = destino;
+    }
+
+    this.sections.set(secs);
+    this.seccionActiva.set(ultima);
+    this.asistenteAbierto.set(false);
+    this.snack.open(
+      propuestas.length === 1
+        ? 'Pregunta agregada. Revísala antes de guardar.'
+        : `${propuestas.length} preguntas agregadas. Revísalas antes de guardar.`,
+      'OK', { duration: 5000 });
   }
 
   // ── Catálogos y permisos ──────────────────────────────────────────
@@ -402,6 +670,8 @@ export class FormBuilderComponent {
       this.cargarEdicion(Number(idParam));
     } else {
       this.cargarRoles();
+      // Creación: se abre la portada (plantillas / IA / en blanco) antes del lienzo.
+      this.mostrarInicio.set(true);
     }
   }
 
@@ -480,9 +750,51 @@ export class FormBuilderComponent {
     const secs = this.sections().filter((_, k) => k !== i);
     this.sections.set(secs);
     this.seccionActiva.set(Math.max(0, Math.min(this.seccionActiva(), secs.length - 1)));
+    // El selector apuntaba a un índice que ya no existe (o se corrió una posición).
+    this.seccionDelPicker.set(null);
   }
 
   // ── Campos ────────────────────────────────────────────────────────
+
+  /**
+   * Sección para la que está abierto el selector de tipo, o null si está cerrado.
+   *
+   * La paleta lateral necesita una tercera columna y un puntero que arrastre: en móvil
+   * no existe ninguna de las dos cosas. Este selector es la vía que sí funciona en todas
+   * partes, y además da a cada sección un punto de entrada explícito para su PRIMERA
+   * pregunta, que con la paleta sola había que adivinar.
+   */
+  seccionDelPicker = signal<number | null>(null);
+
+  readonly pickerAbierto = computed(() => this.seccionDelPicker() !== null);
+
+  /** Nombre de la sección destino, para el encabezado del selector. */
+  readonly destinoDelPicker = computed(() => {
+    const i = this.seccionDelPicker();
+    if (i == null) return '';
+    return this.sections()[i]?.title?.trim() || `Sección ${i + 1}`;
+  });
+
+  abrirPickerDeCampo(si: number): void {
+    this.seccionActiva.set(si);
+    this.seccionDelPicker.set(si);
+  }
+
+  cerrarPickerDeCampo(): void {
+    this.seccionDelPicker.set(null);
+  }
+
+  /** Tipo elegido en el selector: se agrega a la sección desde la que se abrió. */
+  agregarDesdePicker(t: FieldTypeInfo): void {
+    const si = this.seccionDelPicker();
+    if (si == null) return;
+    this.seccionDelPicker.set(null);
+    const secs = this.clonarSecciones();
+    if (si >= secs.length) return;
+    secs[si].fields.push(crearCampoDesdeTipo(t));
+    this.sections.set(secs);
+    this.seccionActiva.set(si);
+  }
 
   /** Clic en la paleta: agrega al FINAL de la sección activa. */
   agregarTipo(t: FieldTypeInfo): void {
