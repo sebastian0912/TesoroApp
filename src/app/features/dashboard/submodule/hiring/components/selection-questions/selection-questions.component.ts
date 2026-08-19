@@ -1,10 +1,11 @@
 import {  Component, effect, input, output , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, untracked } from '@angular/core';
-import { FormBuilder, FormGroup } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
-import { environment } from '@/environments/environment';
 
 import { SharedModule } from '@/app/shared/shared.module';
+import { ElectronWindowService } from '@/app/core/services/electron-window.service';
+import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
@@ -56,6 +57,8 @@ interface FieldDef {
   optionSource?: ListSource;
   placeholder?: string;
   control?: string;
+  /** Obligatorio para poder guardar (regla de negocio 2026-08-19). */
+  required?: boolean;
 }
 
 /* ===== Cola de antecedentes (viene del backend) ===== */
@@ -174,16 +177,19 @@ export class SelectionQuestionsComponent implements OnDestroy {
   readonly medidasCorrectivasOpts = [...Array.from({ length: 11 }, (_, i) => i), 'CUMPLE'] as const;
 
   /* -------- Definición de campos (data-driven) -------- */
+  // `required`: Policivos, Procuraduría, Contraloría, OFAC, EPS, Sisbén y AFP
+  // deben quedar registrados para poder guardar (pedido del negocio 2026-08-19).
+  // Rama Judicial, Medidas Correctivas y Semanas cotizadas siguen opcionales.
   readonly fields: FieldDef[] = [
-    { key: 'policivos', label: 'Policivos', type: 'estado' },
-    { key: 'procuraduria', label: 'Procuraduría', type: 'estado' },
-    { key: 'contraloria', label: 'Contraloría', type: 'estado' },
-    { key: 'ofac', label: 'OFAC', type: 'estado' },
+    { key: 'policivos', label: 'Policivos', type: 'estado', required: true },
+    { key: 'procuraduria', label: 'Procuraduría', type: 'estado', required: true },
+    { key: 'contraloria', label: 'Contraloría', type: 'estado', required: true },
+    { key: 'ofac', label: 'OFAC', type: 'estado', required: true },
     { key: 'ramaJudicial', label: 'Rama Judicial', type: 'estado' },
 
-    { key: 'eps', label: 'EPS', type: 'list', optionSource: 'epsList', placeholder: 'EPS' },
-    { key: 'sisben', label: 'Sisbén', type: 'list', optionSource: 'categoriasSisben' },
-    { key: 'afp', label: 'AFP', type: 'list', optionSource: 'afpList', placeholder: 'AFP' },
+    { key: 'eps', label: 'EPS', type: 'list', optionSource: 'epsList', placeholder: 'EPS', required: true },
+    { key: 'sisben', label: 'Sisbén', type: 'list', optionSource: 'categoriasSisben', required: true },
+    { key: 'afp', label: 'AFP', type: 'list', optionSource: 'afpList', placeholder: 'AFP', required: true },
     { key: 'medidasCorrectivas', label: 'Medidas Correctivas', type: 'list', optionSource: 'medidasCorrectivas' },
 
     { key: 'pensionSemanas', label: 'Semanas cotizadas', type: 'number', control: 'semanasCotizadas' },
@@ -246,23 +252,28 @@ export class SelectionQuestionsComponent implements OnDestroy {
     private rpc: RegistroProcesoContratacion,
     private ui: UtilityServiceService,
     private robots: RobotsService,
+    private ventanas: ElectronWindowService,
     private cdr: ChangeDetectorRef
   ) {
-    // Reactive Forms
+    // Reactive Forms. Los 7 `Validators.required` reflejan la regla de negocio
+    // (2026-08-19): sin Policivos, Procuraduría, Contraloría, OFAC, EPS,
+    // Sisbén y AFP registrados, "Cargar" no guarda (ver el gate en
+    // imprimirVerificacionesAplicacion). 'SIN BUSCAR'/'NO TIENE' cuentan como
+    // respuesta: lo obligatorio es dejar CONSTANCIA, no que cumpla.
     this.antecedentes = this.fb.group({
-      eps: [''],
-      afp: [''],
-      policivos: [''],
-      procuraduria: [''],
-      contraloria: [''],
+      eps: ['', Validators.required],
+      afp: ['', Validators.required],
+      policivos: ['', Validators.required],
+      procuraduria: ['', Validators.required],
+      contraloria: ['', Validators.required],
       ramaJudicial: [''],
-      sisben: [''],
-      ofac: [''],
+      sisben: ['', Validators.required],
+      ofac: ['', Validators.required],
       medidasCorrectivas: [''],
       semanasCotizadas: [null],
-      // Barrio de residencia: no es un antecedente, pero se consulta y edita
-      // acá. Viaja por su propio endpoint (ver guardar()).
-      barrio: [''],
+      // (El barrio de residencia se captura en la pestaña ENTREVISTA, que ya
+      // trae el campo con su validador y lo guarda con el resto del candidato;
+      // acá estaba duplicado y se retiró 2026-08-19.)
     });
 
     // Reacciona al candidato seleccionado
@@ -297,8 +308,6 @@ export class SelectionQuestionsComponent implements OnDestroy {
       // silencio justo cuando la subida había fallado y tocaba reintentar.
       this.resetUploadedFilesAsNew(!cambioPersona);
       this.patchSeleccion(proc?.antecedentes ?? null);
-      this.antecedentes.get('barrio')?.setValue(
-        String(candidato?.residencia?.barrio ?? '').trim(), { emitEvent: false });
 
       // Cancela cualquier polling del candidato anterior antes de empezar.
       this.cancelDocPolling();
@@ -660,8 +669,12 @@ export class SelectionQuestionsComponent implements OnDestroy {
     if (!this.cedula) return tocados;
 
     try {
-      // Fetch ALL documents for this user (no type filter)
-      const docs: any[] = await firstValueFrom(this.docsSrv.getDocuments(this.cedula));
+      // Expediente completo (sin filtro de tipo), compartido con el pipeline y
+      // contratación vía caché por cédula. El polling (resetFirst=false) fuerza
+      // ir al servidor: su razón de ser es ver documentos NUEVOS del robot.
+      const docs: any[] = await firstValueFrom(
+        this.docsSrv.getDocumentosDeCandidato(this.cedula, { force: !resetFirst })
+      );
       if (ctx !== this._ctx || !Array.isArray(docs)) return tocados;
 
       // Un fetch que sí respondió limpia el rastro de un fallo anterior: lo
@@ -759,59 +772,24 @@ export class SelectionQuestionsComponent implements OnDestroy {
     return tocados;
   }
 
-  async verArchivo(key: DocKey) {
+  verArchivo(key: DocKey) {
     const entry = this.uploadedFiles[key];
     const f = entry?.file;
-    if (!f) return void Swal.fire('Error', 'No se encontró archivo para este campo', 'error');
-
-    if (typeof f === 'string') {
-      // URL del servidor: puede venir RELATIVA (/api/v1/... → se resolvería contra el host
-      // del front → página en blanco) y el gateway exige JWT (window.open no lo lleva). Se
-      // resuelve contra api base y se descarga con Authorization (fetch) → blob → abrir.
-      if (/\/api\/v1\/documents\//.test(f) || f.startsWith('/api/')) {
-        const win = window.open('', '_blank');
-        try {
-          const abs = /^https?:\/\//i.test(f) ? f : this.apiBase() + (f.startsWith('/') ? f : '/' + f);
-          const res = await fetch(abs, { headers: this.authHeader() });
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          const blobUrl = URL.createObjectURL(await res.blob());
-          if (win) { win.location.href = blobUrl; } else { window.open(blobUrl, '_blank'); }
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
-        } catch (e) {
-          if (win) win.close();
-          Swal.fire('Error', 'No se pudo abrir el documento.', 'error');
-        }
-        return;
-      }
-      window.open(encodeURI(f), '_blank', 'noopener,noreferrer');
-    } else {
-      const url = URL.createObjectURL(f);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(url), 150);
+    if (!f) {
+      return void Swal.fire('Sin documento',
+        'Todavía no hay un archivo cargado en este campo.', 'info');
     }
-  }
 
-  /** Base absoluta de la API (para resolver file_url relativos). */
-  private apiBase(): string {
-    const b = (environment as any)?.apiUrl || '';
-    return b.endsWith('/') ? b.slice(0, -1) : b;
-  }
-
-  /** Header Authorization (Bearer) desde localStorage; {} si no hay token. */
-  private authHeader(): Record<string, string> {
-    try {
-      let raw = localStorage.getItem('token') || localStorage.getItem('Authorization');
-      if (!raw) {
-        const u = localStorage.getItem('user');
-        if (u) {
-          const user = JSON.parse(u);
-          raw = user?.token || user?.jwt || user?.access_token || user?.accessToken || null;
-        }
-      }
-      if (!raw) return {};
-      return { Authorization: raw.startsWith('Bearer ') ? raw : `Bearer ${raw}` };
-    } catch {
-      return {};
+    // Se abre por `ElectronWindowService` y no con `window.open`: el main
+    // process de TesoroApp deniega TODO `window.open` (setWindowOpenHandler en
+    // app.js). Con una URL http la delegaba al navegador del sistema y por eso
+    // "funcionaba"; con un archivo recién adjuntado es un `blob:`, que no se
+    // puede delegar, y no pasaba nada al darle "Ver PDF". En web, las URLs de
+    // la API pasan por DocViewer, que baja el archivo con el JWT.
+    if (typeof f === 'string') {
+      this.ventanas.openExternal(f);
+    } else {
+      void this.ventanas.openPdfFromBlob(f, { title: entry?.fileName || 'Documento' });
     }
   }
 
@@ -932,6 +910,9 @@ export class SelectionQuestionsComponent implements OnDestroy {
         tipo_doc: this.tipoDocumento,
         fuente,
       }));
+      // La fuente quedó re-abierta (SIN_CONSULTAR) en el backend: avisar al
+      // padre para que recargue y la píldora de cola lo muestre sin re-buscar.
+      if (resp?.reabierto) this.guardado.emit();
       await Swal.fire({
         icon: resp?.reabierto ? 'success' : 'info',
         title: resp?.reabierto ? 'Re-consulta pedida' : 'Sin cambios',
@@ -943,7 +924,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
       await Swal.fire({
         icon: 'error',
         title: 'No se pudo',
-        text: err?.error?.detail || err?.message || 'No se pudo re-abrir la consulta.',
+        text: mensajeDeErrorLog('selection/forzar-fuente', err, 'No se pudo re-abrir la consulta.'),
         confirmButtonColor: '#111827',
       });
     } finally {
@@ -983,7 +964,21 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
     if (this.antecedentes.invalid) {
       this.antecedentes.markAllAsTouched();
-      await Swal.fire('Campos incompletos', 'Revisa los campos obligatorios.', 'warning');
+      this.cdr.markForCheck();
+      // Nombrar lo que falta: "Revisa los campos obligatorios" a secas obligaba
+      // al operador a adivinar cuál de las 10 tarjetas quedó vacía.
+      const faltantes = this.fields
+        .filter(f => f.required && this.antecedentes.get(this.controlName(f))?.invalid)
+        .map(f => f.label);
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Campos obligatorios sin llenar',
+        html: faltantes.length
+          ? `Para guardar debes registrar: <b>${faltantes.join(', ')}</b>.<br>` +
+            `<small>Si aún no hay resultado, deja constancia con "SIN BUSCAR" / "NO TIENE".</small>`
+          : 'Revisa los campos obligatorios.',
+        confirmButtonColor: '#111827',
+      });
       return;
     }
     const cand = this.candidatoSeleccionado?.();
@@ -1033,24 +1028,6 @@ export class SelectionQuestionsComponent implements OnDestroy {
         modificadoPor: this.modificadoPor(),
       }));
 
-      // El barrio vive en ResidenciaCandidato, no en los antecedentes, así que
-      // va por su propio endpoint. Se manda solo si cambió, para no crear una
-      // fila de residencia vacía en candidatos que no la tienen.
-      const barrio = String(v['barrio'] ?? '').trim();
-      const barrioOriginal = String(
-        this.candidatoSeleccionado()?.residencia?.barrio ?? ''
-      ).trim();
-      if (barrio !== barrioOriginal) {
-        try {
-          await firstValueFrom(this.rpc.upsertCandidatoByDocumento({
-            numero_documento: numero,
-            residencia: { barrio },
-          }));
-        } catch (e) {
-          // No se tumba el guardado de antecedentes por esto.
-          console.warn('[barrio] no se pudo guardar', e);
-        }
-      }
       // Los PDFs van ANTES de `guardado.emit()`. Emitir primero hace que el
       // padre recargue el candidato -> effect() -> resetUploadedFilesAsNew(),
       // que borra los File pendientes; la subida quedaba vacía y aun así

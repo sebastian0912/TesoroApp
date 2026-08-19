@@ -4,6 +4,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, shareReplay, tap, timeout } from 'rxjs/operators';
 import { isPlatformBrowser } from '@angular/common';
 import { environment } from '@/environments/environment';
+import { sinTildes } from '../../shared/sin-tildes.helper';
 
 @Injectable({
   providedIn: 'root',
@@ -35,7 +36,9 @@ export class GestionDocumentalService {
     tipo_documento?: string
   ): Observable<any> {
     const formData = new FormData();
-    formData.append('title', title);
+    // El título queda guardado en gestion_documental: sin tildes ni ñ.
+    // `tipo_documento` NO se toca: debe hacer match exacto contra el catálogo.
+    formData.append('title', typeof title === 'string' ? sinTildes(title) : title);
     formData.append('owner_id', owner_id);
     formData.append('type', type.toString());
     formData.append('file', file);

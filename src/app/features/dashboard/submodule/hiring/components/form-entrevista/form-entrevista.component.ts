@@ -956,13 +956,14 @@ export class FormEntrevistaComponent implements OnInit {
         this.ctrl('oficina').setValue(match, { emitEvent: false });
         lockOfficeIfNotGerencia();
         this.lockedOffice = match;
+      }
 
-        if (match === 'BRIGADA') {
-          const brig = params.get('brigada');
-          if (brig) {
-            this.ctrl('brigadaDe').setValue(brig, { emitEvent: false });
-          }
-        }
+      // `brigadaDe` se prellena desde la URL SIEMPRE que venga el query param,
+      // sin atarlo a oficina=BRIGADA: un link viejo puede traer ?brigada=X con
+      // otra oficina y el dato se perdía.
+      const brig = params.get('brigada');
+      if (brig) {
+        this.ctrl('brigadaDe').setValue(brig, { emitEvent: false });
       }
 
       this.refreshSteps();

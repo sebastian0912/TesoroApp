@@ -14,6 +14,11 @@
 
 .outline-section {
   padding: 0;
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+  overflow: hidden;
 }
 
 /* Animations */
@@ -35,9 +40,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  /* margen mínimo: lo justo para que el label flotante del mat-form-field no se recorte */
-  margin: 4px 0 8px;
   flex-wrap: wrap;
+  /* toolbar integrada en la tarjeta, como el prototipo */
+  margin: 0;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--slate-200);
 }
 
 .recientes-toolbar-left {
@@ -59,7 +66,7 @@
 .recientes-empty {
   text-align: center;
   color: var(--slate-500);
-  padding: 24px 0;
+  padding: 24px 20px;
   margin: 0;
   font-size: 0.95rem;
 }
@@ -67,30 +74,32 @@
 .recientes-table-wrapper {
   width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--slate-200);
-  border-radius: 10px;
+  border: none;
+  border-radius: 0;
   background: #ffffff;
 }
 
 .recientes-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.92rem;
+  font-size: 12.5px;
 }
 
 .recientes-table thead th {
-  background: var(--slate-100);
-  color: var(--slate-700);
+  background: #ffffff;
+  color: var(--slate-500);
+  font-size: 10.5px;
   font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
   text-align: left;
-  padding: 6px 10px;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--slate-200);
   white-space: nowrap;
 }
 
 .recientes-table tbody td {
-  /* Filas más bajas para ver más registros en pantalla. */
-  padding: 4px 10px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--slate-100);
   vertical-align: middle;
 }
@@ -100,10 +109,14 @@
 }
 
 .recientes-table tbody tr:hover {
-  background: var(--slate-50);
+  background: rgba(140, 213, 10, .07); /* = #8CD50A12 del prototipo (rowStyle línea 520) */
 }
 
 .btn-atender {
+  height: 38px;
+  border-radius: 10px !important;
+  padding: 0 14px !important;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.2px;
 }
@@ -113,6 +126,23 @@
   font-size: 18px;
   height: 18px;
   width: 18px;
+}
+
+/* Excel / Refrescar: cuadrados suaves como los .btn-sec del prototipo */
+.recientes-toolbar-actions .mat-mdc-icon-button {
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border: 1px solid var(--slate-300);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--slate-700);
+}
+
+/* hover Y onda de click cuadrados al radio 10 (por defecto son circulares) */
+:host ::ng-deep .recientes-toolbar-actions .mat-mdc-icon-button .mat-mdc-button-persistent-ripple,
+:host ::ng-deep .recientes-toolbar-actions .mat-mdc-icon-button .mat-mdc-button-ripple {
+  border-radius: 10px;
 }
 
 /* Acción primaria del sistema (navy + texto lima; el hover invierte).
@@ -146,11 +176,15 @@
 
 .btn-buscar {
   flex-shrink: 0;
-  height: 48px;
+  height: 44px;
   font-weight: 600;
+  font-size: 12.5px;
   letter-spacing: 0.2px;
-  border-radius: 999px !important;
-  padding: 0 18px !important;
+  border-radius: 10px !important;
+  padding: 0 16px !important;
+  /* tokens MDC: ganan a .mat-mdc-outlined-button sin !important y respetan disabled */
+  --mdc-outlined-button-outline-color: var(--slate-300);
+  --mdc-outlined-button-label-text-color: var(--slate-700);
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
@@ -179,6 +213,11 @@
   max-width: 0;
   opacity: 0;
   overflow: hidden;
+  /* El label flotante ("Tipo doc.", "Cédula") sube ~10px por ENCIMA del borde
+     del campo; el overflow:hidden del slider lo decapitaba. El padding da aire
+     DENTRO de la caja de clip (y el margen negativo lo neutraliza en el flujo). */
+  padding-top: 12px;
+  margin-top: -12px;
   pointer-events: none;
   transition:
     flex-basis 0.32s cubic-bezier(0.4, 0, 0.2, 1),
@@ -218,20 +257,50 @@
 .toggle-encolar {
   flex-shrink: 0;
   white-space: nowrap;
-  font-size: 0.9rem;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--slate-700);
+  background: var(--bg);
+  border-radius: 10px;
+  height: 44px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  /* tipografía del label (token M3; el font-size de arriba es el fallback) */
+  --mat-slide-toggle-label-text-size: 12.5px;
+  /* switch encendido = lima con perilla blanca (tokens MDC, sin ::ng-deep) */
+  --mdc-switch-selected-track-color: var(--lime);
+  --mdc-switch-selected-hover-track-color: var(--lime);
+  --mdc-switch-selected-focus-track-color: var(--lime);
+  --mdc-switch-selected-pressed-track-color: var(--lime);
+  --mdc-switch-selected-handle-color: #ffffff;
+  --mdc-switch-selected-hover-handle-color: #ffffff;
+  --mdc-switch-selected-focus-handle-color: #ffffff;
+  --mdc-switch-selected-pressed-handle-color: #ffffff;
+  --mdc-switch-selected-icon-color: var(--navy);
 }
 
 .btn-consultar-inline,
 .btn-carnet-masivo-inline,
 .btn-reportar-inline {
   flex-shrink: 0;
-  height: 48px;
+  height: 44px;
   font-weight: 600;
+  font-size: 12.5px;
   letter-spacing: 0.2px;
-  border-radius: 999px !important;
-  padding: 0 22px !important;
+  border-radius: 10px !important;
+  padding: 0 18px !important;
+}
+
+.btn-carnet-masivo-inline {
+  --mdc-outlined-button-outline-color: var(--slate-300);
+  --mdc-outlined-button-label-text-color: var(--slate-700);
+}
+
+.btn-reportar-inline {
+  --mdc-outlined-button-outline-color: var(--warn-border); /* #f2dcac */
+  --mdc-outlined-button-label-text-color: var(--warn-fg);  /* #925a06 */
 }
 
 .btn-consultar-inline mat-icon,
@@ -279,7 +348,8 @@
 
 /* ─────── Reporte de problema inline ─────── */
 .observacion-inline {
-  margin-top: 12px;
+  /* ahora vive dentro de la tarjeta: margen lateral propio */
+  margin: 12px 20px;
   padding: 16px 18px;
   background: var(--warn-bg);
   border: 1px solid var(--warn-border);
@@ -328,13 +398,15 @@
 .badge-formulario {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .badge-formulario mat-icon {
@@ -345,13 +417,13 @@
 }
 
 .badge-completo {
-  background: #d1fae5;
-  color: #065f46;
+  background: #ecfdf5;
+  color: #0f766e;
 }
 
 .badge-parcial {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warn-bg);   /* #fdf4e3 */
+  color: var(--warn-fg);        /* #925a06 */
 }
 
 .badge-sin-iniciar {
@@ -408,21 +480,23 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 30px;
-  padding: 1px 5px;
-  border-radius: 5px;
+  min-width: 0;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.3px;
-  line-height: 1.5;
+  line-height: 1;
   cursor: default;
   border: 1px solid transparent;
+  box-sizing: border-box;
 }
 
 /* Listo (terminó). */
 .chip-fuente-ok {
-  background: #d1fae5;
-  color: #065f46;
+  background: #ecfdf5;
+  color: #0f766e;
 }
 
 /* Consultando ahora mismo: navy + lima para que "en vivo" resalte (lima sobre
@@ -434,8 +508,8 @@
 
 /* En cola, aún no consultada. */
 .chip-fuente-pendiente {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
 }
 
 /* Bloqueada / rechazada. */
@@ -453,7 +527,12 @@
 
 /* Fila ya atendida hoy: aspecto tenue, va al final por orden del backend. */
 .fila-atendida {
-  opacity: 0.65;
+  opacity: 0.6;
+  background: var(--slate-50);
+}
+
+/* la fila atendida no debe encenderse en lima al pasar el mouse */
+.recientes-table tbody tr.fila-atendida:hover {
   background: var(--slate-50);
 }
 
@@ -464,11 +543,40 @@
 /* Botones de solo icono del cluster de búsqueda: mismo alto redondo que el
    resto, sin el padding que reservaba el texto. */
 .btn-solo-icono {
-  min-width: 48px !important;
-  width: 48px !important;
+  min-width: 44px !important;
+  width: 44px !important;
   padding: 0 !important;
 }
 
 .btn-solo-icono mat-icon {
   margin: 0 !important;
+}
+
+/* ─────── Inputs del buscador: radio 10 y foco lima (prototipo .inp) ───────
+   :host delante del ::ng-deep para NO filtrar estas reglas al resto de la app. */
+:host ::ng-deep .busqueda-cluster .mdc-notched-outline__leading {
+  border-radius: 10px 0 0 10px;
+  min-width: 12px;
+}
+
+:host ::ng-deep .busqueda-cluster .mdc-notched-outline__trailing {
+  border-radius: 0 10px 10px 0;
+}
+
+:host ::ng-deep .busqueda-cluster .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__leading,
+:host ::ng-deep .busqueda-cluster .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__notch,
+:host ::ng-deep .busqueda-cluster .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__trailing {
+  border-color: var(--slate-300);
+}
+
+:host ::ng-deep .busqueda-cluster .mdc-text-field--outlined.mdc-text-field--focused:not(.mdc-text-field--disabled) .mdc-notched-outline__leading,
+:host ::ng-deep .busqueda-cluster .mdc-text-field--outlined.mdc-text-field--focused:not(.mdc-text-field--disabled) .mdc-notched-outline__notch,
+:host ::ng-deep .busqueda-cluster .mdc-text-field--outlined.mdc-text-field--focused:not(.mdc-text-field--disabled) .mdc-notched-outline__trailing {
+  border-color: var(--lime) !important;
+}
+
+/* label en foco: slate oscuro, no lima (lima sobre blanco no da contraste para texto).
+   Mismo selector que usa MDC (0,4,0) para no perder la cascada. */
+:host ::ng-deep .busqueda-cluster .mdc-text-field--outlined.mdc-text-field--focused:not(.mdc-text-field--disabled) .mdc-floating-label {
+  color: var(--slate-700);
 }

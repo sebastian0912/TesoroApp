@@ -2,10 +2,14 @@
 .input-container {
   display: flex !important;
   flex-direction: column !important;
-  gap: 4px !important; /* aire entre el campo y sus metadatos */
-  /* El 80% se aplica aquí (no solo en el campo) para que el campo Y la info de
-     ayuda de abajo compartan el mismo ancho máximo, alineados a la izquierda. */
-  width: 80% !important;
+  gap: 9px !important;
+  width: 100% !important;
+  background: #ffffff;
+  border: 1px solid #e8edf3;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+  padding: 14px;
+  box-sizing: border-box;
 }
 
 /* Compacta alto del form-field (MDC) */
@@ -23,8 +27,9 @@
 :host ::ng-deep .mat-mdc-form-field .mat-mdc-text-field-wrapper {
   padding-top: 2px !important;
   padding-bottom: 2px !important;
-  border-radius: 12px !important;
-  border: 1px solid #E1E7EF !important;
+  border-radius: 10px !important;
+  border: 1px solid #d8e0ea !important;
+  background: #fff !important;
   transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease !important;
 }
 
@@ -43,6 +48,18 @@
   line-height: 1 !important;
 }
 
+/* Excepción: cuando un campo obligatorio queda en rojo (tocado sin selección)
+   el mensaje de error SÍ se muestra; en las tarjetas válidas no reserva alto. */
+:host ::ng-deep .mat-mdc-form-field.mat-form-field-invalid .mat-mdc-form-field-subscript-wrapper {
+  min-height: 14px !important;
+  line-height: 1.2 !important;
+  padding: 0 4px !important;
+}
+:host ::ng-deep .mat-mdc-form-field-error {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
 /* Inputs/selects ocupan todo el ancho disponible */
 :host ::ng-deep .mat-mdc-select,
 :host ::ng-deep .mat-mdc-input-element {
@@ -55,7 +72,9 @@
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
-  color: #2f3640 !important;
+  color: #0f172a !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
 }
 
 /* ───── Contenedor de suffix de MDC alineado a la derecha ───── */
@@ -121,18 +140,18 @@
 
 /* ====== Nombre del archivo debajo del input ====== */
 .uploaded-file-name {
-  font-size: .66rem !important;     /* más pequeño para caber en una sola línea */
+  font-size: 11px !important;     /* antes .66rem */
   color: #64748b !important;
-  font-style: normal !important;  /* sin cursiva */
+  font-style: normal !important;
   line-height: 1.3 !important;
   margin: 0 !important;
   padding: 0 !important;
   display: block !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  white-space: nowrap !important;       /* nunca parte en dos líneas */
+  white-space: nowrap !important;
   overflow: hidden !important;
-  text-overflow: ellipsis !important;   /* si no cabe, recorta con … */
+  text-overflow: ellipsis !important;
 }
 /* el span "Actualizado:" hereda el nowrap para no romper la línea */
 .uploaded-file-name .text-muted { white-space: nowrap !important; }
@@ -141,14 +160,34 @@
 .queue-badge {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 4px !important;
-  padding: 2px 8px !important;
+  gap: 5px !important;
+  height: 22px !important;
+  padding: 0 8px !important;
   border-radius: 999px !important;
   background: #f1f5f9 !important;
-  border: 1px solid #e2e8f0 !important;
+  border: 1px solid #e8edf3 !important;
   line-height: 1.2 !important;
-  max-width: 100% !important;        /* no excede el ancho del campo */
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  max-width: 100% !important;
   box-sizing: border-box !important;
+}
+/* El icono hereda el color del chip (pisa el ngStyle inline del mat-icon) */
+.queue-badge .mat-icon { color: inherit !important; }
+
+/* Recolor por estado: el color llega inline vía ngStyle; CSS con !important
+   gana al inline. Se cubren hex y su serialización rgb() del navegador. */
+.queue-badge[style*="#166534"],
+.queue-badge[style*="rgb(22, 101, 52)"] {
+  background: #ecfdf5 !important; border-color: transparent !important; color: #0f766e !important;
+}
+.queue-badge[style*="#b45309"],
+.queue-badge[style*="rgb(180, 83, 9)"] {
+  background: #fdf4e3 !important; border-color: transparent !important; color: #925a06 !important;
+}
+.queue-badge[style*="#4b5563"],
+.queue-badge[style*="rgb(75, 85, 99)"] {
+  background: #f1f5f9 !important; border-color: #e8edf3 !important; color: #64748b !important;
 }
 
 /* ====== Aviso de documento > 15 días (badge sutil) ====== */
@@ -156,20 +195,22 @@
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
-  color: #b91c1c !important;
-  background: #fef2f2 !important;
-  border: 1px solid #fde2e2 !important;
+  color: #925a06 !important;
+  background: #fdf4e3 !important;
+  border: 1px solid #f2dcac !important;
   border-radius: 8px !important;
-  font-size: .74rem !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
   line-height: 1.2 !important;
-  margin: 0 0 0 4px !important;
-  padding: 3px 8px !important;
-  max-width: 100% !important;       /* no excede el ancho del campo */
+  margin: 0 !important;
+  padding: 6px 8px !important;
+  max-width: 100% !important;
   box-sizing: border-box !important;
+  flex-wrap: wrap !important;
 }
-/* el texto del aviso envuelve si no cabe, en vez de desbordar */
 .doc-warning span { word-break: break-word !important; }
 .doc-warning .mat-icon.warn-icon {
+  color: #925a06 !important; /* pisa el color="warn" rojo del theme */
   font-size: 16px !important;
   width: 16px !important;
   height: 16px !important;
@@ -183,7 +224,7 @@
   font-weight: 500 !important;
 }
 
-.text-danger { color: #e53935 !important; }
+.text-danger { color: #b91c1c !important; }
 
 /* ───────────────────────── PESTAÑAS ───────────────────────── */
 :host ::ng-deep .mat-tab-label.custom-colored-tab {
@@ -212,13 +253,9 @@
 .seccion {
   width: 100% !important;
   display: grid !important;
-  /* 5 columnas => los 10 campos quedan en 2 filas. minmax(0,1fr) permite
-     encogerlos sin desbordar. */
   grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  /* row-gap amplio para separar las dos filas de campos (con sus metadatos);
-     column-gap reducido para acercar los campos entre sí por el lado derecho. */
-  gap: 24px 8px !important;
-  align-items: start !important;
+  gap: 12px !important;
+  align-items: stretch !important;
 }
 
 /* El botón "Cargar" ocupa su propia fila completa, debajo de los 10 campos. */
@@ -226,6 +263,48 @@
 .secciones > button.example-full-width,
 .seccion > button.example-full-width {
   grid-column: 1 / -1 !important;
+}
+
+/* ───────────── Footer de fila completa: Barrio + botón Cargar ───────────── */
+.seccion > .antecedentes-footer {
+  grid-column: 1 / -1 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 16px !important;
+  flex-wrap: wrap;
+  background: #ffffff;
+  border: 1px solid #e8edf3;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+  padding: 16px 20px;
+  box-sizing: border-box;
+}
+
+/* El Barrio dentro del footer NO es tarjeta: se neutraliza el estilo card */
+/* (El campo Barrio se movió a la pestaña Entrevista; el footer queda solo
+   con el botón Cargar alineado a la derecha.) */
+
+/* Botón Cargar = .btn-pri del prototipo (pisa el .example-full-width global
+   de styles.css: max-width 30% / height 80px) */
+.antecedentes-footer button.example-full-width {
+  margin-left: auto !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 160px !important;
+  height: 44px !important;
+  border-radius: 10px !important;
+  background-color: #21263C !important;
+  color: #ffffff !important;
+  font-family: 'Instrument Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 600px) {
+  .seccion > .antecedentes-footer { align-items: stretch !important; flex-direction: column; }
+  .antecedentes-footer .input-container { max-width: 100% !important; }
+  .antecedentes-footer button.example-full-width { margin-left: 0 !important; width: 100% !important; }
 }
 
 /* Cards principales (sticky izquierda / scroll derecha) */
@@ -351,7 +430,7 @@ mat-form-field.example-full-width {
 }
 
 .robot-origen.aplicado {
-  color: #166534;
+  color: #0f766e;
 }
 
 .robot-origen .robot-icon {
@@ -373,15 +452,20 @@ mat-form-field.example-full-width {
 
 /* Botón "Forzar consultar" dentro del aviso de documento vencido. */
 .btn-forzar-fuente {
-  --mdc-outlined-button-container-height: 26px !important;
+  --mdc-outlined-button-container-height: 30px !important;
+  --mdc-outlined-button-outline-color: #f2dcac !important;
+  --mdc-outlined-button-label-text-color: #925a06 !important;
   margin-left: 4px !important;
-  padding: 0 8px !important;
-  font-size: .72rem !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
   font-weight: 700 !important;
   line-height: 1 !important;
   white-space: nowrap !important;
+  border-radius: 8px !important;
 }
-
+.btn-forzar-fuente:not([disabled]) .mat-icon {
+  color: #925a06 !important;
+}
 .btn-forzar-fuente .mat-icon {
   width: 15px !important;
   height: 15px !important;
@@ -396,28 +480,40 @@ mat-form-field.example-full-width {
 .tarjeta-head {
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
-  gap: 8px !important;
-  margin: 2px 0 4px !important;
+  justify-content: flex-start !important;
+  gap: 7px !important;
+  margin: 0 0 2px !important;
 }
 
 .tarjeta-titulo {
-  font-size: .74rem !important;
+  flex: 1 1 auto !important;
+  font-size: 11px !important;
   font-weight: 700 !important;
-  letter-spacing: .3px !important;
+  letter-spacing: .05em !important;
   text-transform: uppercase !important;
   color: #64748b !important;
   line-height: 1.2 !important;
 }
 
-/* Punto de estado: cambia de color y de halo según estadoTarjeta(). */
+/* Asterisco de campo obligatorio (Policivos, Procuraduría, Contraloría,
+   OFAC, EPS, Sisbén, AFP): sin él no se puede guardar. */
+.tarjeta-req {
+  color: #d92d20;
+  font-weight: 800;
+  font-size: .9rem;
+  margin-left: 2px;
+  cursor: help;
+}
+
+/* Punto de estado: cambia de color según estadoTarjeta(). */
 .tarjeta-punto {
   width: 9px; height: 9px;
   border-radius: 50%;
   flex: 0 0 auto;
   background: #cbd5e1;
-  box-shadow: 0 0 0 3px rgba(203, 213, 225, .25);
+  box-shadow: none;
+  order: -1; /* punto a la izquierda del título sin tocar el HTML */
 }
-.tarjeta-punto[data-estado="listo"]    { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .18); }
-.tarjeta-punto[data-estado="progreso"] { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .18); }
-.tarjeta-punto[data-estado="alerta"]   { background: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .18); }
+.tarjeta-punto[data-estado="listo"]    { background: #16a34a; box-shadow: none; }
+.tarjeta-punto[data-estado="progreso"] { background: #f59e0b; box-shadow: none; }
+.tarjeta-punto[data-estado="alerta"]   { background: #dc2626; box-shadow: none; }

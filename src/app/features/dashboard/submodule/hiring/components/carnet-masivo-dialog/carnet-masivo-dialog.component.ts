@@ -189,6 +189,16 @@ export class CarnetMasivoDialogComponent {
   ) {
     const sugeridas = (data?.cedulas ?? []).map(c => String(c).trim()).filter(Boolean);
     if (sugeridas.length) this.cedulasTexto = sugeridas.join('\n');
+
+    // ESC/click-afuera cerraban con undefined y el pipeline (que solo recarga
+    // si afterClosed devuelve truthy) se quedaba con los carnets viejos aunque
+    // acá SÍ se hubieran generado. Todos los caminos de cierre pasan por
+    // cerrar(), que devuelve this.cambios.
+    this.dialogRef.disableClose = true;
+    this.dialogRef.backdropClick().subscribe(() => this.cerrar());
+    this.dialogRef.keydownEvents().subscribe(e => {
+      if (e.key === 'Escape') this.cerrar();
+    });
   }
 
   /** Una fila es generable solo si no le falta ningún dato del carnet. */

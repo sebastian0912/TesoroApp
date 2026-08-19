@@ -33,7 +33,9 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 10px 12px;
+  /* Sin padding: el header y las etapas van a sangre contra el sidebar
+     (pedido 2026-08-19); el aire interior lo pone .tab-content-scrollable. */
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -70,13 +72,13 @@ mat-tab-group {
 .tab.tab-step {
   flex-direction: row;
   align-items: center;
-  gap: 10px;
-  padding: 4px 2px;
+  gap: 8px;
+  padding: 2px;
 }
 
 .step-dot {
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: #ffffff;
   border: 1.5px solid #d8e0ea;
@@ -91,14 +93,14 @@ mat-tab-group {
 .step-num {
   font-family: 'Archivo', 'Instrument Sans', var(--font-sans, sans-serif);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   color: #94a3b8;
 }
 
 .step-dot mat-icon {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
   color: #21263C !important;
 }
 
@@ -112,20 +114,20 @@ mat-tab-group {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  line-height: 1.15;
+  gap: 1px;
+  line-height: 1.1;
   text-align: left;
 }
 
 .step-label {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.1px;
   text-transform: none;
 }
 
 .step-hint {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
   color: #94a3b8;
   letter-spacing: 0;
@@ -157,10 +159,18 @@ mat-tab-group {
   opacity: 0.6;
 }
 
-/* Las 5 etapas ocupan todo el ancho, con aire vertical para nodo + hint. */
+/* Las 5 etapas ocupan todo el ancho. 48px compacto: el nodo de 26px + las dos
+   líneas de texto caben sin regalar pantalla (antes 64px se comía el alto). */
 ::ng-deep .mat-mdc-tab-group > .mat-mdc-tab-header .mat-mdc-tab {
   flex-grow: 1;
-  height: 64px;
+  height: 48px;
+}
+
+/* Sub-pestañas anidadas (Entrevista/Remisión, las 5 de Contratación): más
+   bajas que el stepper — heredaban los 64px y duplicaban el costo vertical. */
+:host ::ng-deep .mat-mdc-tab-group .mat-mdc-tab-group > .mat-mdc-tab-header .mat-mdc-tab,
+:host ::ng-deep .tab-content-scrollable .mat-mdc-tab-group > .mat-mdc-tab-header .mat-mdc-tab {
+  height: 40px;
 }
 
 .tab-content-scrollable {
@@ -228,13 +238,15 @@ mat-tab-group {
   background: #0f172a !important;
   color: #f8fafc;
   padding: 14px 20px;
-  border-radius: 14px;
+  /* Full-bleed: la página va a sangre, las esquinas redondas ya no aplican. */
+  border-radius: 0;
   margin-bottom: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 20px;
+  row-gap: 12px; /* prototipo: 12px entre fila de info y fila de acciones */
   box-shadow: 0 14px 30px -18px rgba(2, 6, 23, 0.65);
   border: 1px solid rgba(148, 163, 184, 0.12);
   border-bottom: 3px solid var(--lime, #8CD50A);
@@ -263,8 +275,8 @@ mat-tab-group {
 
 .avatar-placeholder {
   position: relative;
-  width: 60px;
-  height: 60px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
   background: #21263C;
   color: white;
@@ -272,8 +284,8 @@ mat-tab-group {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  /* Anillo lima: mismo lenguaje del rediseño (identidad del candidato). */
-  border: 2px solid rgba(140, 213, 10, 0.75);
+  /* Anillo lima sólido: mismo lenguaje del rediseño (identidad del candidato). */
+  border: 2px solid var(--lime, #8CD50A);
   box-shadow: 0 8px 24px -6px rgba(15, 23, 42, 0.55);
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
               box-shadow 0.25s ease,
@@ -305,7 +317,8 @@ mat-tab-group {
 
 .avatar-placeholder.avatar-clickable:hover {
   transform: scale(1.06);
-  border-color: rgba(140, 213, 10, 0.55);
+  /* Lima sólido: atenuar el anillo en hover sería una regresión visual. */
+  border-color: var(--lime, #8CD50A);
   box-shadow:
     0 0 0 5px rgba(140, 213, 10, 0.28),
     0 10px 28px -6px rgba(15, 23, 42, 0.7),
@@ -345,13 +358,14 @@ mat-tab-group {
 /* Mini badge de cámara en la esquina inferior derecha del avatar — indica que es clickable. */
 .avatar-camera-badge {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
+  bottom: -3px;
+  right: -3px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #21263C;
-  color: #ffffff;
+  /* Lima permanente (prototipo): la cámara es la señal de "clic aquí". */
+  background: var(--lime, #8CD50A);
+  color: #21263C;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -361,7 +375,7 @@ mat-tab-group {
 }
 
 .avatar-placeholder.avatar-clickable:hover .avatar-camera-badge {
-  background: #8CD50A;
+  background: #9be32c;
   color: #21263C;
   transform: scale(1.08);
 }
@@ -405,18 +419,22 @@ mat-tab-group {
   font-size: 1.15rem;
 }
 
+/* Texto NORMAL, no flex: con flex cada palabra suelta era un ítem y en
+   pantallas angostas el hint se partía en columnas ilegibles. */
 .candidate-empty-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: block;
   color: #94a3b8;
   font-size: 0.85rem;
+  line-height: 1.5;
+  max-width: 48ch;
 }
 
 .candidate-empty-hint mat-icon {
   font-size: 16px;
   width: 16px;
   height: 16px;
+  vertical-align: text-bottom;
+  margin-right: 4px;
 }
 
 .candidate-empty-hint strong {
@@ -443,15 +461,16 @@ mat-tab-group {
 .meta-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px 4px 8px;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.10);
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  color: #e2e8f0;
-  font-size: 0.85rem;
-  font-weight: 500;
-  backdrop-filter: blur(6px);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+  box-sizing: border-box;
 }
 
 .meta-chip mat-icon {
@@ -479,22 +498,18 @@ mat-tab-group {
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 12px;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
   border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 11.5px;
+  font-weight: 700;
   letter-spacing: 0.01em;
-  line-height: 1.4;
+  line-height: 1;
   white-space: nowrap;
   border: 1px solid transparent;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.pill:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  box-shadow: none;
+  box-sizing: border-box;
 }
 
 .pill mat-icon {
@@ -535,6 +550,20 @@ mat-tab-group {
   border-color: rgba(148, 163, 184, 0.28);
 }
 
+/* Hitos en lima (prototipo): "Formulario completo" y "Prueba: Pasó". */
+.pill-lime {
+  background: rgba(140, 213, 10, 0.14);
+  color: var(--lime, #8CD50A);
+  border-color: rgba(140, 213, 10, 0.3);
+}
+
+/* Solo cuando la prueba está en 'Pasó': compuesta para no pisar danger/warning/info */
+.pill-prueba.pill-success {
+  background: rgba(140, 213, 10, 0.16);
+  color: var(--lime, #8CD50A);
+  border-color: rgba(140, 213, 10, 0.35);
+}
+
 /* Pills clickables: mismo aspecto que un .pill informativo, sólo cambia el cursor
    y el efecto de hover. Usa <span role="button"> para evitar los estilos de
    user-agent del <button> que rompen la altura. */
@@ -552,18 +581,21 @@ mat-tab-group {
   box-shadow: 0 0 0 3px rgba(140, 213, 10, 0.45);
 }
 
-/* Toolbar refinada (rediseño: superficie translúcida clara sobre navy plano,
-   botones de 44px = objetivo táctil del checklist responsivo). */
+/* Toolbar refinada (prototipo: SEGUNDA FILA del header a lo ancho; cada botón
+   lleva su propio chrome; 44px = objetivo táctil del checklist responsivo). */
 .premium-toolbar {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
-  padding: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   position: relative;
   z-index: 1;
+  /* Segunda fila del header, a lo ancho (prototipo: header en columna) */
+  flex: 1 1 100%;
 }
 
 .premium-toolbar button {
@@ -572,6 +604,29 @@ mat-tab-group {
   color: #cbd5e1;
   width: 44px;
   height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  box-sizing: border-box;
+}
+
+/* Separador vertical entre grupos de acciones (prototipo). */
+.premium-toolbar .toolbar-divider {
+  width: 1px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+@media (max-width: 600px) {
+  .premium-toolbar .toolbar-divider { display: none; }
+}
+
+/* ARL ya cargado: chip dashed lima (clic para descartar). Selector compuesto
+   (0,2,1) para pisar el borde sólido base sin importar el orden. */
+.premium-toolbar button.btn-arl-cargado {
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  color: var(--lime, #8CD50A);
 }
 
 .premium-toolbar button:hover:not([disabled]) {
@@ -582,7 +637,7 @@ mat-tab-group {
 }
 
 .premium-toolbar button[disabled] {
-  opacity: 0.35;
+  opacity: 0.45;
   color: #64748b;
 }
 
@@ -616,28 +671,39 @@ mat-tab-group {
 }
 
 .premium-toolbar button mat-icon {
-  font-size: 22px;
-  width: 22px;
-  height: 22px;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
 }
 
-/* Ajusta el badge rojo de Material para que se vea más fino y el chulo quede centrado */
+/* Ajusta el badge de Material: fino, chulo centrado, paleta del prototipo */
 .premium-toolbar ::ng-deep .mat-badge-content {
   display: flex !important;
   align-items: center;
   justify-content: center;
   text-align: center;
   font-weight: 700;
-  font-size: 11px;
+  font-size: 10px;
   font-family: 'Segoe UI Symbol', 'Apple Symbols', system-ui, sans-serif;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   line-height: 1;
   padding: 0;
-  border: 2px solid #0b1220;
+  border: 2px solid #0f172a;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
   /* El glifo ✓ tiene asimetría visual; un nudge de 0.5px lo recentra ópticamente */
   text-indent: -0.5px;
+}
+
+/* Paleta del prototipo: "hecho" = lima sobre navy, "pendiente/alerta" = rojo. */
+.premium-toolbar ::ng-deep .mat-badge-primary .mat-badge-content {
+  background: #8CD50A !important;
+  color: #21263C !important;
+}
+
+.premium-toolbar ::ng-deep .mat-badge-warn .mat-badge-content {
+  background: #dc2626 !important;
+  color: #ffffff !important;
 }
 
 /* Responsive: stack en pantallas chicas */
@@ -646,6 +712,9 @@ mat-tab-group {
   :host {
     height: auto;
     overflow: visible;
+    /* El wrapper del dashboard baja a 0.75rem de padding en móvil: compensar
+       con el mismo valor (con -1.5/-2rem la página desbordaba de lado). */
+    margin: -0.75rem;
   }
 
   .pipeline-root-card,
@@ -656,16 +725,56 @@ mat-tab-group {
 
   .premium-pipeline-header {
     flex-direction: column;
-    align-items: flex-start;
-    padding: 16px 18px;
+    align-items: stretch;
+    padding: 14px 14px;
+  }
+  /* En columna, el eje principal es VERTICAL: los flex de fila (1 1 auto /
+     1 1 100%) se vuelven bases de ALTURA y estiraban el header a una caja
+     gigante con la toolbar pintándose fuera del fondo navy. */
+  .candidate-info-badge {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+  .avatar-placeholder {
+    width: 52px;
+    height: 52px;
   }
   .candidate-name {
     font-size: 1.2rem;
     white-space: normal;
   }
+  .meta-divider {
+    display: none; /* en pantalla angosta los separadores solo estorban al wrap */
+  }
   .premium-toolbar {
+    flex: 0 0 auto;
     width: 100%;
     justify-content: flex-start;
+    gap: 8px;
+  }
+  /* El banner de contrato apila: texto arriba, acciones abajo a la derecha. */
+  .contrato-activo-banner {
+    flex-wrap: wrap;
+  }
+  .contrato-activo-banner .cab-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 600px) {
+  .premium-pipeline-header {
+    padding: 12px;
+  }
+  .candidate-name {
+    font-size: 1.05rem;
+  }
+  /* La acción del día ocupa su propia fila completa como CTA. */
+  .premium-toolbar button.btn-cerrar-contratacion {
+    width: 100%;
+    justify-content: center;
   }
 }
 
@@ -679,6 +788,14 @@ mat-tab-group {
   border: 1px solid #e8edf3;
   border-bottom: none;
   padding: 0 8px;
+}
+
+/* La barra de etapas de NIVEL SUPERIOR va a sangre (página sin padding):
+   sin esquinas ni bordes laterales. Las sub-tabs anidadas conservan el radio. */
+:host ::ng-deep .tab-group > .mat-mdc-tab-header {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
 }
 
 ::ng-deep .mat-mdc-tab .mdc-tab__text-label {
@@ -1184,11 +1301,12 @@ mat-tab-group {
   filter: grayscale(0.2);
 }
 
-/* Enviado a prueba técnica / examen sin resultado: informativo, sin veredicto. */
+/* Enviado a prueba técnica / examen sin resultado: informativo, sin veredicto.
+   Slate neutro (prototipo): "sin resultado" no debe competir con los estados. */
 .pill-info {
-  background: rgba(125, 211, 252, 0.12);
-  color: #7dd3fc;
-  border-color: rgba(125, 211, 252, 0.32);
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.25);
 }
 
 /* Base del banner de contrato activo (rediseño 2026-08): ámbar cálido de la
@@ -1200,7 +1318,7 @@ mat-tab-group {
   gap: 14px;
   margin: 0 0 10px;
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: 0; /* full-bleed, como el header */
   background: var(--warn-bg, #fdf4e3);
   border: 1px solid var(--warn-border, #f2dcac);
   color: var(--warn-fg, #925a06);
@@ -1214,30 +1332,43 @@ mat-tab-group {
   color: var(--warn-fg, #925a06);
 }
 
+/* Texto en dos niveles: título en negrilla en su propia línea y el detalle
+   debajo, más chico — antes era un párrafo corrido difícil de escanear. */
 .contrato-activo-banner .cab-text {
   flex: 1 1 auto;
   min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
 }
 
+.contrato-activo-banner .cab-text > strong {
+  display: block;
+  font-size: 13.5px;
+  margin-bottom: 2px;
+}
+
+/* Botones del banner: outline ámbar sobre el fondo cálido (prototipo). El rojo
+   sólido gritaba más que el propio aviso. */
 .contrato-activo-banner .cab-action {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 44px;
-  padding: 0 14px;
+  padding: 0 16px;
   border-radius: 10px;
-  border: 1px solid rgba(220, 38, 38, 0.5);
-  background: #dc2626;
-  color: #ffffff;
+  border: 1px solid var(--warn-border, #f2dcac);
+  background: transparent;
+  color: var(--warn-fg, #925a06);
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: filter 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .contrato-activo-banner .cab-action:hover {
-  filter: brightness(1.08);
+  filter: none;
+  background: rgba(146, 90, 6, 0.08);
 }
 
 .contrato-activo-banner .cab-action mat-icon {
@@ -1254,16 +1385,16 @@ mat-tab-group {
   gap: 8px;
 }
 
-/* Botón override: secundario (contorno) frente al rojo de "Dar de baja". */
+/* Botón override: mismo lenguaje outline, borde más marcado que "Dar de baja". */
 .contrato-activo-banner .cab-action--override {
-  background: #fff;
-  color: #b91c1c;
-  border: 1px solid rgba(239, 68, 68, 0.55);
+  background: transparent;
+  color: var(--warn-fg, #925a06);
+  border: 1px solid var(--warn-fg, #925a06);
 }
 
 .contrato-activo-banner .cab-action--override:hover {
   filter: none;
-  background: #fef2f2;
+  background: rgba(146, 90, 6, 0.08);
 }
 
 /* Sello de auditoría del override. */
@@ -1273,16 +1404,16 @@ mat-tab-group {
   opacity: 0.9;
 }
 
-/* Banner en modo edición forzada: ámbar en vez de rojo, para que se distinga
-   de un bloqueo real de un vistazo. */
+/* Banner en modo edición forzada: indigo plano (prototipo). Con el bloqueo ya
+   en ámbar, el indigo es lo que mantiene la distinción de un vistazo. */
 .contrato-activo-banner.cab-override {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.10), rgba(217, 119, 6, 0.14));
-  border-color: rgba(245, 158, 11, 0.45);
-  color: #92400e;
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
 }
 
 .contrato-activo-banner.cab-override > mat-icon {
-  color: #d97706;
+  color: #4338ca;
 }
 
 
@@ -1294,13 +1425,15 @@ mat-tab-group {
 .premium-toolbar button.btn-cerrar-contratacion {
   width: auto;
   height: 44px;
-  padding: 0 16px;
+  padding: 0 18px;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-weight: 700;
+  font-size: 13px;
   letter-spacing: 0.2px;
+  border: none;
   /* Acción primaria del rediseño: lima sólido + navy (antes azul, fuera de paleta). */
   background: var(--lime, #8CD50A);
   color: var(--navy, #21263C);

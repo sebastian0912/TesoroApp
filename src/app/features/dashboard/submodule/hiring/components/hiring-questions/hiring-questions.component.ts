@@ -4,12 +4,17 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, of, Observable } from 'rxjs';
 import { catchError, startWith, map, debounceTime, distinctUntilChanged, switchMap, take } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
+import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
 import { DocViewerService } from '@/app/shared/services/doc-viewer/doc-viewer.service';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import type jsPDF from 'jspdf';
 import type { RowInput } from 'jspdf-autotable';
+import {
+  FORMATO_ENTREGA_APOYO,
+  PLAN_FUNERAL,
+} from '../generate-contracting-documents/formato-entrega-docs.data';
 import {
   resolverDescripcionObra,
   esDescripcionGenerada,
@@ -629,17 +634,57 @@ export class HiringQuestionsComponent implements OnInit {
     input.value = '';
   }
 
+  // ───────── Visor de documentos ─────────
+  /** Documento que se está viendo; `null` = visor cerrado. */
+  visorSrc: SafeResourceUrl | null = null;
+  visorTitulo = '';
+  /** blob: URL cruda, para poder descargarla y revocarla al cerrar. */
+  private visorBlobUrl: string | null = null;
+
+  /**
+   * Muestra el documento dentro de la app.
+   *
+   * Antes se hacía con `window.open`, pero cuando `verArchivo` se llama después
+   * de un `await` se pierde el gesto del usuario, el popup se bloquea y caía al
+   * plan B de descargar. Con el visor propio siempre se ve, y descargar queda
+   * como una acción aparte. Las URLs de la API exigen JWT (el iframe no manda
+   * el token), así que se bajan con Authorization → blob: vía DocViewer.
+   */
   async verArchivo(campo: string): Promise<void> {
     const reg = this.uploadedFiles[campo];
     if (!reg) return this.alert('error', 'Archivo no encontrado', 'No se encontró el archivo.');
+
+    this.cerrarVisor();
+
     if (typeof reg.file === 'string') {
-      // URL del servidor (API con JWT / relativa): fetch con token → blob → abrir.
-      await this.docViewer.openInNewTab(reg.file);
+      const url = await this.docViewer.toBlobUrl(reg.file);
+      if (!url) return this.alert('error', 'Archivo no encontrado', 'No se pudo abrir el documento.');
+      if (url.startsWith('blob:')) this.visorBlobUrl = url;
+      this.visorSrc = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     } else {
-      const url = URL.createObjectURL(reg.file);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 250);
+      this.visorBlobUrl = URL.createObjectURL(reg.file);
+      this.visorSrc = this.sanitizer.bypassSecurityTrustResourceUrl(this.visorBlobUrl);
     }
+    this.visorTitulo = reg.fileName || 'Documento';
+    this.cdr.markForCheck();
+  }
+
+  /** Descarga lo que se está viendo. */
+  descargarDelVisor(): void {
+    if (!this.visorBlobUrl) return;
+    const a = document.createElement('a');
+    a.href = this.visorBlobUrl;
+    a.download = this.visorTitulo || 'documento.pdf';
+    a.click();
+  }
+
+  cerrarVisor(): void {
+    if (this.visorBlobUrl) {
+      try { URL.revokeObjectURL(this.visorBlobUrl); } catch { }
+      this.visorBlobUrl = null;
+    }
+    this.visorSrc = null;
+    this.visorTitulo = '';
   }
 
   descargarArchivo(): void {
@@ -797,6 +842,9 @@ export class HiringQuestionsComponent implements OnInit {
 
       if (failed.length > 0) {
         const errorList = failed.map(f => `<li><b>${f.key}</b>: ${f.error}</li>`).join('');
+        // Lo que SÍ subió ya vive en el expediente: avisar al padre para que
+        // recargue y las demás pestañas lo vean sin re-buscar a la persona.
+        if (uploaded.length > 0) this.guardado.emit();
         Swal.fire({
           icon: 'warning',
           title: 'Carga parcial',
@@ -812,6 +860,7 @@ export class HiringQuestionsComponent implements OnInit {
       if (uploaded.length) parts.push(`Subidos: ${uploaded.join(', ')}`);
       if (skipped.length) parts.push(`Omitidos (sin cambios): ${skipped.join(', ')}`);
 
+      if (uploaded.length > 0) this.guardado.emit();
       Swal.fire({
         icon: 'success',
         title: 'Listo',
@@ -825,7 +874,7 @@ export class HiringQuestionsComponent implements OnInit {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: err?.error?.detail || 'No se pudieron subir los archivos. Verifique su conexión e intente de nuevo.',
+        text: mensajeDeErrorLog('hiring/subir-archivos', err, 'No se pudieron subir los archivos. Verifique su conexión e intente de nuevo.'),
         confirmButtonText: 'Ok',
       });
     }
@@ -1058,6 +1107,9 @@ export class HiringQuestionsComponent implements OnInit {
             })
           );
           Swal.close();
+          // La huella quedó en el servidor: avisar al padre para que recargue
+          // la biometría y el indicador del header se encienda sin re-buscar.
+          this.guardado.emit();
           setMsg('Huella capturada y guardada.');
           this.alert('success', '¡Listo!', `La huella (Índice Derecho — ${cfg.nombre}) se guardó correctamente.`);
         } catch (e) {
@@ -1219,9 +1271,17 @@ export class HiringQuestionsComponent implements OnInit {
     // re-parchearse desde cero — sin esto el formulario conservaba forma de
     // pago, tarjeta y obra del contrato ANTERIOR y "Guardar" los escribía en
     // el proceso nuevo.
+    // También entran la PUBLICACIÓN y el SALARIO de la remisión: guardar la
+    // remisión (pestaña Selección) cambia la vacante o el salario sobre el
+    // MISMO proceso, y sin esto "Datos de obra", salario, auxilio y % ARL se
+    // quedaban con los de la vacante anterior hasta volver a buscar a la
+    // persona. Esta pestaña solo LEE esos dos campos, así que un guardado
+    // propio no dispara re-parcheo.
     // `consultaSeq` también entra: una consulta nueva del buscador re-parchea
     // (refresco explícito); las recargas internas conservan lo editado.
-    const cargaKey = `${cedActual}|${proc.id ?? 'sin-id'}#${this.consultaSeq()}`;
+    const cargaKey = `${cedActual}|${proc.id ?? 'sin-id'}`
+      + `|${proc.publicacion ?? proc.vacante ?? 'sin-vac'}`
+      + `|${proc.vacante_salario ?? ''}#${this.consultaSeq()}`;
     if (cargaKey === this.ultimaCargaKey) {
       this.llenarDocumentos().catch(console.error);
       return;
@@ -1359,6 +1419,13 @@ export class HiringQuestionsComponent implements OnInit {
       } catch (e) {
         console.error('No se pudo cargar la vacante:', e);
       }
+    } else {
+      // Proceso sin publicación (remisión quitada o aún sin remitir): el
+      // contexto de la vacante ANTERIOR no puede quedarse alimentando la
+      // sugerencia de descripción de obra ni el juego de labores.
+      this.cargoVacante = '';
+      this.temporalVacante = '';
+      this.empresaVacante = '';
     }
 
     // Zoneless: loadData corre desde un effect y patchea forms tras awaits; los
@@ -1639,7 +1706,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     const { jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     const empresaNombre = 'APOYO LABORAL T.S. S.A.S.';
     doc.setProperties({ title: 'Entrega_Documentos.pdf', author: empresaNombre, creator: empresaNombre });
 
@@ -1672,9 +1739,9 @@ export class HiringQuestionsComponent implements OnInit {
     doc.line(col2, h2Y, col2, startY + headerHeight);
     doc.line(col3, h2Y, col3, startY + headerHeight);
     doc.setFontSize(7).setFont('helvetica', 'bold');
-    doc.text('Código: AL CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 23', col1 + 2, startY + 11.5);
-    doc.text('Fecha Emisión: Julio 9-25', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_APOYO.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_APOYO.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha Emisión: ${FORMATO_ENTREGA_APOYO.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
     y = startY + headerHeight + 7;
 
@@ -1774,7 +1841,7 @@ export class HiringQuestionsComponent implements OnInit {
       { numero: '6)', texto: 'Socialización de las políticas vigentes y aplicables de la Empresa Temporal.' },
       { numero: '7)', texto: 'Curso de Seguridad y Salud en el Trabajo "SST" de la Empresa Temporal.' },
       { numero: '8)', texto: 'Se hace entrega de la documentación requerida para la vinculación de beneficiarios a la Caja de Compensación Familiar y se establece compromiso de 15 días para la entrega sobre la documentación para afiliación de beneficiarios a la Caja de Compensación y EPS si aplica.\nDe lo contrario se entenderá que usted no desea recibir este beneficio, recuerde que es su responsabilidad el registro de los mismos.' },
-      { numero: '9)', texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.' }
+      { numero: '9)', texto: PLAN_FUNERAL }
     ];
     const bottomSafe = 12;
     const ensureSpace = (need: number) => { if (y + need > pageHeight - bottomSafe) { doc.addPage(); y = 15; } };

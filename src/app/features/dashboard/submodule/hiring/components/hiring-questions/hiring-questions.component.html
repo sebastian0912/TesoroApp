@@ -284,7 +284,7 @@
         </mat-form-field>
       </div>
 
-      <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+      <div class="tab-footer">
         <button mat-flat-button color="primary" (click)="cargarPagoTransporte()">Cargar</button>
       </div>
     </div>
@@ -474,7 +474,9 @@
 
                           </div>
 
-                          <button mat-flat-button color="primary" (click)="cargarReferencias()">Cargar</button>
+                          <div class="tab-footer">
+                            <button mat-flat-button color="primary" (click)="cargarReferencias()">Cargar</button>
+                          </div>
                         </div>
     </ng-template>
                       </mat-tab>
@@ -539,7 +541,7 @@
                               }
                             </div>
 
-                            <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+                            <div class="tab-footer">
                               <button mat-flat-button color="primary" (click)="cargarTraslados()">Cargar</button>
                             </div>
                           </div>
@@ -554,6 +556,7 @@
 
                           <ng-template matTabContent>
                             <div class="tab-content-scrollable">
+                            <div class="huellas-grid">
                             <!-- APOYO LABORAL T.S. S.A.S. -->
                             <mat-card class="fingerprint-card">
                               <mat-card-content>
@@ -581,7 +584,7 @@
                             </mat-card>
 
                             <!-- TU ALIANZA SAS -->
-                            <mat-card class="fingerprint-card" style="margin-top: 16px;">
+                            <mat-card class="fingerprint-card">
                               <mat-card-content>
                                 <h3>Huella: Índice Derecho — TU ALIANZA SAS</h3>
                                 <button mat-raised-button color="accent" (click)="captureFingerprintTuAlianza()">
@@ -605,6 +608,7 @@
                                 }
                               </mat-card-content>
                               </mat-card>
+                            </div>
                             </div>
                           </ng-template>
                           </mat-tab>
@@ -674,3 +678,21 @@
                           </div>
                         </div>
                       }
+<!-- Visor de documentos: se ve dentro de la app, sin descargar ni abrir pestaña. -->
+@if (visorSrc) {
+  <div class="visor-overlay" (click)="cerrarVisor()">
+    <div class="visor-caja" (click)="$event.stopPropagation()">
+      <div class="visor-header">
+        <span class="visor-titulo">{{ visorTitulo }}</span>
+        <span class="visor-spacer"></span>
+        <button mat-icon-button matTooltip="Descargar" (click)="descargarDelVisor()">
+          <mat-icon>download</mat-icon>
+        </button>
+        <button mat-icon-button matTooltip="Cerrar" (click)="cerrarVisor()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <iframe [src]="visorSrc" class="doc-iframe" frameborder="0" title="Documento"></iframe>
+    </div>
+  </div>
+}

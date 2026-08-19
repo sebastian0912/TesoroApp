@@ -11,6 +11,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule } from '@angular/material/core';
 import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { firstValueFrom } from 'rxjs';
 import { startWith } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 
@@ -307,29 +308,41 @@ export class HelpInformationComponent implements OnInit {
       }
 
       if (this.sede) {
-        this.vacantesService.getVacantesPorOficina(this.sede).pipe(
-          takeUntilDestroyed(this.destroyRef)
-        ).subscribe({
-          next: (vacantes) => {
-            this.vacantes.set(vacantes);
-          },
-          error: (err) => {
-            // Sin este aviso, un backend caído se veía igual que "no hay
-            // vacantes": el operador no sabía que era un error.
-            console.warn('[help-information] No se pudieron cargar las vacantes:', err?.status, err?.error);
-            Swal.fire({
-              icon: 'warning',
-              title: 'No se pudieron cargar las vacantes',
-              text: 'Revisa la conexión e intenta de nuevo. La vacante asignada puede no mostrarse hasta recargar.',
-              toast: true,
-              position: 'top-end',
-              timer: 5000,
-              showConfirmButton: false,
-            });
-          }
-        });
+        this.loadVacantes();
       }
     }
+  }
+
+  /**
+   * (Re)carga la lista de vacantes de la sede con sus contadores (Req/Falt/
+   * Entr…). Se llama al iniciar Y tras guardar/quitar una remisión: los
+   * contadores cambian con cada asignación y antes quedaban viejos hasta
+   * recargar la página. Llamada imperativa desde handlers, nunca desde un
+   * effect (patrón anti-tormenta-429).
+   */
+  private loadVacantes(): void {
+    if (!this.sede) return;
+    this.vacantesService.getVacantesPorOficina(this.sede).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (vacantes) => {
+        this.vacantes.set(vacantes);
+      },
+      error: (err) => {
+        // Sin este aviso, un backend caído se veía igual que "no hay
+        // vacantes": el operador no sabía que era un error.
+        console.warn('[help-information] No se pudieron cargar las vacantes:', err?.status, err?.error);
+        Swal.fire({
+          icon: 'warning',
+          title: 'No se pudieron cargar las vacantes',
+          text: 'Revisa la conexión e intenta de nuevo. La vacante asignada puede no mostrarse hasta recargar.',
+          toast: true,
+          position: 'top-end',
+          timer: 5000,
+          showConfirmButton: false,
+        });
+      }
+    });
   }
 
   /** Última cédula pintada en esta pestaña (para limpiar solo al cambiar). */
@@ -575,7 +588,7 @@ export class HelpInformationComponent implements OnInit {
     const tipo = this.vacantesForm.get('tipo')?.value as string | null;
     if (!tipo) {
       await Swal.fire({
-        title: 'Selecciona el tipo (Autorización de ingreso o Prueba técnica).',
+        title: 'Selecciona el tipo (Contratación inmediata o Prueba técnica).',
         icon: 'info',
         toast: true,
         position: 'top-end',
@@ -641,11 +654,13 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      const res = await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
+      const res = await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
 
       // El pipeline debe recargar: la vacante recién asignada alimenta el
       // prellenado de "Datos de obra" en Contratación y las píldoras del header.
       this.guardado.emit();
+      // Y los contadores del selector de vacantes (Req/Falt/Entr…) cambiaron.
+      this.loadVacantes();
 
       await Swal.fire({
         title: 'Proceso actualizado correctamente.',
@@ -719,10 +734,12 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
+      await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
 
       this.limpiarVacante.set(false);
       this.guardado.emit();
+      // La vacante liberada devuelve su cupo: refrescar contadores del selector.
+      this.loadVacantes();
 
       await Swal.fire({
         title: 'Vacante quitada correctamente.',
@@ -885,7 +902,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      const res = await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
+      const res = await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
       const proc: any = res?.proceso;
 
       this.noPasoPrueba.set(true);
@@ -941,7 +958,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
+      await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
 
       this.noPasoPrueba.set(false);
       this.noPasoPruebaAt.set(null);

@@ -46,7 +46,7 @@
               <!-- Prueba técnica: solo si la vacante remitida es de ese tipo.
                    Es un marcador de resultado; no bloquea Contratación. -->
               @if (esPruebaTecnica()) {
-                <span class="pill pill-action"
+                <span class="pill pill-action pill-prueba"
                   [class.pill-danger]="noPasoPrueba()"
                   [class.pill-success]="pasoPrueba()"
                   [class.pill-warning]="noSePresentoPrueba()"
@@ -120,7 +120,7 @@
 
               <!-- Estado del formulario web -->
               @if (candidatoSeleccionado()?.formulario_completo) {
-                <span class="pill pill-success" matTooltip="Formulario web enviado completo">
+                <span class="pill pill-success pill-lime" matTooltip="Formulario web enviado completo">
                   <mat-icon>check_circle</mat-icon> Formulario completo
                 </span>
               } @else if ((candidatoSeleccionado()?.formulario_paso || 0) >= 1) {
@@ -154,6 +154,8 @@
           <mat-icon>done_all</mat-icon>
           Cerrar contratación
         </button>
+
+        <span class="toolbar-divider" aria-hidden="true"></span>
 
         <!-- Estos tres solo dependen de que haya candidato. Van igual envueltos en
              .tt-wrap: deshabilitados no mostraban ningún tooltip y quedaban grises
@@ -244,13 +246,15 @@
         </span>
 
         @if (arlIndex(); as arl) {
-          <button mat-icon-button
+          <button mat-icon-button class="btn-arl-cargado"
             [matTooltip]="'ARL cargado: ' + arl.nombreArchivo + ' (' + arl.totalFilas + ' filas). Click para descartarlo y subir otro.'"
             aria-label="Descartar Excel de ARL"
             (click)="limpiarArl()">
             <mat-icon>backup_table</mat-icon>
           </button>
         }
+
+        <span class="toolbar-divider" aria-hidden="true"></span>
 
         <!-- Dar de baja: ahora se hace haciendo click sobre el pill "Contrato activo" del header. -->
 
@@ -269,6 +273,8 @@
           <mat-icon>table_chart</mat-icon>
         </button>
         <!-- FOTO: ahora se muestra en el avatar del header (click sobre el avatar). -->
+
+        <span class="toolbar-divider" aria-hidden="true"></span>
 
         <!-- HUELLA (id 88) -->
         <button mat-icon-button matTooltip="Ver huella" aria-label="Ver huella" (click)="ver('huella')"

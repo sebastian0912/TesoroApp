@@ -3,9 +3,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 280px;
+  min-width: 0;
   max-width: 100%;
-  padding: 16px 0;
+  padding: 0;
 }
 
 mat-form-field.example-full-width {
@@ -15,9 +15,9 @@ mat-form-field.example-full-width {
 /* Nombre del archivo mostrado debajo del field */
 .uploaded-file-name {
   display: block;
-  font-size: .825rem;
-  color: #666;
-  font-style: italic;
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-style: normal;
   line-height: 1.3;
   word-break: break-word;
   margin-top: 4px;
@@ -73,6 +73,15 @@ mat-tab-group {
   border-color: #8CD50A !important;
 }
 
+/* Cuerpo de las sub-tabs = mitad inferior de la tarjeta que abre el header */
+:host ::ng-deep .mat-mdc-tab-body-wrapper {
+  background: #ffffff;
+  border: 1px solid #e8edf3;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+
 .tab {
   display: flex;
   flex-direction: column;
@@ -91,15 +100,15 @@ mat-tab-group {
   width: 100%;
   max-width: 100%;
   overflow-y: auto;
-  padding: 24px 16px 16px;
+  padding: 20px;
   box-sizing: border-box;
 }
 
 /* Managerial Grid for forms */
 .grid-managerial {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px 24px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 13px;
   align-items: start;
 }
 
@@ -110,18 +119,80 @@ mat-tab-group {
   margin: 0 !important;
 }
 
+/* ── Inputs outline al estilo del prototipo (.inp) — tokens M3 de Material 21 ── */
+:host {
+  --mdc-outlined-text-field-outline-color: #d8e0ea;
+  --mdc-outlined-text-field-hover-outline-color: #94a3b8;
+  --mdc-outlined-text-field-focus-outline-color: #21263C;
+  --mdc-outlined-text-field-container-shape: 10px;
+  --mdc-outlined-text-field-label-text-color: #64748b;
+  --mdc-outlined-text-field-hover-label-text-color: #64748b;
+  --mdc-outlined-text-field-focus-label-text-color: #21263C;
+}
+
+:host ::ng-deep .mat-mdc-form-field input.mat-mdc-input-element,
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-select-value-text,
+:host ::ng-deep .mat-mdc-form-field textarea.mat-mdc-input-element {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+/* ── CTA navy del prototipo (.btn-pri) ── */
+:host ::ng-deep .mat-mdc-unelevated-button.mat-primary,
+:host ::ng-deep .mat-mdc-raised-button.mat-primary,
+:host ::ng-deep .mat-mdc-raised-button.mat-accent {
+  background-color: #21263C;
+  color: #ffffff;
+  border-radius: 10px;
+  height: 44px;
+  padding: 0 18px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+:host ::ng-deep .mat-mdc-unelevated-button.mat-primary:hover,
+:host ::ng-deep .mat-mdc-raised-button.mat-primary:hover,
+:host ::ng-deep .mat-mdc-raised-button.mat-accent:hover {
+  background-color: #0f172a;
+  box-shadow: none;
+}
+.tab-footer .mat-mdc-unelevated-button {
+  min-width: 140px;
+}
+
 /*─────────────────────  TARJETA DE HUELLAS  ───────────────*/
+.huellas-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .huellas-grid { grid-template-columns: 1fr; }
+}
+
 .fingerprint-card {
-  margin: 16px 0;
-  padding: 24px 0;
-  width: 65% !important;
+  margin: 0;
+  padding: 18px;
+  width: 100% !important;
+  box-sizing: border-box;
+  border: 1px solid #e8edf3;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05) !important;
+  background: #ffffff;
+}
+
+.fingerprint-card mat-card-content {
+  padding: 0;
 }
 
 .fingerprint-card h3 {
-  color: #1e293b;
+  color: #0f172a;
   font-weight: 700;
-  margin-bottom: 20px;
-  font-size: 1.1rem;
+  margin-bottom: 12px;
+  font-size: 13px;
 }
 
 .left-section {
@@ -165,19 +236,39 @@ button {
 /*─────────────────────  REFERENCIAS  ───────────────*/
 
 .referencias {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: 20px;
-  padding: 24px 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+  padding: 4px 0 8px;
+}
+
+@media (max-width: 900px) {
+  .referencias { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .referencias { grid-template-columns: 1fr; }
 }
 
 /*─────────────────────  AJUSTES RESPONSIVOS Y CAMPOS  ───────────────*/
 /* Form‑field ocupa todo el ancho restante en input-container */
 .input-container mat-form-field {
-  width: 25%;
-  min-width: 220px;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+}
+
+/* Campo fill = tarjeta de referencia del prototipo */
+:host ::ng-deep .input-container .mdc-text-field--filled {
+  background: #ffffff;
+  border: 1px solid #e8edf3;
+  border-radius: 10px;
+}
+:host ::ng-deep .input-container .mdc-text-field--filled .mdc-line-ripple {
+  display: none;
+}
+:host ::ng-deep .input-container .mdc-text-field--filled .mdc-floating-label {
+  color: #0f172a;
+  font-weight: 700;
 }
 
 /* Botón (tres puntos) alineado dentro del form-field como matSuffix */
@@ -485,8 +576,8 @@ button {
 }
 
 .docs-sidebar-item.active {
-  background: rgba(63, 81, 181, 0.08);
-  border-left-color: #3f51b5;
+  background: rgba(140, 213, 10, 0.10);
+  border-left-color: #8CD50A;
 }
 
 .doc-item-icon {
@@ -517,7 +608,7 @@ button {
   font-size: 16px;
   width: 16px;
   height: 16px;
-  color: #3f51b5;
+  color: #21263C;
 }
 
 /* Viewer */
@@ -549,7 +640,7 @@ button {
   font-size: 0.75rem;
   font-weight: 600;
   color: #ffffff;
-  background: #3f51b5;
+  background: #21263C;
   padding: 4px 10px;
   border-radius: 16px;
 }
@@ -626,7 +717,7 @@ button {
 .carousel-dot.active {
   width: 20px;
   border-radius: 10px;
-  background: #3f51b5;
+  background: #8CD50A;
 }
 
 /* View docs button */
@@ -667,7 +758,7 @@ button {
   }
 
   .docs-sidebar-item.active {
-    border-bottom-color: #3f51b5;
+    border-bottom-color: #8CD50A;
     border-left: none;
   }
 
@@ -683,16 +774,16 @@ button {
   margin: 8px 8px 4px;
   padding: 12px 16px;
   border-radius: 12px;
-  background: #fff8e1;
-  border: 1px solid #ffe082;
-  color: #6d4c00;
+  background: #fdf4e3;
+  border: 1px solid #f2dcac;
+  color: #925a06;
   font-size: 13px;
   line-height: 1.35;
 }
 
 .bloqueo-espera-banner mat-icon {
   flex: 0 0 auto;
-  color: #f9a825;
+  color: #925a06;
 }
 
 .bloqueado-espera {
@@ -708,18 +799,20 @@ button {
   align-items: center;
   gap: 8px;
   margin: 4px 0 14px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: #eef4ff;
-  border: 1px solid #d4e3ff;
-  color: #34507a;
-  font-size: 13px;
-  line-height: 1.35;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .obra-hint mat-icon {
   flex: 0 0 auto;
-  color: #1976d2;
+  color: #94a3b8;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
 }
 
 .obra-descripcion {
@@ -736,22 +829,27 @@ button {
   margin: -6px 0 10px;
   padding: 10px 14px;
   border-radius: 10px;
-  background: #fff4e5;
-  border: 1px solid #ffd9a8;
-  color: #7a4f14;
+  background: #fdf4e3;
+  border: 1px solid #f2dcac;
+  color: #925a06;
   font-size: 13px;
   line-height: 1.35;
 }
 
 .obra-aviso mat-icon {
   flex: 0 0 auto;
-  color: #ed6c02;
+  color: #925a06;
 }
 
+.tab-footer,
 .obra-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 12px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
 }
 
 /* ───────── Visor de documentos ───────── */

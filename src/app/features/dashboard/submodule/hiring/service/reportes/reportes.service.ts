@@ -8,6 +8,7 @@ import {
 import { Observable, throwError, from } from 'rxjs';
 import { catchError, map, mergeMap } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
+import { sinTildesDeep } from '../../shared/sin-tildes.helper';
 
 @Injectable({
   providedIn: 'root',
@@ -88,7 +89,8 @@ export class ReportesService {
   }): Observable<any> {
     const url = `${this.apiUrl}/reportes/finalizar-contratacion/`;
 
-    return this.http.post<any>(url, payload).pipe(
+    // Lo que queda guardado (responsable, nota, detalle ARL) va sin tildes ni ñ.
+    return this.http.post<any>(url, sinTildesDeep(payload)).pipe(
       map((resp: any) => {
         if (resp?.status !== 'success') {
           throw { status: 400, error: resp };

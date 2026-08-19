@@ -69,6 +69,15 @@ export interface FichaTecnicaContext {
   usaRuta: string;
   /** Auxilio de transporte de la vacante (texto crudo). */
   auxilioTransporte: string;
+  /**
+   * Centro de costos TAL COMO SALE EN EL CONTRATO (`centroCostoDoc`:
+   * `contrato.centro_costo_obra` → `vacante.finca`). La ficha debe imprimir el
+   * mismo valor que el contrato; la pestaña de nómina (`Ccentro_de_costos`)
+   * queda vieja cuando reasignan la vacante y las dos hojas salían distintas.
+   */
+  centroCosto: string;
+  /** Cargo de la vacante tal como sale impreso en el contrato. */
+  cargo: string;
   /** Pool de descripciones aleatorias para referencias personales (REFERENCIAS_A). */
   referenciasA: readonly string[];
   /** Pool de descripciones aleatorias para referencias familiares (REFERENCIAS_F). */
@@ -229,8 +238,9 @@ export function fillFichaTecnicaPdf(
   setText('Banco', s(contrato.forma_de_pago));
   setText('Cuenta', s(contrato.numero_para_pagos));
 
-  // Centro de costo / sede
-  setText('Centro de Costo', s(contrato.Ccentro_de_costos));
+  // Centro de costo / sede — mismo valor que el contrato (ctx.centroCosto);
+  // solo si el contrato no trae nada se cae a la pestaña de nómina.
+  setText('Centro de Costo', s(ctx.centroCosto) || s(contrato.Ccentro_de_costos));
   setText('SubCentro de Costo', s(contrato.subcentro_de_costos));
   setText('Sucursal', s(entrevista.oficina));
 
@@ -449,13 +459,20 @@ export function fillFichaTecnicaPdf(
   // Apoyo siempre opera con la compañía 001.
   setText('Código Compañía', s(contratoNom.codigo_compania) || '001', 6);
   setText('Sucursal', upper(contratoNom.sucursal), 6);
-  setText('Centro de Costo', upper(contratoNom.Ccentro_de_costos), 6);
+  // Centro de costo: mismo valor que el CONTRATO (obra/finca), no el de nómina,
+  // para que las dos hojas nunca salgan con centros distintos.
+  setText('Centro de Costo', upper(ctx.centroCosto) || upper(contratoNom.Ccentro_de_costos), 6);
   setText('SubCentro de Costo', upper(contratoNom.subcentro_de_costos), 6);
   setText('CÓDIGOCiudad de Labor', upper(contratoNom.ciudad_labor), 6);
   setText('CÓDIGOClasificador 2Categoría', upper(contratoNom.categoria), 6);
   setText('CÓDIGOClasificador 3Operación', upper(contratoNom.operacion), 6);
-  // La sublabor suele ser larga y desborda la caja a 6pt: solo este campo va más pequeño.
-  setText('CÓDIGOClasificador 4Sublador', upper(contratoNom.sublabor), 4.5);
+  // Acá va el CARGO de la vacante (igual que en el contrato y que en la versión
+  // previa del generador); la sublabor de nómina salía distinta al contrato.
+  // El cargo es corto y aguanta el 6pt del bloque; la sublabor (solo fallback
+  // si la vacante no trae cargo) es larga y mantiene su 4.5pt histórico.
+  const cargoContrato = upper(ctx.cargo);
+  if (cargoContrato) setText('CÓDIGOClasificador 4Sublador', cargoContrato, 6);
+  else setText('CÓDIGOClasificador 4Sublador', upper(contratoNom.sublabor), 4.5);
   setText('Apoyo Laboral TSClasificador 6Grupo', upper(contratoNom.grupo), 6);
 
   // Domicilio: ambos campos llevan el municipio de residencia.

@@ -65,6 +65,12 @@ describe('SelectionQuestions — uso torpe', () => {
   const pdf = (nombre = 'a.pdf') =>
     new File([new Blob(['x'])], nombre, { type: 'application/pdf' });
 
+  /** Llena los 7 antecedentes obligatorios (regla 2026-08-19) para poder guardar. */
+  const llenarObligatorios = () => comp.antecedentes.patchValue({
+    policivos: 'CUMPLE', procuraduria: 'CUMPLE', contraloria: 'CUMPLE',
+    ofac: 'CUMPLE', eps: 'SURA', sisben: 'A1', afp: 'PORVENIR',
+  });
+
   // ───────────────────────────────────────────────────────────
   describe('sube el archivo equivocado', () => {
 
@@ -130,6 +136,7 @@ describe('SelectionQuestions — uso torpe', () => {
 
     it('darle a Cargar dos veces seguidas', fakeAsync(() => {
       abrir(cand());
+      llenarObligatorios();
       comp.imprimirVerificacionesAplicacion();
       comp.imprimirVerificacionesAplicacion();
       tick();
@@ -212,8 +219,39 @@ describe('SelectionQuestions — uso torpe', () => {
   // ───────────────────────────────────────────────────────────
   describe('guarda sin llenar nada', () => {
 
-    it('con todo vacío igual guarda: los antecedentes no son obligatorios', fakeAsync(() => {
+    // Regla de negocio 2026-08-19: Policivos, Procuraduría, Contraloría,
+    // OFAC, EPS, Sisbén y AFP son OBLIGATORIOS para guardar.
+    it('con todo vacío NO guarda: los 7 antecedentes clave son obligatorios', fakeAsync(() => {
       abrir(cand());
+      comp.imprimirVerificacionesAplicacion();
+      tick();
+      expect(rpc.upsertSeleccionByDocumento).not.toHaveBeenCalled();
+    }));
+
+    it('con los 7 obligatorios llenos SÍ guarda aunque el resto quede vacío', fakeAsync(() => {
+      // Rama Judicial, Medidas Correctivas y Semanas cotizadas siguen opcionales.
+      abrir(cand());
+      llenarObligatorios();
+      comp.imprimirVerificacionesAplicacion();
+      tick();
+      expect(rpc.upsertSeleccionByDocumento).toHaveBeenCalled();
+    }));
+
+    it('con 6 de 7 obligatorios NO guarda (falta AFP)', fakeAsync(() => {
+      abrir(cand());
+      llenarObligatorios();
+      comp.antecedentes.get('afp')!.setValue('');
+      comp.imprimirVerificacionesAplicacion();
+      tick();
+      expect(rpc.upsertSeleccionByDocumento).not.toHaveBeenCalled();
+    }));
+
+    it('"SIN BUSCAR" cuenta como respuesta: lo obligatorio es dejar constancia', fakeAsync(() => {
+      abrir(cand());
+      comp.antecedentes.patchValue({
+        policivos: 'SIN BUSCAR', procuraduria: 'SIN BUSCAR', contraloria: 'SIN BUSCAR',
+        ofac: 'SIN BUSCAR', eps: 'SIN BUSCAR', sisben: 'SIN BUSCAR', afp: 'SIN BUSCAR',
+      });
       comp.imprimirVerificacionesAplicacion();
       tick();
       expect(rpc.upsertSeleccionByDocumento).toHaveBeenCalled();
@@ -221,6 +259,7 @@ describe('SelectionQuestions — uso torpe', () => {
 
     it('sin candidato NO llama al backend', fakeAsync(() => {
       fixture.detectChanges();
+      llenarObligatorios();   // pasa el gate de obligatorios para probar ESTE branch
       comp.imprimirVerificacionesAplicacion();
       tick();
       expect(rpc.upsertSeleccionByDocumento).not.toHaveBeenCalled();

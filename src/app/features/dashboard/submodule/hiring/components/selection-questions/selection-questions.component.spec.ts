@@ -75,6 +75,14 @@ describe('SelectionQuestionsComponent', () => {
     fixture.detectChanges();
   }
 
+  /** Llena los 7 antecedentes obligatorios para poder pasar el gate de guardado. */
+  function llenarObligatorios() {
+    comp.antecedentes.patchValue({
+      policivos: 'CUMPLE', procuraduria: 'CUMPLE', contraloria: 'CUMPLE',
+      ofac: 'CUMPLE', eps: 'SURA', sisben: 'A1', afp: 'PORVENIR',
+    });
+  }
+
   // ─────────────────────────────────────────────────────────────
   describe('lectura de lo guardado', () => {
 
@@ -207,35 +215,25 @@ describe('SelectionQuestionsComponent', () => {
   });
 
   // ─────────────────────────────────────────────────────────────
-  describe('barrio de residencia', () => {
+  describe('barrio de residencia (se movió a la pestaña Entrevista)', () => {
 
-    it('el formulario tiene el control de barrio y se precarga del candidato', () => {
+    it('el formulario de antecedentes ya NO tiene control de barrio', () => {
+      // El barrio se captura en form-entrevista (allí vive con su validador y
+      // se guarda con el resto del candidato); acá estaba duplicado.
       abrirCandidato({ ...candidatoCon([]), residencia: { barrio: 'CHAPINERO' } });
-      expect(comp.antecedentes.get('barrio')!.value).toBe('CHAPINERO');
+      expect(comp.antecedentes.get('barrio')).toBeNull();
     });
 
-    it('guardar NO llama al endpoint de candidato si el barrio no cambió', fakeAsync(() => {
-      // Mandarlo siempre crearía filas de residencia vacías en candidatos
-      // que no la tienen.
+    it('guardar antecedentes NO toca el endpoint de candidato', fakeAsync(() => {
+      // El upsert de candidato (residencia) es asunto de la Entrevista.
       abrirCandidato(candidatoCon([]));
-      comp.antecedentes.get('eps')!.setValue('SURA');
+      llenarObligatorios();
 
       comp.imprimirVerificacionesAplicacion();
       tick();
 
+      expect(rpc.upsertSeleccionByDocumento).toHaveBeenCalled();
       expect(rpc.upsertCandidatoByDocumento).not.toHaveBeenCalled();
-    }));
-
-    it('guardar manda el barrio por su endpoint cuando SÍ cambió', fakeAsync(() => {
-      abrirCandidato(candidatoCon([]));
-      comp.antecedentes.get('barrio')!.setValue('LA CANDELARIA');
-
-      comp.imprimirVerificacionesAplicacion();
-      tick();
-
-      expect(rpc.upsertCandidatoByDocumento).toHaveBeenCalledTimes(1);
-      const arg = rpc.upsertCandidatoByDocumento.calls.mostRecent().args[0] as any;
-      expect(arg.residencia.barrio).toBe('LA CANDELARIA');
     }));
   });
 });

@@ -15,7 +15,12 @@
            (las tarjetas de AFP o Rama Judicial parecían tener contenido cuando
            en realidad estaban vacías). -->
       <div class="tarjeta-head">
-        <span class="tarjeta-titulo">{{ fld.label }}</span>
+        <span class="tarjeta-titulo">
+          {{ fld.label }}
+          @if (fld.required) {
+            <span class="tarjeta-req" matTooltip="Obligatorio para guardar" aria-label="Obligatorio">*</span>
+          }
+        </span>
         <span class="tarjeta-punto" [attr.data-estado]="estadoTarjeta(fld)"></span>
       </div>
 
@@ -65,7 +70,8 @@
           <!-- ===== NÚMERO ===== -->
           @case ('number') {
             <ng-container>
-              <input matInput type="number" [formControlName]="controlName(fld)" min="0" step="1" inputmode="numeric"
+              <input matInput type="number" [formControlName]="controlName(fld)" placeholder="Sin consultar"
+                min="0" step="1" inputmode="numeric"
                 pattern="[0-9]*" (keydown)="onlyInteger($event)" />
                 <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
                   <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
@@ -74,6 +80,9 @@
                 </div>
             </ng-container>
             }
+          }
+          @if (fld.required) {
+            <mat-error>Obligatorio: registra un valor (vale "SIN BUSCAR").</mat-error>
           }
         </mat-form-field>
         <!-- Menú por campo (referencia local por iteración) -->
@@ -119,11 +128,17 @@
                     EN PROGRESO...
                   }
                   @if (!turno.finalizado && !turno.enProgreso) {
-                    @if (turno.faltan !== null) {
-                      <span>Faltan <b>{{ turno.faltan }}</b> antes que tú</span>
-                    }
+                    <!-- Un "Faltan 13613 antes que tú" no le sirve a nadie: es
+                         cierto pero suena a que nunca va a salir. Por encima de
+                         200 se dice la espera en palabras. -->
                     @if (turno.faltan === null) {
                       <span>SIN CONSULTAR</span>
+                    } @else if (turno.faltan > 200) {
+                      <span>En cola · la respuesta puede demorar</span>
+                    } @else if (turno.faltan === 0) {
+                      <span>Es el siguiente en la fila</span>
+                    } @else {
+                      <span>Faltan <b>{{ turno.faltan }}</b> antes</span>
                     }
                   }
                 </span>
@@ -165,17 +180,10 @@
         </div>
       }
 
-      <!-- Barrio de residencia: se consulta y edita aquí; se guarda con el
-           mismo botón, por su propio endpoint. -->
-      <div class="input-container">
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Barrio de residencia</mat-label>
-          <input matInput [formControl]="$any(antecedentes.get('barrio'))"
-                 placeholder="Barrio del candidato">
-        </mat-form-field>
+      <!-- (El barrio de residencia se captura en la pestaña Entrevista.) -->
+      <div class="antecedentes-footer">
+        <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">
+          Cargar
+        </button>
       </div>
-
-      <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">
-        Cargar
-      </button>
     </div>

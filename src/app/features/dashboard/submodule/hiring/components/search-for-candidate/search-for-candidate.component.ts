@@ -502,6 +502,9 @@ export class SearchForCandidateComponent implements OnInit {
             Swal.fire('Éxito', 'Observación enviada.', 'success');
             this.mostrarObservacion = false;
             this.observacion = '';
+            // El reporte recién enviado debe verse YA: re-evaluar la alerta de
+            // vetados de la cédula abierta sin esperar a una nueva búsqueda.
+            if (this.cedula) this.consultarVetados(String(this.cedula), this._busquedaSeq);
             // Estamos dentro de un .then() de una promesa: en modo zoneless el fin
             // del HTTP no agenda repintado, hay que forzarlo para que el panel de
             // observación se cierre y el textarea se limpie en pantalla.

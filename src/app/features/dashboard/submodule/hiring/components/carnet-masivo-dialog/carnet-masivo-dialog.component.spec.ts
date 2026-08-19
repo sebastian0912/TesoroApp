@@ -40,7 +40,16 @@ describe('CarnetMasivoDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [CarnetMasivoDialogComponent, NoopAnimationsModule],
       providers: [
-        { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
+        // backdropClick/keydownEvents: el constructor real se suscribe a ambos
+        // para que ESC/click-afuera cierren por cerrar() y devuelvan `cambios`.
+        {
+          provide: MatDialogRef,
+          useValue: {
+            close: jasmine.createSpy('close'),
+            backdropClick: () => of(),
+            keydownEvents: () => of(),
+          },
+        },
         { provide: MAT_DIALOG_DATA, useValue: { cedulas: [] } },
         {
           provide: RegistroProcesoContratacion,
