@@ -477,4 +477,22 @@ describe('IncapacidadV2Service', () => {
       expect(servicio.urlAbsolutaDocumento('')).toBe('');
     });
   });
+
+  describe('descargarDocumento', () => {
+    // El gateway exige JWT en /api/v1/documents/**: un <a href> plano navegaba
+    // sin Authorization y daba 401. La descarga DEBE ir por HttpClient con token.
+    it('baja el documento como blob CON el header Authorization', () => {
+      const blobs: Blob[] = [];
+      servicio.descargarDocumento('/api/v1/documents/560920/download').subscribe((b) => blobs.push(b));
+
+      const req = http.expectOne(`${API}/api/v1/documents/560920/download`);
+      expect(req.request.method).toBe('GET');
+      expect(req.request.responseType).toBe('blob');
+      expect(req.request.headers.get('Authorization')).toBe('Bearer token-de-prueba');
+      req.flush(new Blob(['%PDF-1.4'], { type: 'application/pdf' }));
+
+      expect(blobs.length).toBe(1);
+      expect(blobs[0].type).toBe('application/pdf');
+    });
+  });
 });
