@@ -146,6 +146,123 @@
   padding: 0 24px 20px 24px;
 }
 
+/* ── Resumen IA ───────────────────────────────────────────────────────
+   Panel de contexto: responde "¿de qué va esto y qué están contestando?"
+   antes de que el usuario tenga que leerse la tabla. */
+.panel-resumen {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  background: var(--slate-50);
+}
+
+.resumen-icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--slate-900);
+  color: #fff;
+}
+
+.resumen-icono .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.resumen-cuerpo {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.resumen-titulo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+  margin-bottom: 6px;
+}
+
+.resumen-fecha {
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--slate-400);
+}
+
+.chip-stale {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fffaeb;
+  color: #b54708;
+  border: 1px solid #fedf89;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.resumen-formulario {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.resumen-respuestas {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--slate-600);
+}
+
+.icono-respuestas {
+  font-size: 16px;
+  vertical-align: -3px;
+  margin-right: 4px;
+}
+
+.resumen-vacio {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* El botón conserva su ancho entre "Generar" y "Generando…" para que el
+   panel no salte mientras responde el modelo. */
+.btn-resumen {
+  flex-shrink: 0;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  min-width: 158px;
+  justify-content: center;
+}
+
+.btn-resumen .material-symbols-outlined {
+  font-size: 18px;
+}
+
+@media (max-width: 700px) {
+  .panel-resumen {
+    flex-wrap: wrap;
+  }
+
+  .btn-resumen {
+    width: 100%;
+  }
+}
+
 .filtros {
   display: flex;
   flex-wrap: wrap;
@@ -159,74 +276,17 @@
   max-width: 100%;
 }
 
-/* ── Tabla ───────────────────────────────────────────────────────────── */
+/* ── Acciones de fila (plantilla que se le proyecta a la tabla estándar) ─ */
 
-.tabla-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--slate-200, #e8edf3);
-  border-radius: 12px;
-}
-
-.tabla {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 820px;
-}
-
-.tabla th {
-  text-align: left;
-  font-size: 0.76rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--slate-500, #64748b);
-  background: var(--slate-50, #f8fafc);
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--slate-200, #e8edf3);
+.acciones-fila {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
   white-space: nowrap;
 }
 
-.tabla td {
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--slate-100, #f1f5f9);
-  font-size: 0.9rem;
-  color: var(--slate-900, #0f172a);
-  vertical-align: middle;
-}
-
-.tabla tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.tabla tbody tr:hover {
-  background: var(--slate-50, #f8fafc);
-}
-
-.celda-id {
-  font-weight: 600;
-  color: var(--navy, #21263c);
-  white-space: nowrap;
-}
-
-/* Valores de los campos escalares: se cortan con elipsis, el title da el completo */
-.celda-valor {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.celda-anonimo {
-  color: var(--slate-500, #64748b);
-  font-style: italic;
-}
-
-.col-acciones {
-  white-space: nowrap;
-  text-align: right;
-}
-
-.col-acciones .material-symbols-outlined {
+.acciones-fila .material-symbols-outlined {
   font-size: 20px;
   vertical-align: middle;
 }
@@ -311,4 +371,158 @@
   .filtro {
     width: 100%;
   }
+}
+
+/* ── Pestañas: tabla parametrizada e individual ───────────────────────
+   Dos lecturas del mismo conjunto filtrado. La tabla trae su propio
+   paginador y su buscador; aquí solo se le da sitio. */
+
+.aviso-tope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fffaeb;
+  color: #93370d;
+  font-size: 0.85rem;
+}
+
+.aviso-tope .material-symbols-outlined { font-size: 18px; }
+
+.pestanas { margin-top: 4px; }
+
+.tab-cuerpo { padding-top: 16px; }
+
+/* ── Ficha individual ─────────────────────────────────────────────── */
+
+.ficha-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.ficha-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ficha-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+
+.ficha-item:hover { border-color: var(--slate-300, #d8e0ea); }
+
+.ficha-item--activa {
+  border-color: var(--lime, #8cd50a);
+  box-shadow: 0 0 0 1px var(--lime, #8cd50a) inset;
+}
+
+.ficha-item__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ficha-item__id { font-weight: 700; color: var(--navy, #21263c); font-size: 0.85rem; }
+.ficha-item__fecha { font-size: 0.76rem; color: var(--slate-500, #64748b); }
+
+.ficha-item__resumen {
+  font-size: 0.8rem;
+  color: var(--slate-700, #334155);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ficha-detalle {
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  padding: 16px 18px 20px;
+  min-width: 0;
+}
+
+.ficha-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ficha-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--navy, #21263c);
+}
+
+.ficha-meta { margin: 4px 0 0; font-size: 0.82rem; color: var(--slate-500, #64748b); }
+
+.ficha-nav { display: flex; align-items: center; gap: 4px; }
+.ficha-nav__pos { font-size: 0.8rem; color: var(--slate-500, #64748b); white-space: nowrap; }
+
+.ficha-acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0 4px;
+}
+
+.ficha-seccion { margin-top: 18px; }
+
+.ficha-seccion__titulo {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--slate-500, #64748b);
+}
+
+.ficha-seccion__vacia { margin: 0; font-size: 0.84rem; color: var(--slate-400, #94a3b8); }
+
+.ficha-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.ficha-campo { min-width: 0; }
+
+.ficha-vacia {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0;
+  color: var(--slate-500, #64748b);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 900px) {
+  .ficha-layout { grid-template-columns: 1fr; }
+  /* En una columna la lista va arriba y no debe comerse la pantalla. */
+  .ficha-lista { flex-direction: row; overflow-x: auto; max-height: none; }
+  .ficha-item { min-width: 200px; }
 }
