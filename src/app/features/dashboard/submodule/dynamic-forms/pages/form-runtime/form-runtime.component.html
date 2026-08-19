@@ -73,33 +73,36 @@
              y su tema no pidió explícitamente el llenado de corrido. -->
         @if (esWizard()) {
           <nav class="runtime-pasos" aria-label="Progreso del formulario">
+            <!-- Los pasos son los del RECORRIDO: con ramificaciones, las secciones que
+                 las respuestas descartan no se listan (y reaparecen si se cambia). -->
             <ol class="runtime-pasos__lista">
-              @for (sec of st.sections; track sectionKey(sec, $index); let i = $index) {
+              @for (p of pasosRuta(); track p.code; let k = $index) {
                 <li class="runtime-paso"
-                    [class.runtime-paso--actual]="i === paso()"
-                    [class.runtime-paso--hecho]="i < paso()">
+                    [class.runtime-paso--actual]="p.indice === paso()"
+                    [class.runtime-paso--hecho]="k < pasoEnRuta()">
                   <button type="button" class="runtime-paso__btn"
-                          [disabled]="i > paso()"
-                          [attr.aria-current]="i === paso() ? 'step' : null"
-                          (click)="irAPaso(i)">
+                          [disabled]="k > pasoEnRuta()"
+                          [attr.aria-current]="p.indice === paso() ? 'step' : null"
+                          (click)="irAPaso(p.indice)">
                     <span class="runtime-paso__num" aria-hidden="true">
-                      @if (i < paso()) {
+                      @if (k < pasoEnRuta()) {
                         <span class="material-symbols-outlined">check</span>
                       } @else {
-                        {{ i + 1 }}
+                        {{ k + 1 }}
                       }
                     </span>
-                    <span class="runtime-paso__txt">{{ sec.title || 'Sección ' + (i + 1) }}</span>
+                    <span class="runtime-paso__txt">{{ p.titulo }}</span>
                   </button>
                 </li>
               }
             </ol>
             @if (mostrarProgreso()) {
               <div class="runtime-barra" role="progressbar" aria-label="Progreso"
-                   [attr.aria-valuenow]="paso() + 1" aria-valuemin="1" [attr.aria-valuemax]="st.sections.length">
+                   [attr.aria-valuenow]="pasoEnRuta() + 1" aria-valuemin="1"
+                   [attr.aria-valuemax]="pasosRuta().length">
                 <span class="runtime-barra__relleno" [style.width.%]="progresoPct()"></span>
               </div>
-              <p class="runtime-pasos__contador">Paso {{ paso() + 1 }} de {{ st.sections.length }}</p>
+              <p class="runtime-pasos__contador">Paso {{ pasoEnRuta() + 1 }} de {{ pasosRuta().length }}</p>
             }
           </nav>
         }
@@ -147,7 +150,7 @@
               <span class="runtime-borrador">Borrador #{{ id }} guardado</span>
             }
 
-            @if (esWizard() && paso() > 0) {
+            @if (esWizard() && pasoEnRuta() > 0) {
               <button type="button" class="btn btn--secundario"
                       (click)="anterior()"
                       [disabled]="enviando() || guardandoBorrador()">

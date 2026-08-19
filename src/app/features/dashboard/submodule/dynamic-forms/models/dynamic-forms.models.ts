@@ -13,6 +13,7 @@ export * from '@/app/shared/components/forms/field.model';
 
 import { DynamicField, FieldSchema, FieldType, FieldValue } from '@/app/shared/components/forms/field.model';
 import { PlacementStatus } from './placement.models';
+import { FormAccessConfig } from './process.models';
 
 export type { PlacementStatus } from './placement.models';
 
@@ -23,6 +24,12 @@ export interface FormSection {
   code?: string;
   title?: string | null;
   order_no: number;
+  /**
+   * Ruta de respuestas: a dónde ir al TERMINAR esta sección cuando ninguna regla de
+   * campo dispara. null/ausente = la siguiente por orden · '<code>' de una sección
+   * posterior · 'END' para terminar ahí el formulario.
+   */
+  next_section?: string | null;
   fields: DynamicField[];
 }
 
@@ -107,6 +114,17 @@ export interface FormSummary {
   created_at: string;
   updated_at?: string | null;
 
+  // ── Resumen IA (columna "Resumen IA" del listado) ────────────────────
+  // El backend devuelve el ÚLTIMO generado: se mantiene tal cual hasta que
+  // alguien pida uno nuevo (regenerar cuesta una llamada al modelo).
+  /** De qué trata el formulario. Null = nunca se ha generado. */
+  ai_summary?: string | null;
+  /** Qué se observa en las respuestas ya registradas. */
+  ai_responses_summary?: string | null;
+  ai_summary_at?: string | null;
+  /** Respuestas que había al generarlo: si hoy hay más, está desactualizado. */
+  ai_summary_submissions?: number | null;
+
   // ── Ubicación en el menú (VISTA de un módulo anfitrión) ──────────────
   // El listado los trae inline para pintar la columna "Ubicación" sin pedir el
   // placement fila a fila. Opcionales: un summary viejo/UNLINKED puede no traerlos.
@@ -129,6 +147,20 @@ export interface FormDetail extends FormSummary {
   created_by?: string | null;
   /** ok | partial | failed | skipped — resultado del aprovisionamiento de módulos. */
   provisioning?: string | null;
+}
+
+/** Respuesta del endpoint de resumen IA (/forms/{id}/ai-summary). */
+export interface AiSummary {
+  form_id: number;
+  summary?: string | null;
+  responses_summary?: string | null;
+  generated_at?: string | null;
+  generated_by?: string | null;
+  submissions_count?: number | null;
+  version?: number | null;
+  model?: string | null;
+  /** true = llegaron respuestas después de generarlo (el texto sigue vigente). */
+  stale: boolean;
 }
 
 export interface FieldTypeInfo {
@@ -195,11 +227,29 @@ export interface FieldStats {
   answered: number;
 }
 
+/** Granularidad de la línea de tiempo de la analítica. */
+export type AnalyticsGranularity = 'day' | 'hour';
+
+/** Punto de la línea de tiempo: instante local ISO (yyyy-MM-ddTHH:mm). */
+export interface SeriesPoint {
+  bucket: string;
+  total: number;
+}
+
+/** Respuestas recibidas en cada hora del día (0..23), sumando todo el rango. */
+export interface HourPoint {
+  hour: number;
+  total: number;
+}
+
 export interface FormAnalytics {
   form_id: number;
   total_submissions: number;
   by_status: Record<string, number>;
   daily: DailyPoint[];
+  granularity?: AnalyticsGranularity;
+  series?: SeriesPoint[];
+  hour_of_day?: HourPoint[];
   fields: FieldStats[];
 }
 
@@ -222,6 +272,11 @@ export interface BuilderRequest {
   fill_role_ids?: string[];
   /** Tema + navegación; viaja con el guardado del constructor. */
   ui?: FormUi | null;
+  /**
+   * Permisos por rol y control del proceso (V14). Se definen AL CREAR el formulario y
+   * viajan con la estructura; omitirlo deja el formulario en modo OWNER, como siempre.
+   */
+  access?: FormAccessConfig | null;
   sections: FormSection[];
 }
 

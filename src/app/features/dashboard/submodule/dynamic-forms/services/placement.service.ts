@@ -45,6 +45,15 @@ export class PlacementService {
   }
 
   /**
+   * Resolver un formulario POR ID, para abrirlo con sus pestañas desde el LISTADO.
+   * La resolución por ruta solo alcanza a los publicados en el menú; desde la pantalla
+   * de gestión se abre cualquiera, incluidos los pendientes de ubicar.
+   */
+  resolveForm(formId: number): Observable<RouteResolution> {
+    return this.http.get<RouteResolution>(`${this.base}/forms/${formId}/resolve`);
+  }
+
+  /**
    * Resolver una ruta (relativa a /dashboard) a un formulario. Devuelve null si esa
    * ruta no corresponde a ningún formulario dinámico. Usado por el canMatch guard.
    */

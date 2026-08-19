@@ -1,0 +1,36 @@
+/* ─── Hilo de carga global ────────────────────────────────────────────────────
+   Sólo se pinta donde no hay top bar (login, formularios públicos): en el resto
+   manda la esfera del header. Sin `backdrop-filter`: en el APK (Capacitor/Android
+   WebView) el desenfoque tras elementos `fixed` deja texto fantasma. */
+
+:host {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100000; /* por encima del overlay del updater (99999) */
+  pointer-events: none; /* la carga no bloquea */
+  isolation: isolate;
+}
+
+.lp-bar {
+  height: 2px;
+  background: transparent;
+  overflow: hidden;
+}
+
+.lp-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--navy, #21263c), var(--lime, #8cd50a));
+  /* La anchura ya viene suavizada por el rAF del servicio; esta transición sólo
+     lima el escalón entre frames, no inventa progreso. */
+  transition: width 140ms linear, opacity 320ms ease;
+  border-radius: 0 2px 2px 0;
+  opacity: 0.9;
+}
+
+.lp-bar__fill--done { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-bar__fill { transition: width 140ms linear; }
+}

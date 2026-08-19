@@ -1,0 +1,225 @@
+<div class="fb">
+  <header class="fb__hero">
+    <div class="fb__crumb"><mat-icon>arrow_back</mat-icon> Constructor de Formularios</div>
+    <div class="fb__titlerow">
+      <h1>{{ titlePreview() || 'Nuevo Formulario' }}</h1>
+      <span class="fb__badge">{{ publishResult() ? 'PUBLICADO' : 'BORRADOR' }}</span>
+      <span class="fb__count">Campos: <b>{{ fields().length }}</b></span>
+    </div>
+    <p class="fb__sub">Crea tu formulario en pasos: datos y visibilidad, campos y publicación.</p>
+    <div class="fb__heroacciones">
+      <button type="button" mat-stroked-button (click)="importarAbierto.set(true)"
+              matTooltip="Descargar la plantilla parametrizada o cargar las preguntas desde un Excel">
+        <mat-icon>table_view</mat-icon>
+        Desde Excel
+      </button>
+    </div>
+  </header>
+
+  <mat-stepper #stepper [linear]="false" labelPosition="bottom" class="fb__stepper">
+
+    <!-- PASO 1: DATOS Y VISIBILIDAD -->
+    <mat-step label="Datos y visibilidad">
+      <div class="step1" [formGroup]="meta">
+        <section class="card">
+          <div class="card__head"><mat-icon>description</mat-icon> Datos del formulario</div>
+          <mat-form-field appearance="outline" class="w-full">
+            <mat-label>Ubicación (Módulo Padre)</mat-label>
+            <input matInput formControlName="parent_module" placeholder="Ej: Respuestas - Formulario Verificación">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="w-full">
+            <mat-label>Título del formulario</mat-label>
+            <input matInput formControlName="title" placeholder="Ej: Registro de novedad de vigilancia">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="w-full">
+            <mat-label>Descripción</mat-label>
+            <textarea matInput rows="3" formControlName="description" placeholder="Describe brevemente para qué se usará…"></textarea>
+          </mat-form-field>
+        </section>
+
+        <section class="card">
+          <div class="card__head"><mat-icon>visibility</mat-icon> Visibilidad</div>
+          <div class="vis">
+            <button type="button" class="vis__card" [class.sel]="meta.controls.visibility.value==='PUBLIC'" (click)="setVisibility('PUBLIC')">
+              <mat-icon>public</mat-icon>
+              <div class="vis__t">Público</div>
+              <div class="vis__s">Con enlace, sin login</div>
+            </button>
+            <button type="button" class="vis__card" [class.sel]="meta.controls.visibility.value==='PRIVATE'" (click)="setVisibility('PRIVATE')">
+              <mat-icon>lock</mat-icon>
+              <div class="vis__t">Privado</div>
+              <div class="vis__s">Solo usuarios con permiso</div>
+            </button>
+          </div>
+
+          <div class="offices">
+            <div class="offices__title">Oficinas (una o varias)</div>
+            <div class="offices__list">
+              @for (o of offices(); track o.id) {
+                <mat-checkbox [checked]="isOfficeSelected(o.id)" (change)="toggleOffice(o.id, $event.checked)">{{ o.label }}</mat-checkbox>
+              }
+              @if (!offices().length) {
+                <div class="muted">No se cargaron oficinas (o no tienes sedes asignadas). Puedes continuar.</div>
+              }
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="fb__nav">
+        <span></span>
+        <button mat-flat-button color="primary" [disabled]="saving()" (click)="nextFromMeta()">
+          Siguiente <mat-icon>arrow_forward</mat-icon>
+        </button>
+      </div>
+    </mat-step>
+
+    <!-- PASO 2: CAMPOS -->
+    <mat-step label="Campos">
+      <h2 class="step__h">Diseña el formulario</h2>
+      <p class="step__p">Arrastra componentes al lienzo (o doble clic). Arrástralos de nuevo para reordenar.</p>
+
+      <div cdkDropListGroup class="builder">
+        <!-- Paleta -->
+        <aside class="palette">
+          <div cdkDropList #paletteList="cdkDropList" [cdkDropListData]="palette"
+               [cdkDropListConnectedTo]="[canvasList]" [cdkDropListSortingDisabled]="true" class="palette__grid">
+            @for (item of palette; track item.type) {
+              <div class="palette__item" [class.off]="!item.enabled" cdkDrag [cdkDragData]="item"
+                   (dblclick)="addFromPalette(item)" [matTooltip]="item.enabled ? '' : 'Se habilita en una fase siguiente'">
+                <mat-icon>{{ item.icon }}</mat-icon>
+                <span>{{ item.label }}</span>
+              </div>
+            }
+          </div>
+        </aside>
+
+        <!-- Lienzo + editor -->
+        <section class="canvas-wrap">
+          <div class="canvas-wrap__title">Lienzo de diseño</div>
+          <div cdkDropList #canvasList="cdkDropList" [cdkDropListData]="fields()"
+               [cdkDropListConnectedTo]="[paletteList]" (cdkDropListDropped)="drop($event)" class="canvas">
+            @if (!fields().length) {
+              <div class="canvas__empty">
+                <mat-icon>post_add</mat-icon>
+                <span>Aún no has agregado campos. Arrastra un componente desde la izquierda.</span>
+              </div>
+            }
+            @for (f of fields(); track $index; let i = $index) {
+              <div class="canvas__field" [class.sel]="selectedIndex()===i" cdkDrag (click)="selectField(i)">
+                <mat-icon cdkDragHandle class="canvas__handle">drag_indicator</mat-icon>
+                <mat-icon class="canvas__ficon">{{ iconFor(f.field_type) }}</mat-icon>
+                <div class="canvas__meta">
+                  <div class="canvas__flabel">{{ f.label || '(sin título)' }}</div>
+                  <div class="canvas__ftype">{{ f.field_type }}</div>
+                </div>
+                @if (f.required) { <span class="canvas__req">obligatorio</span> }
+                <button mat-icon-button (click)="removeField(i, $event)" aria-label="Eliminar">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+
+          @if (selected(); as sf) {
+            <div class="editor">
+              <div class="editor__head"><mat-icon>{{ iconFor(sf.field_type) }}</mat-icon> Editar campo · {{ sf.field_type }}</div>
+              <mat-form-field appearance="outline" class="w-full">
+                <mat-label>Etiqueta</mat-label>
+                <input matInput [value]="sf.label" (input)="patch('label', $any($event.target).value)">
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="w-full">
+                <mat-label>Texto de ayuda</mat-label>
+                <input matInput [value]="sf.help_text || ''" (input)="patch('help_text', $any($event.target).value)">
+              </mat-form-field>
+              @if (sf.field_type === 'texto_corto' || sf.field_type === 'texto_largo' || sf.field_type === 'numero') {
+                <mat-form-field appearance="outline" class="w-full">
+                  <mat-label>Placeholder</mat-label>
+                  <input matInput [value]="sf.placeholder || ''" (input)="patch('placeholder', $any($event.target).value)">
+                </mat-form-field>
+              }
+              <mat-checkbox [checked]="sf.required" (change)="patch('required', $event.checked)">Obligatorio</mat-checkbox>
+
+              @if (sf.field_type === 'seleccion_unica') {
+                <div class="opts">
+                  <div class="opts__title">Opciones</div>
+                  @for (opt of sf.config_json?.options || []; track $index; let oi = $index) {
+                    <div class="opts__row">
+                      <input class="opts__input" [value]="opt.label" (input)="updateOption(oi, $any($event.target).value)">
+                      <button mat-icon-button (click)="removeOption(oi)"><mat-icon>close</mat-icon></button>
+                    </div>
+                  }
+                  <button mat-stroked-button type="button" (click)="addOption()"><mat-icon>add</mat-icon> Agregar opción</button>
+                </div>
+              }
+            </div>
+          }
+        </section>
+
+        <!-- Preview en vivo -->
+        <aside class="preview">
+          <app-phone-preview [title]="titlePreview()" [description]="descPreview()" [fields]="fields()"></app-phone-preview>
+        </aside>
+      </div>
+
+      <div class="fb__nav">
+        <button mat-stroked-button matStepperPrevious><mat-icon>arrow_back</mat-icon> Atrás</button>
+        <button mat-flat-button color="primary" [disabled]="saving()" (click)="nextFromFields()">
+          Siguiente <mat-icon>arrow_forward</mat-icon>
+        </button>
+      </div>
+    </mat-step>
+
+    <!-- PASO 3: PUBLICAR -->
+    <mat-step label="Publicar">
+      <h2 class="step__h">Revisar y publicar</h2>
+      <p class="step__p">Confirma los datos antes de crear el formulario.</p>
+
+      <div class="review">
+        <div class="review__row"><span><mat-icon>title</mat-icon> Título</span><b>{{ meta.controls.title.value || '—' }}</b></div>
+        <div class="review__row"><span><mat-icon>folder</mat-icon> Ubicación</span><b>{{ meta.controls.parent_module.value || '—' }}</b></div>
+        <div class="review__row"><span><mat-icon>list</mat-icon> Campos</span><b>{{ fields().length }}</b></div>
+        <div class="review__row"><span><mat-icon>lock</mat-icon> Visibilidad</span><b>{{ meta.controls.visibility.value === 'PUBLIC' ? 'Público' : 'Privado' }}</b></div>
+        <div class="review__row"><span><mat-icon>apartment</mat-icon> Oficinas</span><b>{{ selectedOffices().length || '—' }}</b></div>
+      </div>
+
+      @if (!publishResult()) {
+        <div class="fb__nav">
+          <button mat-stroked-button matStepperPrevious><mat-icon>arrow_back</mat-icon> Atrás</button>
+          <button mat-flat-button color="primary" [disabled]="publishing()" (click)="publish()">
+            <mat-icon>rocket_launch</mat-icon> Revisar y publicar
+          </button>
+        </div>
+      } @else {
+        <div class="published">
+          <div class="published__ok"><mat-icon>check_circle</mat-icon> ¡Formulario publicado!</div>
+          @if (publishResult()?.public_url) {
+            <div class="published__linkrow">
+              <span class="published__hint">Enlace público (con enlace, sin login):</span>
+              <div class="published__link">
+                <input readonly [value]="publishResult()?.public_url">
+                <button mat-icon-button (click)="copyLink()" aria-label="Copiar"><mat-icon>content_copy</mat-icon></button>
+              </div>
+            </div>
+          } @else {
+            <div class="muted">Formulario privado: visible solo para usuarios con permiso.</div>
+          }
+          <button mat-flat-button color="primary" (click)="goToDashboard()">Ir al dashboard</button>
+        </div>
+      }
+    </mat-step>
+  </mat-stepper>
+</div>
+
+<!-- Carga por Excel: baja la plantilla ya parametrizada y sube el archivo lleno; lo leído
+     se vuelca aquí mismo, sin guardar nada. -->
+@if (importarAbierto()) {
+  <app-office-excel-import-dialog
+      [tituloInicial]="meta.controls.title.value || ''"
+      [descripcionInicial]="meta.controls.description.value || ''"
+      [moduloInicial]="meta.controls.parent_module.value || ''"
+      (abrir)="aplicarImportado($event)"
+      (creados)="goToDashboard()"
+      (cerrar)="importarAbierto.set(false)">
+  </app-office-excel-import-dialog>
+}

@@ -23,6 +23,8 @@ import {
   validateFieldValue,
 } from '../../models/dynamic-forms.models';
 import { modoNavegacion, navegacionEfectiva, temaEfectivo, variablesTema } from '../../models/form-theme';
+import { ocupaFilaCompleta } from '../../models/field-layout';
+import { recorrido } from '../../models/form-routing';
 import { DynamicFormService } from '../../services/dynamic-form.service';
 import { FormDesignService } from '../../services/form-design.service';
 import { SubmissionService } from '../../services/submission.service';
@@ -97,8 +99,37 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
   readonly subiendo = signal(0);
 
   // ── Asistente por secciones ─────────────────────────────────────────
-  /** Índice de la sección visible cuando el formulario se llena paso a paso. */
+  /**
+   * Índice REAL (dentro de st.sections) de la sección visible cuando se llena paso a
+   * paso. No es la posición en el recorrido: con ramificaciones el paso 2 puede ser la
+   * sección 5. La posición dentro del recorrido es `pasoEnRuta()`.
+   */
   readonly paso = signal(0);
+
+  /**
+   * RECORRIDO real según lo respondido hasta ahora: índices de las secciones que este
+   * formulario, con estas respuestas, sí atraviesa. Se recalcula solo (los valores son
+   * un signal), así que cambiar la respuesta que ramifica reordena el asistente en vivo.
+   * Es el MISMO cálculo que hace el servidor al validar (RoutingPlan).
+   */
+  readonly recorridoActual = computed<number[]>(() => {
+    const st = this.structure();
+    return st ? recorrido(st.sections, this.values()) : [];
+  });
+
+  /** Posición del paso actual DENTRO del recorrido (0 si se salió de él). */
+  readonly pasoEnRuta = computed(() => Math.max(0, this.recorridoActual().indexOf(this.paso())));
+
+  /** Pasos que pinta el indicador de progreso: solo las secciones del recorrido. */
+  readonly pasosRuta = computed<Array<{ indice: number; code: string; titulo: string }>>(() => {
+    const st = this.structure();
+    if (!st) return [];
+    return this.recorridoActual().map(i => ({
+      indice: i,
+      code: this.sectionKey(st.sections[i], i),
+      titulo: st.sections[i].title || `Sección ${i + 1}`,
+    }));
+  });
 
   /**
    * Paso a paso SÍ o NO. Regla del producto: con 2+ secciones el formulario se llena
@@ -115,22 +146,28 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
 
   readonly esUltimoPaso = computed(() => {
     const st = this.structure();
-    return !st || !this.esWizard() || this.paso() >= st.sections.length - 1;
+    if (!st || !this.esWizard()) return true;
+    const ruta = this.recorridoActual();
+    return ruta.length === 0 || this.paso() === ruta[ruta.length - 1];
   });
 
-  /** Lo que se pinta: la sección del paso actual, o todas si el modo es de corrido. */
+  /**
+   * Lo que se pinta: la sección del paso actual, o TODO EL RECORRIDO si el modo es de
+   * corrido. En corrido las secciones que la ruta descarta desaparecen en vivo al
+   * cambiar la respuesta que ramifica.
+   */
   readonly seccionesVisibles = computed<FormSection[]>(() => {
     const st = this.structure();
     if (!st) return [];
-    if (!this.esWizard()) return st.sections;
+    if (!this.esWizard()) return this.recorridoActual().map(i => st.sections[i]);
     const actual = st.sections[this.paso()];
     return actual ? [actual] : [];
   });
 
   readonly progresoPct = computed(() => {
-    const st = this.structure();
-    if (!st || st.sections.length === 0) return 0;
-    return Math.round(((this.paso() + 1) / st.sections.length) * 100);
+    const total = this.recorridoActual().length;
+    if (total === 0) return 0;
+    return Math.round(((this.pasoEnRuta() + 1) / total) * 100);
   });
 
   // ── Tema de diseño ──────────────────────────────────────────────────
@@ -321,7 +358,8 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
    * seguir siendo la de su posición verdadera.
    */
   indiceReal(indiceVisible: number): number {
-    return this.esWizard() ? this.paso() : indiceVisible;
+    if (this.esWizard()) return this.paso();
+    return this.recorridoActual()[indiceVisible] ?? indiceVisible;
   }
 
   // ── Navegación del asistente ────────────────────────────────────────
@@ -341,20 +379,29 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
       return;
     }
     this.showErrors.set(false);
-    this.paso.update(p => p + 1);
+    // El siguiente paso lo dicta el RECORRIDO, no el orden: puede saltarse secciones
+    // según lo que se acabe de responder. Se recalcula aquí (ya con la respuesta puesta).
+    const ruta = this.recorridoActual();
+    const siguiente = ruta[ruta.indexOf(this.paso()) + 1];
+    if (siguiente == null) return;
+    this.paso.set(siguiente);
     this.scrollArriba();
   }
 
   anterior(): void {
-    if (this.paso() === 0) return;
+    const ruta = this.recorridoActual();
+    const anterior = ruta[ruta.indexOf(this.paso()) - 1];
+    if (anterior == null) return;
     this.showErrors.set(false);
-    this.paso.update(p => p - 1);
+    this.paso.set(anterior);
     this.scrollArriba();
   }
 
-  /** Solo hacia atrás (o al paso actual): adelante se va validando con "Siguiente". */
+  /** Solo hacia atrás DENTRO del recorrido: adelante se va validando con "Siguiente". */
   irAPaso(indice: number): void {
-    if (indice > this.paso() || indice === this.paso()) return;
+    const ruta = this.recorridoActual();
+    const destino = ruta.indexOf(indice);
+    if (destino < 0 || destino >= this.pasoEnRuta()) return;
     this.showErrors.set(false);
     this.paso.set(indice);
     this.scrollArriba();
@@ -366,13 +413,9 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
   }
 
   /** Misma regla de ancho completo que aplica el renderer dentro de las SECTION. */
+  /** Regla compartida con la vista previa del constructor (models/field-layout). */
   esAnchoCompleto(f: DynamicField): boolean {
-    return (
-      f.type === 'TEXT_LONG' ||
-      f.type === 'SECTION' ||
-      f.schema?.ui?.full_width === true ||
-      (f.type === 'MULTIPLE_CHOICE' && (f.schema?.options?.length ?? 0) > 6)
-    );
+    return ocupaFilaCompleta(f);
   }
 
   valorDe(secKey: string, f: DynamicField): FieldValue {
@@ -517,8 +560,12 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
    */
   private camposInvalidos(st: FormStructure, soloSeccion?: number): string[] {
     const nombres: string[] = [];
+    // Una sección fuera del recorrido no se le mostró a nadie: exigir sus obligatorios
+    // dejaría el formulario imposible de enviar. El servidor aplica la misma regla.
+    const ruta = new Set(this.recorridoActual());
     st.sections.forEach((sec, i) => {
       if (soloSeccion != null && i !== soloSeccion) return;
+      if (soloSeccion == null && !ruta.has(i)) return;
       const actuales = this.values()[this.sectionKey(sec, i)] ?? {};
       const revisar = (f: DynamicField): void => {
         if (f.type === 'COMMENT' || f.type === 'SECTION') return;
@@ -539,7 +586,7 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
    */
   /** Índice de la primera sección con algún campo inválido (null si están todas bien). */
   private primerPasoInvalido(st: FormStructure): number | null {
-    for (let i = 0; i < st.sections.length; i++) {
+    for (const i of this.recorridoActual()) {
       if (this.camposInvalidos(st, i).length > 0) return i;
     }
     return null;
@@ -549,12 +596,16 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
   private irASeccion(st: FormStructure, seccion: string): void {
     if (!this.esWizard()) return;
     const i = st.sections.findIndex((sec, idx) => this.sectionKey(sec, idx) === seccion);
-    if (i >= 0 && i !== this.paso()) this.paso.set(i);
+    if (i >= 0 && i !== this.paso() && this.recorridoActual().includes(i)) this.paso.set(i);
   }
 
   private construirPayload(st: FormStructure): SubmissionPayload {
     const payload: SubmissionPayload = {};
+    // Solo viaja lo del RECORRIDO: si alguien contestó una rama y luego cambió la
+    // respuesta que ramifica, esos valores ya no forman parte de esta respuesta.
+    const ruta = new Set(this.recorridoActual());
     st.sections.forEach((sec, i) => {
+      if (!ruta.has(i)) return;
       const secKey = this.sectionKey(sec, i);
       const actuales = this.values()[secKey] ?? {};
       const grupo: Record<string, FieldValue> = {};

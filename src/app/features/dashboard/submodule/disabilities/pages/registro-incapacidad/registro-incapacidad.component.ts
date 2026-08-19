@@ -323,7 +323,11 @@ export class RegistroIncapacidadComponent implements OnDestroy {
    * pedirla con un desplegable; la oficina nunca se guarda vacia.
    */
   readonly usuario = obtenerUsuarioActual();
-  readonly oficinaBloqueada = signal(this.usuario.sedeNombre.length > 0);
+  // Multi-sede (V40): con UNA sede el campo queda bloqueado como siempre; con
+  // varias se ofrece un desplegable limitado a las sedes del usuario.
+  readonly oficinaBloqueada = signal(
+    this.usuario.sedeNombre.length > 0 && this.usuario.sedes.length <= 1,
+  );
   readonly nombreBloqueado = signal(this.usuario.nombreCompleto.length > 0);
   readonly oficinasDisponibles = signal<string[]>([]);
   readonly cargandoOficinas = signal(false);
@@ -976,6 +980,14 @@ export class RegistroIncapacidadComponent implements OnDestroy {
    */
   private cargarOficinasSiHaceFalta(): void {
     if (this.oficinaBloqueada()) return;
+    // Multi-sede (V40): con varias sedes asignadas, el desplegable se limita a
+    // ellas (la principal ya viene preseleccionada en el control).
+    if (this.usuario.sedes.length > 1) {
+      this.oficinasDisponibles.set(
+        [...this.usuario.sedes].sort((a, b) => a.localeCompare(b, 'es')),
+      );
+      return;
+    }
     this.cargandoOficinas.set(true);
     this.utilidades
       .traerSucursales()

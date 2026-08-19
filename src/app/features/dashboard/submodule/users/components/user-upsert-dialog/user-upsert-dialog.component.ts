@@ -10,9 +10,20 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-import { AdminService, ActualizarUsuarioPayload, UsuarioDetail } from '../../services/admin.service';
+import {
+  AdminService,
+  ActualizarUsuarioPayload,
+  UsuarioDetail,
+  RolAsignado,
+  SedeAsignada,
+} from '../../services/admin.service';
 import { forkJoin, Observable, of, switchMap } from 'rxjs';
+import {
+  Grupo, GrupoTipo, GruposService, NOMBRE_TIPO_GRUPO,
+} from '../../services/grupos/grupos.service';
 import { catchError, map } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 
@@ -27,9 +38,25 @@ export interface UserUpsertData {
     empresa?: { id: string; nombre: string } | null;
     sede?: { id: string; nombre: string; activa: boolean } | null;
     rol?: { nombre: string; id?: string } | null;
+    roles?: RolAsignado[];
+    sedes?: SedeAsignada[];
     datos_basicos?: { nombres: string; apellidos: string; celular?: string | null } | null;
     tiene_foto?: boolean;
   } | null;
+}
+
+/** Rol elegido en el diálogo. `vigente_hasta` en ISO-8601; null = indefinido. */
+interface RolSeleccionado {
+  id: string;
+  nombre: string;
+  es_principal: boolean;
+  vigente_hasta: string | null;
+}
+
+interface SedeSeleccionada {
+  id: string;
+  nombre: string;
+  es_principal: boolean;
 }
 
 
@@ -46,7 +73,9 @@ export interface UserUpsertData {
     MatSlideToggleModule,
     MatIconModule,
     MatDividerModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatMenuModule,
+    MatTooltipModule
 ],
   templateUrl: './user-upsert-dialog.component.html',
   styleUrl: './user-upsert-dialog.component.css',
@@ -57,6 +86,34 @@ export class UserUpsertDialogComponent implements OnInit {
   roles = signal<{ id: string; nombre: string }[]>([]);
   sedes = signal<{ id: string; nombre: string; activa: boolean }[]>([]);
   empresas = signal<{ id: string; nombre: string }[]>([]);
+
+  // ── Asignaciones múltiples (V40) ──────────────────────────────────────
+  /** Roles asignados; exactamente uno lleva es_principal=true. */
+  rolesAsignados = signal<RolSeleccionado[]>([]);
+  sedesAsignadas = signal<SedeSeleccionada[]>([]);
+  /** Se intentó guardar sin roles: muestra el error bajo el selector. */
+  rolesTocados = signal(false);
+  /** Rol cuyo input de fecha/hora personalizada está abierto, o null. */
+  vigenciaEnEdicion = signal<string | null>(null);
+  /** Rol sobre el que se abrió el menú del temporizador. */
+  private menuVigenciaRolId: string | null = null;
+
+  // ── Grupos y etiquetas (V41) ──────────────────────────────────────────
+  /**
+   * Los grupos NO son permisos: son audiencia ("a quién va dirigido esto"). Se guardan
+   * en su propio endpoint (PUT /usuarios/{id}/grupos) y no en el payload del usuario,
+   * porque al CREAR todavía no existe el id — por eso en alta se envían después.
+   */
+  grupos = signal<Grupo[]>([]);
+  gruposAsignados = signal<Grupo[]>([]);
+
+  /** Opciones aún no asignadas, para los selectores de "Agregar…". */
+  rolesDisponibles = computed(() =>
+    this.roles().filter(r => !this.rolesAsignados().some(a => a.id === r.id)));
+  sedesDisponibles = computed(() =>
+    this.sedes().filter(s => !this.sedesAsignadas().some(a => a.id === s.id)));
+  gruposDisponibles = computed(() =>
+    this.grupos().filter(g => g.activo && !this.gruposAsignados().some(a => a.id === g.id)));
 
   loading = signal(false);
   saving = signal(false);
@@ -93,6 +150,7 @@ export class UserUpsertDialogComponent implements OnInit {
     private fb: FormBuilder,
     private adminService: AdminService,
     private utils: UtilityServiceService,
+    private gruposSvc: GruposService,
     private dialogRef: MatDialogRef<UserUpsertDialogComponent, any>,
     @Inject(MAT_DIALOG_DATA) public data: UserUpsertData
   ) {}
@@ -105,8 +163,7 @@ export class UserUpsertDialogComponent implements OnInit {
       correo_electronico: ['', [Validators.required, Validators.email]],
       estado_solicitudes: [true],
       empresa_id: [null as string | null],
-      sede_id: [null as string | null],
-      rol_id: [null as string | null, Validators.required],
+      // rol/sede ya no son selects únicos: viven en rolesAsignados/sedesAsignadas.
       nombres: ['', [Validators.required, Validators.minLength(2)]],
       apellidos: ['', [Validators.required, Validators.minLength(2)]],
       celular: [null as string | null],
@@ -131,17 +188,22 @@ export class UserUpsertDialogComponent implements OnInit {
     const empresas$ = (typeof (this.utils as any).traerEmpresas === 'function'
       ? (this.utils as any).traerEmpresas()
       : of([])) as Observable<any[]>;
+    // Los grupos son opcionales: si el servicio aún no está desplegado, el selector se
+    // queda vacío y el diálogo sigue funcionando igual que antes.
+    const grupos$ = this.gruposSvc.list().pipe(catchError(() => of([] as Grupo[])));
 
-    forkJoin({ roles: roles$, sedes: sedes$, empresas: empresas$ }).subscribe({
-      next: ({ roles, sedes, empresas }) => {
+    forkJoin({ roles: roles$, sedes: sedes$, empresas: empresas$, grupos: grupos$ }).subscribe({
+      next: ({ roles, sedes, empresas, grupos }) => {
         const norm = (x: any): any[] => (Array.isArray(x) ? x : x?.results ?? x?.data ?? []);
         this.roles.set(norm(roles).map((r: any) => ({ id: r.id, nombre: r.nombre })));
         this.sedes.set(norm(sedes).map((s: any) => ({ id: s.id, nombre: s.nombre, activa: !!s.activa })));
         this.empresas.set(norm(empresas).map((e: any) => ({ id: e.id, nombre: e.nombre })));
+        this.grupos.set(grupos ?? []);
 
         if (this.data.mode === 'edit' && this.data.user) {
           this.patchFormWithUser(this.data.user);
           if (this.data.user.tiene_foto) this.cargarFotoExistente(this.data.user.id);
+          this.cargarGruposDelUsuario(this.data.user.id);
         }
         this.loading.set(false);
       },
@@ -156,17 +218,193 @@ export class UserUpsertDialogComponent implements OnInit {
       correo_electronico: u.correo_electronico ?? '',
       estado_solicitudes: !!u.estado_solicitudes,
       empresa_id: u.empresa?.id ?? null,
-      sede_id: u.sede?.id ?? null,
-      rol_id: (u.rol as any)?.id ?? null,
       nombres: u.datos_basicos?.nombres ?? '',
       apellidos: u.datos_basicos?.apellidos ?? '',
       celular: u.datos_basicos?.celular ?? null,
     });
 
+    // Asignaciones: la lista nueva si el backend ya la manda; si no, el
+    // singular legacy como única asignación principal.
+    if (u.roles?.length) {
+      this.rolesAsignados.set(u.roles.map(r => ({
+        id: r.id, nombre: r.nombre,
+        es_principal: !!r.es_principal,
+        vigente_hasta: r.vigente_hasta ?? null,
+      })));
+    } else if ((u.rol as any)?.id) {
+      this.rolesAsignados.set([{
+        id: (u.rol as any).id, nombre: u.rol!.nombre, es_principal: true, vigente_hasta: null,
+      }]);
+    }
+    this.asegurarUnPrincipalRol();
+
+    if (u.sedes?.length) {
+      this.sedesAsignadas.set(u.sedes.map(s => ({
+        id: s.id, nombre: s.nombre, es_principal: !!s.es_principal,
+      })));
+    } else if (u.sede?.id) {
+      this.sedesAsignadas.set([{ id: u.sede.id, nombre: u.sede.nombre, es_principal: true }]);
+    }
+    this.asegurarUnPrincipalSede();
+
     // En edición: por defecto no cambiar contraseña
     if (!this.isCreate()) {
       this.onToggleChangePw(false);
     }
+  }
+
+  // ── Grupos y etiquetas: agregar / quitar ──────────────────────────────
+
+  nombreTipoGrupo(t: GrupoTipo): string { return NOMBRE_TIPO_GRUPO[t]; }
+
+  agregarGrupo(grupoId: string | null): void {
+    if (!grupoId) return;
+    const g = this.grupos().find(x => x.id === grupoId);
+    if (!g || this.gruposAsignados().some(a => a.id === grupoId)) return;
+    this.gruposAsignados.update(l => [...l, g]);
+  }
+
+  quitarGrupo(grupoId: string): void {
+    this.gruposAsignados.update(l => l.filter(g => g.id !== grupoId));
+  }
+
+  private cargarGruposDelUsuario(usuarioId: string): void {
+    this.gruposSvc.gruposDeUsuario(usuarioId)
+      .pipe(catchError(() => of([] as Grupo[])))
+      .subscribe(g => this.gruposAsignados.set(g ?? []));
+  }
+
+  // ── Roles: agregar / quitar / principal / temporizador ────────────────
+
+  agregarRol(rolId: string | null): void {
+    if (!rolId) return;
+    const rol = this.roles().find(r => r.id === rolId);
+    if (!rol || this.rolesAsignados().some(a => a.id === rolId)) return;
+    this.rolesAsignados.update(lista => [...lista, {
+      id: rol.id, nombre: rol.nombre,
+      es_principal: lista.length === 0,
+      vigente_hasta: null,
+    }]);
+  }
+
+  quitarRol(rolId: string): void {
+    this.rolesAsignados.update(lista => {
+      const nueva = lista.filter(r => r.id !== rolId);
+      if (nueva.length && !nueva.some(r => r.es_principal)) nueva[0] = { ...nueva[0], es_principal: true };
+      return nueva;
+    });
+    if (this.vigenciaEnEdicion() === rolId) this.vigenciaEnEdicion.set(null);
+  }
+
+  marcarRolPrincipal(rolId: string): void {
+    this.rolesAsignados.update(lista =>
+      lista.map(r => ({ ...r, es_principal: r.id === rolId })));
+  }
+
+  /** Guarda a qué rol pertenece el menú de temporizador que se abre. */
+  abrirMenuVigencia(rolId: string): void {
+    this.menuVigenciaRolId = rolId;
+  }
+
+  /** Preset del menú: días desde ahora, o null = indefinido. */
+  setVigenciaPreset(dias: number | null): void {
+    const rolId = this.menuVigenciaRolId;
+    if (!rolId) return;
+    this.vigenciaEnEdicion.set(null);
+    const hasta = dias === null
+      ? null
+      : new Date(Date.now() + dias * 24 * 60 * 60 * 1000).toISOString();
+    this.rolesAsignados.update(lista =>
+      lista.map(r => (r.id === rolId ? { ...r, vigente_hasta: hasta } : r)));
+  }
+
+  /** Abre el input de fecha/hora personalizada bajo la fila del rol. */
+  abrirVigenciaPersonalizada(): void {
+    this.vigenciaEnEdicion.set(this.menuVigenciaRolId);
+  }
+
+  setVigenciaFecha(rolId: string, event: Event): void {
+    const valor = (event.target as HTMLInputElement).value; // "yyyy-MM-ddTHH:mm" local
+    const hasta = valor ? new Date(valor).toISOString() : null;
+    this.rolesAsignados.update(lista =>
+      lista.map(r => (r.id === rolId ? { ...r, vigente_hasta: hasta } : r)));
+  }
+
+  /** Valor local "yyyy-MM-ddTHH:mm" para el input datetime-local. */
+  vigenciaLocalDe(r: RolSeleccionado): string {
+    if (!r.vigente_hasta) return '';
+    const d = new Date(r.vigente_hasta);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  esVencido(r: RolSeleccionado): boolean {
+    return !!r.vigente_hasta && new Date(r.vigente_hasta).getTime() <= Date.now();
+  }
+
+  vigenciaLabel(r: RolSeleccionado): string {
+    if (!r.vigente_hasta) return 'Sin límite';
+    const d = new Date(r.vigente_hasta);
+    if (isNaN(d.getTime())) return 'Sin límite';
+    const fecha = d.toLocaleDateString('es-CO', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+    if (this.esVencido(r)) return `Venció el ${fecha}`;
+    const dias = Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+    return `Hasta ${fecha} (${dias} día${dias === 1 ? '' : 's'})`;
+  }
+
+  private asegurarUnPrincipalRol(): void {
+    this.rolesAsignados.update(lista => {
+      if (!lista.length) return lista;
+      let visto = false;
+      const nueva = lista.map(r => {
+        const es = r.es_principal && !visto;
+        if (es) visto = true;
+        return { ...r, es_principal: es };
+      });
+      if (!visto) nueva[0] = { ...nueva[0], es_principal: true };
+      return nueva;
+    });
+  }
+
+  // ── Sedes: agregar / quitar / principal ───────────────────────────────
+
+  agregarSede(sedeId: string | null): void {
+    if (!sedeId) return;
+    const sede = this.sedes().find(s => s.id === sedeId);
+    if (!sede || this.sedesAsignadas().some(a => a.id === sedeId)) return;
+    this.sedesAsignadas.update(lista => [...lista, {
+      id: sede.id, nombre: sede.nombre, es_principal: lista.length === 0,
+    }]);
+  }
+
+  quitarSede(sedeId: string): void {
+    this.sedesAsignadas.update(lista => {
+      const nueva = lista.filter(s => s.id !== sedeId);
+      if (nueva.length && !nueva.some(s => s.es_principal)) nueva[0] = { ...nueva[0], es_principal: true };
+      return nueva;
+    });
+  }
+
+  marcarSedePrincipal(sedeId: string): void {
+    this.sedesAsignadas.update(lista =>
+      lista.map(s => ({ ...s, es_principal: s.id === sedeId })));
+  }
+
+  private asegurarUnPrincipalSede(): void {
+    this.sedesAsignadas.update(lista => {
+      if (!lista.length) return lista;
+      let visto = false;
+      const nueva = lista.map(s => {
+        const es = s.es_principal && !visto;
+        if (es) visto = true;
+        return { ...s, es_principal: es };
+      });
+      if (!visto) nueva[0] = { ...nueva[0], es_principal: true };
+      return nueva;
+    });
   }
 
   /** Trae la foto ya guardada. Si falla se sigue con las iniciales: no bloquea la edición. */
@@ -276,6 +514,13 @@ export class UserUpsertDialogComponent implements OnInit {
       }
     }
 
+    // Al menos un rol (el requerido que antes vivía en el select rol_id).
+    if (!this.rolesAsignados().length) {
+      this.rolesTocados.set(true);
+      this.form.markAllAsTouched();
+      return;
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -286,15 +531,26 @@ export class UserUpsertDialogComponent implements OnInit {
     const raw = this.form.getRawValue();
     const trim = (v: any) => (typeof v === 'string' ? v.trim() : v);
 
+    // Asignaciones múltiples (V40): la lista completa manda; el backend deriva
+    // el principal (columna legacy) del es_principal.
+    const rolesPayload = this.rolesAsignados().map(r => ({
+      rol_id: r.id,
+      es_principal: r.es_principal,
+      vigente_hasta: r.vigente_hasta,
+    }));
+    const sedesPayload = this.sedesAsignadas().map(s => ({
+      sede_id: s.id,
+      es_principal: s.es_principal,
+    }));
+
     const payload: ActualizarUsuarioPayload = {
       numero_de_documento: trim(raw.numero_de_documento) || undefined,
       tipo_documento: trim(raw.tipo_documento) || undefined,
       correo_electronico: trim(raw.correo_electronico) || undefined,
       estado_solicitudes: raw.estado_solicitudes ?? true,
-      // Puedes mandar empresa/sede/rol o *_id; el backend acepta ambos
       empresa: raw.empresa_id ?? null,
-      sede: raw.sede_id ?? null,
-      rol: raw.rol_id ?? null,
+      roles: rolesPayload,
+      sedes: sedesPayload,
       nombres: trim(raw.nombres) ?? '',
       apellidos: trim(raw.apellidos) ?? '',
       celular: trim(raw.celular) ?? null,
@@ -315,8 +571,8 @@ export class UserUpsertDialogComponent implements OnInit {
             password: (payload as any).password!, // garantizado en create
             estado_solicitudes: payload.estado_solicitudes,
             empresa: payload.empresa ?? null,
-            sede: payload.sede ?? null,
-            rol: payload.rol ?? null,
+            roles: rolesPayload,
+            sedes: sedesPayload,
             nombres: payload.nombres,
             apellidos: payload.apellidos,
             celular: payload.celular ?? null,
@@ -345,7 +601,27 @@ export class UserUpsertDialogComponent implements OnInit {
             )
           );
 
-    req$.subscribe({
+    // Los grupos van en su PROPIO endpoint y DESPUÉS del alta (al crear todavía no hay
+    // id). Como no son permisos, un fallo aquí no invalida el guardado: se avisa y el
+    // usuario queda creado/actualizado igual.
+    const conGrupos$ = req$.pipe(
+      switchMap((detail: UsuarioDetail) =>
+        this.gruposSvc.asignarAUsuario(detail.id, this.gruposAsignados().map(g => g.id)).pipe(
+          map(() => detail),
+          catchError(() => {
+            Swal.fire({
+              title: 'Datos guardados, grupos no',
+              text: 'Los cambios del usuario se guardaron, pero los grupos y etiquetas no se pudieron asignar.',
+              icon: 'warning',
+              customClass: { container: 'swal-over-dialog' },
+            });
+            return of(detail);
+          })
+        )
+      )
+    );
+
+    conGrupos$.subscribe({
       next: (detail: UsuarioDetail) => {
         this.saving.set(false);
         this.dialogRef.close({ ok: true, data: detail });

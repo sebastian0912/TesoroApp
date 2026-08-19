@@ -73,10 +73,12 @@
 }
 
 /* ========== Tabs (MDC) ========== */
+/* Rediseño 2026-08: sub-tabs claras con indicador lima (antes franja oscura). */
 :host ::ng-deep .help-tabs .mat-mdc-tab-header {
-  background: linear-gradient(135deg, var(--slate-900) 0%, #1e293b 60%, var(--slate-700) 100%) !important;
+  background: #ffffff !important;
   border-radius: 12px 12px 0 0;
-  border: none;
+  border: 1px solid #e8edf3;
+  border-bottom: none;
   padding: 0 8px;
   margin-bottom: 12px;
 }
@@ -93,17 +95,17 @@
 :host ::ng-deep .help-tabs .mat-mdc-tab .mat-icon {
   font-weight: 600;
   letter-spacing: .2px;
-  color: #cbd5e1 !important;
+  color: #64748b !important;
   transition: color 0.3s ease !important;
 }
 
 :host ::ng-deep .help-tabs .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label,
 :host ::ng-deep .help-tabs .mat-mdc-tab.mdc-tab--active .mat-icon {
-  color: #ffffff !important;
+  color: #0f172a !important;
 }
 
 :host ::ng-deep .help-tabs .mat-mdc-tab.mdc-tab--active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(140, 213, 10, 0.10);
   border-radius: 12px 12px 0 0;
 }
 

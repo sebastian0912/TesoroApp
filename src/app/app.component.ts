@@ -1,6 +1,7 @@
 import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, signal, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { TableCardService } from './core/services/table-card.service';
+import { LoadingProgressComponent } from './core/components/loading-progress/loading-progress.component';
 
 
 declare global {
@@ -80,7 +81,7 @@ type UpdaterState = 'idle' | 'checking' | 'available' | 'downloading' | 'ready';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, LoadingProgressComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })

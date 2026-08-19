@@ -4,7 +4,8 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  DynamicField, FieldOption, FieldSchema, FieldType, FieldTypeInfo, FieldValidation, RatingConfig,
+  DynamicField, FieldOption, FieldRoutingRule, FieldSchema, FieldType, FieldTypeInfo,
+  FieldValidation, RatingConfig,
 } from '../../models/dynamic-forms.models';
 import { OptionSource } from '../../models/option-source.models';
 import { OptionSourceService } from '../../services/option-source.service';
@@ -322,6 +323,34 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
               </button>
             </div>
           }
+          <!-- Ruta de respuestas: a dónde lleva cada opción -->
+          @if (permiteRuta) {
+            <div class="fc-ruta">
+              <span class="fc-sub">
+                <span class="material-symbols-outlined" aria-hidden="true">alt_route</span>
+                Según la respuesta, ir a
+              </span>
+              <p class="fc-hint">
+                Deja «Seguir el recorrido» y el formulario sigue como siempre. Solo se puede
+                avanzar o terminar: así nunca queda un formulario imposible de enviar.
+              </p>
+              @for (opt of opciones; track opt.value) {
+                <div class="fc-ruta__fila">
+                  <span class="fc-ruta__opcion" [title]="opt.label">{{ opt.label }}</span>
+                  <span class="material-symbols-outlined fc-ruta__flecha" aria-hidden="true">east</span>
+                  <select [value]="destinoDeOpcion(opt.value)"
+                          (change)="cambiarDestinoDeOpcion(opt.value, $any($event.target).value)"
+                          [attr.aria-label]="'Destino cuando responden ' + opt.label">
+                    <option value="">Seguir el recorrido</option>
+                    @for (d of destinos; track d.code) {
+                      <option [value]="d.code">{{ d.nombre }}</option>
+                    }
+                  </select>
+                </div>
+              }
+            </div>
+          }
+
           @if (esChoice && field.type === 'MULTIPLE_CHOICE') {
               <div class="fc-fila fc-fila--doble">
                 <div>
@@ -340,11 +369,14 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
           }
 
           <!-- Media: archivos permitidos -->
+          @if (esEscaneo) {
+            <p class="fc-hint">{{ ayudaEscaneo }}</p>
+          }
           @if (esMedia) {
             <div class="fc-fila fc-fila--doble">
               @if (field.type !== 'SIGNATURE') {
                 <div>
-                  <label [attr.for]="uid + '-maxf'">Máx. archivos</label>
+                  <label [attr.for]="uid + '-maxf'">{{ etiquetaMaxArchivos }}</label>
                   <input type="number" min="1" [id]="uid + '-maxf'"
                          [ngModel]="val.max_files ?? null"
                          (ngModelChange)="cambiarValidacionNum('max_files', $event)" />
@@ -558,6 +590,21 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
     }
     .fc-req-mark { color: #c0392b; }
     .fc-opciones { display: flex; flex-direction: column; gap: 6px; }
+    .fc-ruta { display: flex; flex-direction: column; gap: 6px; }
+    .fc-ruta .fc-sub { display: flex; align-items: center; gap: 6px; }
+    .fc-ruta .fc-sub .material-symbols-outlined { font-size: 18px; }
+    .fc-ruta__fila { display: flex; align-items: center; gap: 8px; }
+    .fc-ruta__opcion {
+      flex: 0 1 40%;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.85rem;
+      color: var(--navy, #21263c);
+    }
+    .fc-ruta__flecha { font-size: 16px; color: var(--slate-500, #64748b); flex-shrink: 0; }
+    .fc-ruta__fila select { flex: 1 1 auto; min-width: 0; }
     .fc-origen { display: flex; flex-direction: column; gap: 6px; }
     .fc-hint { margin: 0; font-size: 0.78rem; color: var(--slate-500, #64748b); }
     .fc-opcion {
@@ -675,6 +722,12 @@ export class FieldConfigCardComponent {
   @Input() canDown = false;
   /** Campos de la sección que pueden ser el padre de una cascada de opciones. */
   @Input() siblings: Array<{ name: string; label: string }> = [];
+  /**
+   * Destinos a los que puede saltar una respuesta: las secciones POSTERIORES a la de
+   * este campo, más "terminar el formulario". Los calcula la página (solo ella conoce
+   * el orden de las secciones).
+   */
+  @Input() destinos: Array<{ code: string; nombre: string }> = [];
 
   /** Emite el campo COMPLETO reconstruido (inmutable) en cada edición. */
   @Output() fieldChange = new EventEmitter<DynamicField>();
@@ -735,7 +788,12 @@ export class FieldConfigCardComponent {
   }
   get esMedia(): boolean {
     return this.field.type === 'PHOTO' || this.field.type === 'VIDEO'
-      || this.field.type === 'FILE' || this.field.type === 'SIGNATURE';
+      || this.field.type === 'FILE' || this.field.type === 'SIGNATURE'
+      || this.esEscaneo;
+  }
+  /** SCAN_DOC / SCAN_ID: media capturada con el escáner (PDF por documento). */
+  get esEscaneo(): boolean {
+    return this.field.type === 'SCAN_DOC' || this.field.type === 'SCAN_ID';
   }
   get muestraPlaceholder(): boolean { return this.esTexto || this.esNumero || this.field.type === 'DROPDOWN'; }
   get muestraDescripcion(): boolean { return this.field.type !== 'COMMENT' && this.field.type !== 'SECTION'; }
@@ -746,6 +804,21 @@ export class FieldConfigCardComponent {
   }
 
   // ── Accesos seguros ─────────────────────────────────────────────────
+
+  /** En escaneo lo que se cuenta son DOCUMENTOS (cada uno un PDF), no archivos sueltos. */
+  get etiquetaMaxArchivos(): string {
+    if (this.field.type === 'SCAN_ID') return 'Máx. cédulas';
+    if (this.field.type === 'SCAN_DOC') return 'Máx. documentos';
+    return 'Máx. archivos';
+  }
+
+  get ayudaEscaneo(): string {
+    return this.field.type === 'SCAN_ID'
+      ? 'Al llenar se abre el escáner guiado: frente y reverso quedan en UN solo PDF. '
+        + 'Sube el máximo a 2 o más si necesitas varias cédulas (titular, cónyuge…).'
+      : 'Al llenar se abre el escáner: cada documento puede tener varias páginas y se '
+        + 'guarda como un PDF. Sube el máximo si quieres permitir varios documentos.';
+  }
 
   get val(): FieldValidation { return this.field.schema.validation ?? {}; }
   get opciones(): FieldOption[] { return this.field.schema.options ?? []; }
@@ -770,6 +843,40 @@ export class FieldConfigCardComponent {
 
   cambiar(p: Partial<DynamicField>): void {
     this.fieldChange.emit({ ...this.field, ...p });
+  }
+
+  // ── Ruta de respuestas ──────────────────────────────────────────────
+
+  /**
+   * La ruta se configura solo donde el servidor la acepta: selección ÚNICA con opciones
+   * escritas a mano (con origen dinámico las opciones no se conocen al publicar) y
+   * habiendo a dónde ir.
+   */
+  get permiteRuta(): boolean {
+    return (this.field.type === 'SINGLE_CHOICE' || this.field.type === 'DROPDOWN')
+      && !this.origenActual
+      && this.opciones.length > 0
+      && this.destinos.length > 0;
+  }
+
+  private get reglas(): FieldRoutingRule[] {
+    return this.field.schema.routing?.rules ?? [];
+  }
+
+  /** Destino configurado para una opción ('' = seguir el recorrido normal). */
+  destinoDeOpcion(value: string): string {
+    return this.reglas.find(r => r.option === value)?.go_to ?? '';
+  }
+
+  cambiarDestinoDeOpcion(value: string, destino: string): void {
+    const limpias = this.reglas.filter(r => r.option !== value);
+    const rules = destino.trim()
+      ? [...limpias, { option: value, go_to: destino.trim() }]
+      : limpias;
+    const schema: FieldSchema = { ...this.field.schema };
+    if (rules.length === 0) delete schema.routing;
+    else schema.routing = { rules };
+    this.cambiar({ schema });
   }
 
   /** Código del origen configurado en el campo ('' = opciones escritas a mano). */

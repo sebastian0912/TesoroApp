@@ -1,14 +1,39 @@
-import { Routes } from '@angular/router';
+import { Routes, UrlMatchResult, UrlSegment } from '@angular/router';
 
 /**
  * Formularios Dinámicos (Administración → Formularios dinamicos).
  * Ruta base real: /dashboard/gestion-del-programa/formularios-dinamicos
- * (coincide con el módulo sembrado en db_admin y con las rutas que el
- * aprovisionador registra por formulario: llenar/{id} y {id}/respuestas).
  *
- * OJO con el orden: 'builder' y 'llenar/:formId' van ANTES de los patrones
+ * Al seleccionar un formulario se abre UNA pantalla con las cinco vistas en pestañas
+ * (formulario · respuestas · control del proceso · soportes · analítica), igual que cuando
+ * se entra por el menú. Antes cada vista era una ruta suelta y para pasar de las respuestas
+ * a la analítica había que volver al listado.
+ *
+ * OJO con el orden: 'builder', 'origenes' y 'llenar/:formId' van ANTES de los patrones
  * ':formId/...' porque el router resuelve en orden de declaración.
  */
+
+/** Sufijos de URL que son una vista del formulario (deben coincidir con el host). */
+const SUFIJOS_DE_VISTA = new Set(['formulario', 'respuestas', 'proceso', 'soportes', 'analitica']);
+
+/**
+ * Empareja `{id}` y `{id}/{vista}` con el host de pestañas, en UNA sola entrada de rutas.
+ *
+ * Se usa un matcher en vez de cinco rutas hermanas para que el host NO se destruya al
+ * saltar de pestaña: con rutas distintas Angular recrea el componente y la barra parpadea
+ * en cada clic. Con una sola, el host se reutiliza y solo cambia la vista montada.
+ *
+ * Devuelve null (y la ruta se descarta, pasando a la siguiente) para todo lo que no sea un
+ * id numérico con un sufijo conocido — así `:formId/editar` sigue llegando al constructor
+ * y `:formId/respuestas/:submissionId` al detalle de una respuesta.
+ */
+export function formViewMatcher(segments: UrlSegment[]): UrlMatchResult | null {
+  if (segments.length === 0 || segments.length > 2) return null;
+  if (!/^\d+$/.test(segments[0].path)) return null;
+  if (segments.length === 2 && !SUFIJOS_DE_VISTA.has(segments[1].path)) return null;
+  return { consumed: segments, posParams: { formId: segments[0] } };
+}
+
 export const routes: Routes = [
   {
     path: '',
@@ -24,8 +49,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/form-builder/form-builder.component').then(m => m.FormBuilderComponent),
   },
   {
+    // Enlace antiguo: llenar/{id} era una pantalla propia; ahora es la primera pestaña.
     path: 'llenar/:formId',
-    loadComponent: () => import('./pages/form-runtime/form-runtime.component').then(m => m.FormRuntimeComponent),
+    redirectTo: ':formId',
+    pathMatch: 'full',
   },
   {
     // Edición de estructura = el MISMO builder en modo edición (crea versión nueva).
@@ -33,19 +60,13 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/form-builder/form-builder.component').then(m => m.FormBuilderComponent),
   },
   {
-    path: ':formId/respuestas',
-    loadComponent: () => import('./pages/form-responses/form-responses.component').then(m => m.FormResponsesComponent),
-  },
-  {
+    // Detalle de UNA respuesta: pantalla propia, no una pestaña (tiene su propia navegación).
     path: ':formId/respuestas/:submissionId',
     loadComponent: () => import('./pages/form-response-detail/form-response-detail.component').then(m => m.FormResponseDetailComponent),
   },
   {
-    path: ':formId/soportes',
-    loadComponent: () => import('./pages/form-supports/form-supports.component').then(m => m.FormSupportsComponent),
-  },
-  {
-    path: ':formId/analitica',
-    loadComponent: () => import('./pages/form-analytics/form-analytics.component').then(m => m.FormAnalyticsComponent),
+    // Las cinco vistas del formulario, en una pantalla con pestañas.
+    matcher: formViewMatcher,
+    loadComponent: () => import('./pages/form-view-host/form-view-host.component').then(m => m.FormViewHostComponent),
   },
 ];

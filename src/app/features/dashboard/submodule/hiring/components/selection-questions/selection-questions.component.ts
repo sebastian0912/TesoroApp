@@ -1,4 +1,4 @@
-import {  Component, effect, input, output , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
+import {  Component, effect, input, output , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, untracked } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -306,9 +306,18 @@ export class SelectionQuestionsComponent implements OnDestroy {
       // opcional: precargar documentos ya existentes
       const ctx = ++this._ctx;
       if (this.cedula) {
-        this.loadDataDocumentos(ctx)
-          .then(() => this.maybeScheduleDocPolling(ctx, 0))
-          .catch((err) => console.error('[selection] Error cargando documentos:', err));
+        // untracked: estas llamadas disparan HttpClient y sus interceptores
+        // leen señales ajenas (loading `_pasos`, offline `onlineStatus`) de
+        // forma síncrona al suscribirse. Sin untracked este effect quedaba
+        // suscrito a señales que cambian con cada respuesta HTTP y relanzaba
+        // las peticiones en bucle (tormenta de 429 del 2026-08-19). OJO: la
+        // lectura de claveRobot() (que consume consultaSeq) queda FUERA a
+        // propósito — re-consultar en el buscador debe re-disparar el effect.
+        untracked(() => {
+          this.loadDataDocumentos(ctx)
+            .then(() => this.maybeScheduleDocPolling(ctx, 0))
+            .catch((err) => console.error('[selection] Error cargando documentos:', err));
+        });
 
         // Prellenado con lo que ya consultó el robot. Va después del patch de
         // antecedentes guardados para que estos tengan prioridad. Solo cuando
@@ -319,7 +328,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
         // APLICAR la respuesta: sellar acá dejaba la consulta perdida para
         // siempre si una recarga la interrumpía a mitad de vuelo.
         if (this.claveRobot() !== this.cedulaRobotConsultada) {
-          this.prellenarDesdeRobot(ctx);
+          untracked(() => this.prellenarDesdeRobot(ctx));
         }
       }
     });

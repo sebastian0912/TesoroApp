@@ -338,9 +338,12 @@
       (selectedIndexChange)="tabIndex.set($event)">
       <mat-tab>
         <ng-template mat-tab-label>
-          <div class="tab">
-            <mat-icon>search</mat-icon>
-            Turnos
+          <div class="tab tab-step">
+            <span class="step-dot"><span class="step-num">1</span></span>
+            <span class="step-txt">
+              <span class="step-label">Turnos</span>
+              <span class="step-hint">Cola del día · búsqueda</span>
+            </span>
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
@@ -352,9 +355,12 @@
 
       <mat-tab [disabled]="bloqueoContratoTabs()">
         <ng-template mat-tab-label>
-          <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
-            <mat-icon>thumb_up</mat-icon>
-            ANTECEDENTES
+          <div class="tab tab-step" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
+            <span class="step-dot"><span class="step-num">2</span></span>
+            <span class="step-txt">
+              <span class="step-label">Antecedentes</span>
+              <span class="step-hint">10 tarjetas · robot</span>
+            </span>
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
@@ -369,9 +375,12 @@
 
       <mat-tab [disabled]="bloqueoContratoTabs()">
         <ng-template mat-tab-label>
-          <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
-            <mat-icon>rate_review</mat-icon>
-            Selección
+          <div class="tab tab-step" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
+            <span class="step-dot"><span class="step-num">3</span></span>
+            <span class="step-txt">
+              <span class="step-label">Selección</span>
+              <span class="step-hint">Entrevista · Remisión</span>
+            </span>
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
@@ -387,13 +396,18 @@
       <!-- ─────────── TAB 3 • EXAMEN DE SALUD OCUPACIONAL ─────────── -->
       <mat-tab [disabled]="bloqueoContratoTabs()">
         <ng-template mat-tab-label>
-          <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
-            @if (examenesYaCargados()) {
-              <mat-icon style="color:#2E7D32">check_circle</mat-icon>
-            } @else {
-              <mat-icon>medical_information</mat-icon>
-            }
-            Exámenes de ingreso
+          <div class="tab tab-step" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
+            <span class="step-dot" [class.step-done]="examenesYaCargados()">
+              @if (examenesYaCargados()) {
+                <mat-icon>check</mat-icon>
+              } @else {
+                <span class="step-num">4</span>
+              }
+            </span>
+            <span class="step-txt">
+              <span class="step-label">Exámenes de ingreso</span>
+              <span class="step-hint">Salud ocupacional</span>
+            </span>
           </div>
         </ng-template>
 
@@ -598,10 +612,12 @@
 
           <mat-tab [disabled]="bloqueoContratoTabs()">
             <ng-template mat-tab-label>
-              <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
-
-                <mat-icon>how_to_reg</mat-icon>
-                Contratación
+              <div class="tab tab-step" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
+                <span class="step-dot"><span class="step-num">5</span></span>
+                <span class="step-txt">
+                  <span class="step-label">Contratación</span>
+                  <span class="step-hint">5 sub-pestañas</span>
+                </span>
               </div>
             </ng-template>
 

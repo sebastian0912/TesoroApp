@@ -382,6 +382,99 @@
   color: #dc2626 !important;
 }
 
+/* ═══ PARAMETRIZACIÓN (catálogos de todos los módulos) ═══ */
+.param-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: #f5f9ff;
+  margin-bottom: 14px;
+}
+
+/* Sin catálogos = no se puede trabajar sin conexión: se avisa en ámbar. */
+.param-card.vacio {
+  border-color: #fed7aa;
+  background: #fffbf5;
+}
+
+.param-icon {
+  flex-shrink: 0;
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+  color: #2563eb;
+  margin-top: 2px;
+}
+
+.param-card.vacio .param-icon { color: #d97706; }
+
+.param-body { flex: 1; min-width: 0; }
+
+.param-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.param-name { font-weight: 700; color: #0f172a; font-size: 0.88rem; }
+.param-age  { font-size: 0.7rem; color: #94a3b8; }
+
+.param-sub {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.param-card.vacio .param-sub { color: #b45309; }
+
+.param-note {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.param-progress { margin-top: 8px; }
+
+.param-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: #dbeafe;
+  overflow: hidden;
+}
+
+.param-bar-fill {
+  display: block;
+  height: 100%;
+  background: #2563eb;
+  transition: width 0.2s ease;
+}
+
+.param-progress-text {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.param-btn {
+  flex-shrink: 0;
+  font-size: 0.76rem !important;
+  height: 34px !important;
+  line-height: 32px !important;
+}
+
+@media (max-width: 600px) {
+  .param-card { flex-wrap: wrap; }
+  .param-btn { width: 100%; }
+}
+
 /* ═══ ACCIONES DEL DIÁLOGO ═══ */
 .dialog-actions {
   padding: 12px 24px;

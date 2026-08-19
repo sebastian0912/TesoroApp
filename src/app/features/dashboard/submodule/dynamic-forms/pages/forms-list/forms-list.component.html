@@ -23,6 +23,11 @@
         <mat-icon>table_chart</mat-icon>
         <span>Orígenes de opciones</span>
       </button>
+      <button mat-stroked-button class="btn-origenes" (click)="importarAbierto.set(true)"
+              matTooltip="Descargar la plantilla parametrizada o cargar formularios desde un Excel">
+        <mat-icon>upload_file</mat-icon>
+        <span>Desde Excel</span>
+      </button>
       <button mat-flat-button class="btn-managerial"
               [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos/builder']">
         <mat-icon>add</mat-icon>
@@ -33,23 +38,9 @@
 
   <mat-card-content class="card-content">
 
-    <!-- Búsqueda (con debounce) + filtro de estado -->
+    <!-- Filtros propios del listado. La BÚSQUEDA la aporta la tabla estándar
+         (modo servidor): tenerla aquí también sería dos cajas para lo mismo. -->
     <div class="filters-row">
-      <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
-        <mat-label>Buscar</mat-label>
-        <input matInput #buscador type="text" autocomplete="off"
-               placeholder="Nombre, código o descripción"
-               (input)="onSearchInput(buscador.value)"
-               aria-label="Buscar formularios">
-        <mat-icon matPrefix class="prefix-icon">search</mat-icon>
-        @if (buscador.value) {
-          <button mat-icon-button matSuffix aria-label="Limpiar búsqueda" matTooltip="Limpiar"
-                  (click)="buscador.value = ''; onSearchInput('')">
-            <mat-icon>close</mat-icon>
-          </button>
-        }
-      </mat-form-field>
-
       <mat-button-toggle-group class="filtro-estado" [value]="filtro()" (change)="setFiltro($event)"
                                aria-label="Filtrar formularios por estado">
         <mat-button-toggle value="todos">Todos</mat-button-toggle>
@@ -70,11 +61,7 @@
       <span class="total-label" aria-live="polite">{{ total() }} formulario(s)</span>
     </div>
 
-    @if (loading()) {
-      <mat-progress-bar mode="indeterminate" aria-label="Cargando formularios"></mat-progress-bar>
-    }
-
-    @if (loadError()) {
+    @if (loadError() && filas().length === 0) {
       <!-- Falló la carga: estado con reintento -->
       <div class="estado-vacio" role="alert">
         <span class="material-symbols-outlined vacio-icon">cloud_off</span>
@@ -84,7 +71,7 @@
           Reintentar
         </button>
       </div>
-    } @else if (!loading() && rows().length === 0) {
+    } @else if (!loading() && filas().length === 0) {
       <!-- Sin resultados -->
       <div class="estado-vacio">
         <span class="material-symbols-outlined vacio-icon">quiz</span>
@@ -95,159 +82,213 @@
           Crear el primero
         </button>
       </div>
-    } @else if (rows().length > 0) {
-      <div class="table-scroll">
-        <table class="tabla-forms" aria-label="Listado de formularios dinámicos">
-          <thead>
-            <tr>
-              <th scope="col">Formulario</th>
-              <th scope="col">Categoría</th>
-              <th scope="col" class="col-centrada">Versión</th>
-              <th scope="col" class="col-centrada">Respuestas</th>
-              <th scope="col" class="col-centrada">Público</th>
-              <th scope="col" class="col-centrada">Estado</th>
-              <th scope="col" class="col-centrada">Ubicación</th>
-              <th scope="col" class="col-centrada">Actualizado</th>
-              <th scope="col" class="col-acciones">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (f of filasVisibles(); track f.id) {
-              <tr [class.fila-inactiva]="!f.active" [class.fila-ocupada]="busyId() === f.id">
-                <td>
-                  <div class="celda-nombre">
-                    <span class="nombre">{{ f.name }}</span>
-                    <span class="codigo">{{ f.code }}</span>
-                  </div>
-                  <!-- El estado del módulo de menú ahora vive en la columna "Ubicación"
-                       (placement_status); el badge heurístico anterior se retiró. -->
-                </td>
-                <td class="celda-categoria">{{ f.category || '—' }}</td>
-                <td class="col-centrada">
-                  @if (f.current_version != null) {
-                    <span class="chip chip-version">v{{ f.current_version }}</span>
-                  } @else {
-                    <span class="sin-dato">Sin publicar</span>
-                  }
-                </td>
-                <td class="col-centrada">{{ f.submissions_count | number }}</td>
-                <td class="col-centrada">
-                  <span class="chip" [class.chip-si]="f.is_public" [class.chip-neutro]="!f.is_public">
-                    {{ f.is_public ? 'Sí' : 'No' }}
-                  </span>
-                </td>
-                <td class="col-centrada">
-                  <span class="chip" [class.chip-activo]="f.active" [class.chip-inactivo]="!f.active">
-                    {{ f.active ? 'Activo' : 'Inactivo' }}
-                  </span>
-                </td>
-                <td class="col-centrada">
-                  @if (estadoUbic(f) === 'LINKED') {
-                    <span style="color: var(--slate-500); font-size: 0.8rem; font-family: 'Roboto Mono', monospace;"
-                          [matTooltip]="f.route_path || f.menu_label || ''">
-                      {{ f.route_path || f.menu_label || '—' }}
-                    </span>
-                  } @else if (estadoUbic(f) === 'PENDING') {
-                    <span class="chip chip-neutro">Pendiente</span>
-                  } @else if (estadoUbic(f) === 'UNLINKED') {
-                    <span class="chip chip-inactivo">Desvinculado</span>
-                  } @else {
-                    <span class="chip" style="background:#fdecea; color: var(--danger); border:1px solid #f5c6c0;"
-                          [matTooltip]="f.placement_error || 'La ubicación quedó en error'">
-                      Error
-                    </span>
-                  }
-                </td>
-                <td class="col-centrada celda-fecha">{{ (f.updated_at || f.created_at) | date:'dd/MM/yyyy' }}</td>
-                <td class="col-acciones">
-                  <div class="acciones-fila">
-                    <button mat-icon-button matTooltip="Llenar" aria-label="Llenar formulario"
-                            [routerLink]="[base, 'llenar', f.id]" [disabled]="!f.active">
-                      <mat-icon>edit_note</mat-icon>
-                    </button>
-                    <button mat-icon-button matTooltip="Respuestas" aria-label="Ver respuestas"
-                            [routerLink]="[base, f.id, 'respuestas']">
-                      <mat-icon>list_alt</mat-icon>
-                    </button>
-                    <button mat-icon-button matTooltip="Soportes" aria-label="Ver soportes"
-                            [routerLink]="[base, f.id, 'soportes']">
-                      <mat-icon>attach_file</mat-icon>
-                    </button>
-                    <button mat-icon-button matTooltip="Analítica" aria-label="Ver analítica"
-                            [routerLink]="[base, f.id, 'analitica']">
-                      <mat-icon>monitoring</mat-icon>
-                    </button>
-                    <button mat-icon-button matTooltip="Más acciones" aria-label="Más acciones"
-                            [matMenuTriggerFor]="menuFila" [disabled]="busyId() === f.id">
-                      <mat-icon>more_vert</mat-icon>
-                    </button>
-                    <mat-menu #menuFila="matMenu">
-                      <button mat-menu-item [routerLink]="[base, f.id, 'editar']">
-                        <mat-icon>design_services</mat-icon>
-                        <span>Editar estructura</span>
-                      </button>
+    } @else {
+      <!-- Tabla estándar de la plataforma. serverSide: `data` ya es la página que
+           devolvió ms-forms; el buscador y el paginador avisan para pedir la siguiente. -->
+      <app-standard-filter-table
+        [data]="filas()"
+        [columnDefinitions]="columnas"
+        [pageSizeOptions]="[10, 25, 50]"
+        [defaultPageSize]="size()"
+        [tableTitle]="'Formularios dinámicos'"
+        [isLoading]="loading()"
+        [serverSide]="true"
+        [totalCount]="total()"
+        storageKey="dynamic-forms-list"
+        [enableRowClick]="true"
+        (rowClicked)="abrir($event)"
+        (pageChange)="onPageChange($event)"
+        (searchChange)="onServerSearch($event)">
 
-                      <!-- Ubicación en el menú -->
-                      @if (estadoUbic(f) === 'PENDING' || estadoUbic(f) === 'UNLINKED') {
-                        <button mat-menu-item (click)="publicar(f)">
-                          <mat-icon>playlist_add</mat-icon>
-                          <span>Publicar en el menú</span>
-                        </button>
-                      }
-                      @if (estadoUbic(f) === 'LINKED') {
-                        <button mat-menu-item (click)="moverRenombrar(f)">
-                          <mat-icon>drive_file_move</mat-icon>
-                          <span>Mover / renombrar</span>
-                        </button>
-                        <button mat-menu-item (click)="desvincular(f)">
-                          <mat-icon>link_off</mat-icon>
-                          <span>Desvincular del menú</span>
-                        </button>
-                      }
-                      @if (estadoUbic(f) === 'FAILED') {
-                        <button mat-menu-item (click)="reintentarUbicacion(f)">
-                          <mat-icon>autorenew</mat-icon>
-                          <span>Reintentar ubicación</span>
-                        </button>
-                      }
+        <!-- Formulario: nombre visible + código técnico (el que usan las integraciones) -->
+        <ng-template appCellTemplate="formulario" let-row>
+          <div class="celda-nombre" [class.inactivo]="!row._f.active">
+            <span class="nombre">{{ row._f.name }}</span>
+            <span class="codigo">{{ row._f.code }}</span>
+          </div>
+        </ng-template>
 
-                      <button mat-menu-item (click)="abrirLinksPublicos(f)">
-                        <mat-icon>link</mat-icon>
-                        <span>Links públicos</span>
-                      </button>
-                      <button mat-menu-item (click)="duplicar(f)">
-                        <mat-icon>content_copy</mat-icon>
-                        <span>Duplicar</span>
-                      </button>
-                      <button mat-menu-item (click)="toggleActivo(f)">
-                        <mat-icon>{{ f.active ? 'toggle_off' : 'toggle_on' }}</mat-icon>
-                        <span>{{ f.active ? 'Desactivar' : 'Activar' }}</span>
-                      </button>
-                      @if (esAdmin) {
-                        <button mat-menu-item class="menu-peligro" (click)="eliminarDefinitivo(f)">
-                          <mat-icon class="icono-peligro">delete_forever</mat-icon>
-                          <span>Eliminar definitivo</span>
-                        </button>
-                      }
-                    </mat-menu>
-                  </div>
-                </td>
-              </tr>
-            } @empty {
-              <tr>
-                <td colspan="9" class="col-centrada" style="padding: 28px 12px; color: var(--muted);">
-                  Ningún formulario de esta página coincide con el filtro de ubicación.
-                </td>
-              </tr>
+        <!-- Resumen IA: qué es el formulario y qué dicen sus respuestas.
+             Se muestra SIEMPRE el último generado; solo cambia cuando alguien
+             pide uno nuevo (regenerar cuesta una llamada al modelo). -->
+        <ng-template appCellTemplate="resumen_ia" let-row>
+          <div class="celda-resumen" [class.generando]="resumenBusyId() === row._f.id">
+            @if (row._f.ai_summary) {
+              <button type="button" class="resumen-texto" (click)="verResumen(row._f)"
+                      [matTooltip]="'Ver el resumen completo'"
+                      [attr.aria-label]="'Ver el resumen de ' + row._f.name">
+                <span class="resumen-formulario">{{ row._f.ai_summary }}</span>
+                @if (row._f.ai_responses_summary) {
+                  <span class="resumen-respuestas">
+                    <mat-icon class="icono-respuestas" aria-hidden="true">insights</mat-icon>
+                    {{ row._f.ai_responses_summary }}
+                  </span>
+                }
+              </button>
+              <div class="resumen-pie">
+                <span class="resumen-fecha">{{ row._f.ai_summary_at | date:'dd/MM/yyyy' }}</span>
+                @if (resumenDesactualizado(row._f)) {
+                  <span class="chip chip-stale"
+                        [matTooltip]="'Hay respuestas nuevas desde que se generó (' + (row._f.ai_summary_submissions ?? 0) + ' de ' + row._f.submissions_count + ')'">
+                    Desactualizado
+                  </span>
+                }
+                <button mat-icon-button class="btn-resumen" (click)="generarResumen(row._f)"
+                        [disabled]="resumenBusyId() !== null"
+                        matTooltip="Generar un resumen nuevo con IA"
+                        [attr.aria-label]="'Regenerar el resumen de ' + row._f.name">
+                  <mat-icon>autorenew</mat-icon>
+                </button>
+              </div>
+            } @else {
+              <button mat-stroked-button class="btn-generar" (click)="generarResumen(row._f)"
+                      [disabled]="resumenBusyId() !== null"
+                      matTooltip="Explica de qué trata el formulario y qué dicen sus respuestas">
+                <mat-icon>auto_awesome</mat-icon>
+                <span>Generar resumen</span>
+              </button>
             }
-          </tbody>
-        </table>
-      </div>
+            @if (resumenBusyId() === row._f.id) {
+              <div class="resumen-cargando" role="status">
+                <mat-spinner diameter="16"></mat-spinner>
+                <span>Generando…</span>
+              </div>
+            }
+          </div>
+        </ng-template>
 
-      <mat-paginator [length]="total()" [pageIndex]="page()" [pageSize]="size()"
-                     [pageSizeOptions]="[10, 25, 50]" (page)="onPage($event)"
-                     showFirstLastButtons aria-label="Paginación de formularios">
-      </mat-paginator>
+        <!-- Versión publicada vigente -->
+        <ng-template appCellTemplate="version" let-row>
+          @if (row._f.current_version != null) {
+            <span class="chip chip-version">v{{ row._f.current_version }}</span>
+          } @else {
+            <span class="sin-dato">Sin publicar</span>
+          }
+        </ng-template>
+
+        <!-- Ubicación en el menú (placement_status) -->
+        <ng-template appCellTemplate="ubicacion" let-row>
+          @if (estadoUbic(row._f) === 'LINKED') {
+            <span class="celda-ruta" [matTooltip]="row._f.route_path || row._f.menu_label || ''">
+              {{ row._f.route_path || row._f.menu_label || '—' }}
+            </span>
+          } @else if (estadoUbic(row._f) === 'PENDING') {
+            <span class="chip chip-neutro">Pendiente</span>
+          } @else if (estadoUbic(row._f) === 'UNLINKED') {
+            <span class="chip chip-inactivo">Desvinculado</span>
+          } @else {
+            <span class="chip chip-error"
+                  [matTooltip]="row._f.placement_error || 'La ubicación quedó en error'">
+              Error
+            </span>
+          }
+        </ng-template>
+
+        <!-- Acciones por fila.
+             Abrir el formulario ya no es una acción: se hace pulsando la fila, que lleva a
+             la pantalla con las cinco vistas en pestañas. Aquí quedan solo los tres atajos
+             que se usan sin querer navegar. El resto vive en el menú de más acciones. -->
+        <ng-template #actionsTemplate let-row>
+          <div class="acciones-fila">
+            <button mat-icon-button matTooltip="Ver respuestas" aria-label="Ver respuestas"
+                    (click)="$event.stopPropagation()"
+                    [routerLink]="[base, row._f.id, 'respuestas']">
+              <mat-icon>list_alt</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Editar estructura" aria-label="Editar estructura"
+                    (click)="$event.stopPropagation()"
+                    [routerLink]="[base, row._f.id, 'editar']">
+              <mat-icon>design_services</mat-icon>
+            </button>
+            <button mat-icon-button (click)="$event.stopPropagation(); generarResumen(row._f)"
+                    [disabled]="resumenBusyId() !== null"
+                    [matTooltip]="row._f.ai_summary ? 'Regenerar resumen IA' : 'Generar resumen IA'"
+                    [attr.aria-label]="'Generar el resumen IA de ' + row._f.name">
+              <mat-icon>auto_awesome</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Más acciones" aria-label="Más acciones"
+                    (click)="$event.stopPropagation()"
+                    [matMenuTriggerFor]="menuFila" [disabled]="busyId() === row._f.id">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #menuFila="matMenu">
+              <button mat-menu-item (click)="abrirVista(row._f.id, '')">
+                <mat-icon>open_in_full</mat-icon>
+                <span>Abrir formulario</span>
+              </button>
+              <button mat-menu-item (click)="abrirVista(row._f.id, '/proceso')">
+                <mat-icon>fact_check</mat-icon>
+                <span>Control del proceso</span>
+              </button>
+              <button mat-menu-item (click)="abrirVista(row._f.id, '/soportes')">
+                <mat-icon>attach_file</mat-icon>
+                <span>Soportes</span>
+              </button>
+              <button mat-menu-item (click)="abrirVista(row._f.id, '/analitica')">
+                <mat-icon>monitoring</mat-icon>
+                <span>Analítica</span>
+              </button>
+
+              <!-- Ubicación en el menú -->
+              @if (estadoUbic(row._f) === 'PENDING' || estadoUbic(row._f) === 'UNLINKED') {
+                <button mat-menu-item (click)="publicar(row._f)">
+                  <mat-icon>playlist_add</mat-icon>
+                  <span>Publicar en el menú</span>
+                </button>
+              }
+              @if (estadoUbic(row._f) === 'LINKED') {
+                <button mat-menu-item (click)="moverRenombrar(row._f)">
+                  <mat-icon>drive_file_move</mat-icon>
+                  <span>Mover / renombrar</span>
+                </button>
+                <button mat-menu-item (click)="desvincular(row._f)">
+                  <mat-icon>link_off</mat-icon>
+                  <span>Desvincular del menú</span>
+                </button>
+              }
+              @if (estadoUbic(row._f) === 'FAILED') {
+                <button mat-menu-item (click)="reintentarUbicacion(row._f)">
+                  <mat-icon>autorenew</mat-icon>
+                  <span>Reintentar ubicación</span>
+                </button>
+              }
+
+              <button mat-menu-item (click)="abrirPermisos(row._f)">
+                <mat-icon>admin_panel_settings</mat-icon>
+                <span>Permisos y control del proceso</span>
+              </button>
+
+              <button mat-menu-item (click)="abrirLinksPublicos(row._f)">
+                <mat-icon>link</mat-icon>
+                <span>Links públicos</span>
+              </button>
+              <button mat-menu-item (click)="duplicar(row._f)">
+                <mat-icon>content_copy</mat-icon>
+                <span>Duplicar</span>
+              </button>
+              <button mat-menu-item (click)="toggleActivo(row._f)">
+                <mat-icon>{{ row._f.active ? 'toggle_off' : 'toggle_on' }}</mat-icon>
+                <span>{{ row._f.active ? 'Desactivar' : 'Activar' }}</span>
+              </button>
+              @if (esAdmin) {
+                <button mat-menu-item class="menu-peligro" (click)="eliminarDefinitivo(row._f)">
+                  <mat-icon class="icono-peligro">delete_forever</mat-icon>
+                  <span>Eliminar definitivo</span>
+                </button>
+              }
+            </mat-menu>
+          </div>
+        </ng-template>
+      </app-standard-filter-table>
     }
   </mat-card-content>
 </mat-card>
+
+<!-- Carga por Excel: plantilla ya parametrizada + carga individual o masiva. -->
+@if (importarAbierto()) {
+  <app-excel-import-dialog
+    (abrir)="abrirImportado($event)"
+    (creados)="trasCrearMasivo($event)"
+    (cerrar)="importarAbierto.set(false)">
+  </app-excel-import-dialog>
+}

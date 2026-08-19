@@ -33,10 +33,15 @@ mat-tab-group {
   height: 100%;
 }
 
+/* Rediseño 2026-08: barra de tabs CLARA con indicador lima (antes franja
+   oscura). OJO: esta regla es global-por-::ng-deep y se inyecta DESPUÉS de la
+   del padre (recruitment-pipeline), así que debe decir lo MISMO que la del
+   padre o le gana y devuelve las tabs a oscuro en toda la página. */
 ::ng-deep .mat-mdc-tab-header {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  background: #ffffff !important;
   border-radius: 12px 12px 0 0;
-  border: none;
+  border: 1px solid #e8edf3;
+  border-bottom: none;
   padding: 0 8px;
 }
 
@@ -44,28 +49,28 @@ mat-tab-group {
   font-family: inherit;
   font-weight: 600 !important;
   letter-spacing: 0.3px;
-  color: #cbd5e1 !important;
+  color: #64748b !important;
   transition: all 0.3s !important;
 }
 
 ::ng-deep .mat-mdc-tab .mat-icon {
   font-weight: 600 !important;
-  color: #cbd5e1 !important;
+  color: #64748b !important;
   transition: all 0.3s !important;
 }
 
 ::ng-deep .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label,
 ::ng-deep .mat-mdc-tab.mdc-tab--active .mat-icon {
-  color: #ffffff !important;
+  color: #0f172a !important;
 }
 
 ::ng-deep .mat-mdc-tab.mdc-tab--active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(140, 213, 10, 0.10);
   border-radius: 12px 12px 0 0;
 }
 
 ::ng-deep .mat-mdc-tab-indicator__inner--theme-demo {
-  border-color: #3b82f6 !important;
+  border-color: #8CD50A !important;
 }
 
 .tab {

@@ -118,6 +118,84 @@
 }
 
 .filtro { width: 260px; max-width: 100%; }
+.filtro--buscar { width: 320px; }
+.filtro--agrupar { width: 210px; }
+.filtro--buscar .material-symbols-outlined { font-size: 20px; margin-right: 6px; color: var(--muted, #64748b); }
+
+.opt-conteo { color: var(--muted, #64748b); font-size: 0.8em; }
+
+.btn-limpiar {
+  border-radius: 8px !important;
+  align-self: flex-start;
+  margin-top: 6px;
+}
+.btn-limpiar .material-symbols-outlined { font-size: 18px; margin-right: 4px; }
+
+/* ── Barra de descarga masiva ────────────────────────────────────────── */
+
+.barra-descarga {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin: 4px 0 8px 0;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 12px;
+  background: var(--slate-50, #f8fafc);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* Con algo marcado la barra se "enciende": es el único momento en que
+   «Descargar selección» hace algo, y tiene que notarse sin leer el botón. */
+.barra-descarga--activa {
+  border-color: var(--navy, #21263c);
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+}
+
+.conteo-seleccion {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--slate-700, #334155);
+}
+
+.btn-limpiar-sel {
+  min-width: 0 !important;
+  padding: 0 6px !important;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.barra-descarga .filtro--agrupar { margin-bottom: -1.25em; }
+
+.btn-zip {
+  background-color: var(--navy, #21263c) !important;
+  color: var(--lime, #8cd50a) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+.btn-zip:disabled { opacity: 0.5; }
+.btn-zip .material-symbols-outlined,
+.btn-zip-todo .material-symbols-outlined { font-size: 18px; margin-right: 6px; }
+
+.btn-zip-todo { border-radius: 8px !important; font-weight: 600 !important; }
+
+.aviso-parcial {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.82rem;
+}
+.aviso-parcial .material-symbols-outlined { font-size: 18px; }
 
 /* ── Estados vacío / error ───────────────────────────────────────────── */
 
@@ -159,6 +237,21 @@
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
   border-color: var(--slate-300, #cbd5e1);
   transform: translateY(-2px);
+}
+
+.soporte-card--marcada {
+  border-color: var(--navy, #21263c);
+  box-shadow: 0 0 0 2px rgba(33, 38, 60, 0.12);
+}
+
+/* La casilla vive sobre la vista previa: la tarjeta ya es densa y una fila
+   más solo para marcarla la haría más alta sin decir nada nuevo. */
+.soporte-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
 }
 
 /* Vista previa: miniatura o icono */
@@ -222,6 +315,48 @@
   white-space: nowrap;
 }
 
+/* Identificación: de quién es y de qué pregunta salió. */
+.soporte-etiquetas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.etq {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.etq .material-symbols-outlined { font-size: 14px; }
+
+.etq--llave {
+  background: rgba(140, 213, 10, 0.16);
+  color: #3f6212;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.etq--pregunta {
+  background: var(--slate-100, #f1f5f9);
+  color: var(--slate-700, #334155);
+  cursor: pointer;
+  font-family: inherit;
+}
+.etq--pregunta:hover {
+  background: var(--slate-200, #e2e8f0);
+  border-color: var(--slate-300, #cbd5e1);
+}
+
 .soporte-meta {
   display: flex;
   flex-direction: column;
@@ -277,7 +412,14 @@
 .btn-descargar:disabled { opacity: 0.55; }
 .btn-descargar .material-symbols-outlined { font-size: 18px; }
 
+@media (max-width: 900px) {
+  .filtro, .filtro--buscar, .filtro--agrupar { width: 100%; }
+  .barra-descarga { gap: 8px; }
+  .btn-zip, .btn-zip-todo { flex: 1 1 100%; }
+}
+
 @media (max-width: 520px) {
   .contenido { padding: 0 14px 16px 14px; }
   .grid-soportes { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .soporte-etiquetas { flex-direction: column; align-items: flex-start; }
 }

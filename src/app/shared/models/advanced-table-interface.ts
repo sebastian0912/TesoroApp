@@ -25,6 +25,12 @@ export interface ColumnDefinition {
    * Es opcional: quien no lo declare sigue viendo exactamente lo de antes.
    */
   format?: 'currency' | 'percent' | 'decimal';
+  /**
+   * Patrón del DatePipe para columnas `type:'date'`. Sin esto se pinta 'dd/MM/yyyy',
+   * que es lo de siempre; declararlo permite mostrar la hora ('dd/MM/yyyy HH:mm')
+   * cuando el dato es un instante y no una fecha suelta.
+   */
+  dateFormat?: string;
   options?: string[];
   statusConfig?: Record<string, { color: string; background: string }>;
   customClassConfig?: Record<string, { color: string; background: string }>;

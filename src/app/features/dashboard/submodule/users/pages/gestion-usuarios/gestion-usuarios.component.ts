@@ -63,8 +63,13 @@ export class GestionUsuariosComponent implements OnInit {
       apellidos: u.datos_basicos?.apellidos || '—',
       celular: u.datos_basicos?.celular || '—',
       empresa: u.empresa?.nombre ?? '—',
-      sede: u.sede?.nombre ?? '—',
-      rol: u.rol?.nombre ?? '—',
+      // Multi-sede / multi-rol (V40): se listan todas; los roles vencidos se marcan.
+      sede: u.sedes?.length
+        ? u.sedes.map(s => s.nombre).join(', ')
+        : (u.sede?.nombre ?? '—'),
+      rol: u.roles?.length
+        ? u.roles.map(r => (r.vigente === false ? `${r.nombre} (vencido)` : r.nombre)).join(', ')
+        : (u.rol?.nombre ?? '—'),
       fecha_registro: this.formatFecha(u.fecha_registro),
     }));
   });

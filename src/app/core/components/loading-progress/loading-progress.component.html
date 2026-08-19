@@ -1,0 +1,8 @@
+@if (visible()) {
+  <!-- Línea de actividad. aria-hidden: el estado accesible lo comunica la esfera del
+       top bar (role="status"); duplicarlo aquí haría que el lector lo lea dos veces. -->
+  <div class="lp-bar" aria-hidden="true">
+    <div class="lp-bar__fill" [class.lp-bar__fill--done]="completo()"
+         [style.width.%]="porcentaje()"></div>
+  </div>
+}

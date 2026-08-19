@@ -167,15 +167,6 @@
   flex-shrink: 0;
 }
 
-.search-field {
-  flex: 0 1 380px;
-  min-width: 240px;
-}
-
-.prefix-icon {
-  color: var(--slate-500);
-}
-
 .filtro-estado {
   border-radius: 10px;
   overflow: hidden;
@@ -187,73 +178,147 @@
   white-space: nowrap;
 }
 
-/* === TABLA === */
-.table-scroll {
+/* === TABLA ESTÁNDAR === */
+/* La tabla común trae su propio marco y su scroll: aquí solo se le da el alto
+   que sobra en la tarjeta para que scrollee ella y no la página. */
+app-standard-filter-table {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
-  border: 1px solid var(--slate-200);
-  border-radius: 12px;
+  display: block;
+  overflow: hidden;
 }
 
-.tabla-forms {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-  min-width: 920px; /* debajo de esto las 8 columnas se aplastan: scroll horizontal */
-}
-
-.tabla-forms thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--slate-50);
-  color: var(--slate-700);
-  font-weight: 600;
-  text-align: left;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--slate-200);
+.celda-ruta {
+  color: var(--slate-500);
+  font-size: 0.8rem;
+  font-family: 'Roboto Mono', monospace;
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.tabla-forms tbody td {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--slate-100);
-  color: var(--text);
   vertical-align: middle;
 }
 
-.tabla-forms tbody tr:hover {
-  background: var(--slate-50);
+/* === CELDA "RESUMEN IA" === */
+.celda-resumen {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+  max-width: 380px;
 }
 
-.tabla-forms tbody tr:last-child td {
-  border-bottom: none;
+/* El texto es el disparador de "ver completo": botón por accesibilidad
+   (teclado y lector de pantalla), pintado como texto normal. */
+.resumen-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
 }
 
-.fila-inactiva td {
+.resumen-formulario,
+.resumen-respuestas {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.resumen-formulario {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.resumen-respuestas {
+  font-size: 0.78rem;
   color: var(--slate-500);
 }
 
-.fila-ocupada {
-  opacity: 0.6;
-  pointer-events: none;
+.icono-respuestas {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  margin-right: 2px;
 }
 
-.col-centrada {
-  text-align: center !important;
+.resumen-texto:hover .resumen-formulario {
+  text-decoration: underline;
 }
 
-.col-acciones {
-  text-align: right !important;
+.resumen-pie {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resumen-fecha {
+  font-size: 0.72rem;
+  color: var(--slate-400);
   white-space: nowrap;
-  width: 1%;
+}
+
+.chip-stale {
+  background: #fffaeb;
+  color: #b54708;
+  border: 1px solid #fedf89;
+  font-size: 0.68rem !important;
+}
+
+.btn-resumen {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  color: var(--slate-500);
+}
+
+.btn-resumen .mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.btn-generar {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--slate-600);
+}
+
+.resumen-cargando {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--slate-500);
+}
+
+/* Mientras se regenera, el texto anterior sigue ahí (solo atenuado): la celda
+   nunca queda en blanco esperando a la IA. */
+.celda-resumen.generando .resumen-texto {
+  opacity: 0.5;
 }
 
 .celda-nombre {
   display: flex;
   flex-direction: column;
-  min-width: 220px;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.celda-nombre.inactivo .nombre {
+  color: var(--slate-500);
 }
 
 .celda-nombre .nombre {
@@ -264,17 +329,6 @@
   font-size: 0.75rem;
   color: var(--slate-500);
   font-family: 'Roboto Mono', monospace;
-}
-
-.celda-categoria {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.celda-fecha {
-  white-space: nowrap;
 }
 
 .sin-dato {
@@ -301,22 +355,10 @@
   border: 1px solid var(--slate-300);
 }
 
-.chip-si {
-  background: #eef6ff;
-  color: #1d4ed8;
-  border: 1px solid #d3e3fd;
-}
-
 .chip-neutro {
   background: var(--slate-100);
   color: var(--slate-500);
   border: 1px solid var(--slate-200);
-}
-
-.chip-activo {
-  background: var(--ok-bg);
-  color: var(--ok-fg);
-  border: 1px solid var(--ok-border);
 }
 
 .chip-inactivo {
@@ -325,34 +367,11 @@
   border: 1px solid var(--warn-border);
 }
 
-/* Badge de aprovisionamiento incompleto */
-.badge-prov {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: var(--warn-bg);
-  border: 1px solid var(--warn-border);
-  color: var(--warn-fg);
-  font-size: 0.78rem;
-  font-weight: 500;
-  flex-wrap: wrap;
-}
-
-.badge-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-
-.btn-retry {
-  height: 28px !important;
-  font-size: 0.75rem !important;
-  line-height: 26px !important;
-  padding: 0 10px !important;
-  color: var(--warn-fg) !important;
-  border-color: var(--warn-border) !important;
+/* Ubicación en error (antes iba con estilo inline en la plantilla). */
+.chip-error {
+  background: #fdecea;
+  color: var(--danger);
+  border: 1px solid #f5c6c0;
 }
 
 /* Acciones por fila */
@@ -394,20 +413,14 @@
   color: var(--slate-300);
 }
 
-/* Paginador pegado abajo */
-mat-paginator {
-  flex-shrink: 0;
-  background: transparent;
-}
-
 /* === RESPONSIVE === */
 @media (max-width: 700px) {
   .card-content {
     padding: 14px 12px 4px 12px !important;
   }
 
-  .search-field {
-    flex: 1 1 100%;
+  .celda-resumen {
+    max-width: 260px;
   }
 
   .total-label {

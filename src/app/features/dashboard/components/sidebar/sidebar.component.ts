@@ -8,16 +8,23 @@ import { ConsoleLoggerService } from '../../../../shared/services/console-logger
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
 import { AppInfoService, PlatformInfo } from '../../../../core/services/app-info.service';
-import { NotificationCenterService, NotificationItem } from '../../services/notification-center.service';
+import { NotificationCenterService, NotificationItem } from '../../../../core/services/notification-center.service';
+import { NotificationTargetService } from '../../../../core/services/notification-target.service';
 import { Subscription, timer, of } from 'rxjs';
 import { switchMap, catchError } from 'rxjs/operators';
 import { BugReportService } from '../../../../shared/services/bug-report/bug-report.service';
+import { ProfilePhotoService } from '../../../../shared/services/profile-photo/profile-photo.service';
+import { getLocalStorageItem } from '../../../../core/utils/safe-storage';
+import { SmartMenuComponent } from '../smart-menu/smart-menu.component';
+import { LoadingOrbComponent } from '../../../../core/components/loading-orb/loading-orb.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-sidebar',
   imports: [
-    SharedModule
+    SharedModule,
+    SmartMenuComponent,
+    LoadingOrbComponent
   ],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.css'
@@ -33,6 +40,22 @@ export class SidebarComponent implements OnDestroy {
 
   // Nombre visible de la sede actual del usuario
   sede: string = '';
+
+  /** Foto de perfil (data-URL) para el avatar del menú, o null si no hay. */
+  fotoPerfil: string | null = null;
+
+  /**
+   * Si se muestra el atajo "Identificar personal" en el menú de perfil.
+   *
+   * Manda el árbol de permisos (db_admin), que es el mecanismo con el que esta plataforma
+   * reparte accesos y el que permite dárselo a administrativos, portería o cualquier otra
+   * área sin tocar código. ADMIN/GERENCIA lo ven igual aunque el módulo aún no esté sembrado
+   * en la BD: si no, quien tiene que registrarlo no podría ni entrar a probarlo.
+   */
+  puedeIdentificar = false;
+
+  /** Roles que ven el panel de identificación sin depender del árbol. */
+  private readonly ROLES_IDENTIFICACION = new Set(['ADMIN', 'GERENCIA']);
 
   /** Estado de red + cola offline (movidos desde el navbar). */
   isOnline = true;
@@ -56,8 +79,10 @@ export class SidebarComponent implements OnDestroy {
     private offlineSync: OfflineSyncService,
     private appInfo: AppInfoService,
     private notifCenter: NotificationCenterService,
+    private notifTarget: NotificationTargetService,
     private cdr: ChangeDetectorRef,
     private bugReportService: BugReportService,
+    private profilePhotos: ProfilePhotoService,
   ) {
     if (isPlatformBrowser(this.platformId)) {
       this.consoleLogger.init();
@@ -106,41 +131,44 @@ export class SidebarComponent implements OnDestroy {
     });
   }
 
-  /** Clic en una notificación: marca leída y navega a la tarea/espacio. */
+  /**
+   * Clic en una notificación: la marca leída y abre su destino.
+   *
+   * El destino ya no se construye aquí. Antes esto hacía
+   * `navigate('/dashboard/matder/' + n.link)`, que ataba la campana a Matder:
+   * una notificación de nómina o jurídico habría navegado a una ruta inexistente.
+   * Ahora el backend guarda un destino tipado y lo resuelve NotificationTargetService.
+   */
   onNotifClick(n: NotificationItem): void {
-    if (!n.read) {
+    if (!n.leida) {
       this.notifCenter.markRead(n.id).subscribe({ next: () => {}, error: () => {} });
-      n.read = true;
+      n.leida = true;
       this.unreadCount = Math.max(0, this.unreadCount - 1);
     }
-    if (n.link) this.router.navigate([`/dashboard/matder/${n.link}`]);
+    this.notifTarget.abrir(n.destino_tipo, n.destino_valor);
     this.cdr.markForCheck();
   }
 
   markAllNotifs(ev: Event): void {
     ev.stopPropagation();
     this.notifCenter.markAllRead().subscribe({ next: () => {}, error: () => {} });
-    this.notifications = this.notifications.map(n => ({ ...n, read: true }));
+    this.notifications = this.notifications.map(n => ({ ...n, leida: true }));
     this.unreadCount = 0;
     this.cdr.markForCheck();
   }
 
-  goToNotifications(): void { this.router.navigate(['/dashboard/matder/notifications']); }
+  goToNotifications(): void { this.router.navigate(['/dashboard/novedades']); }
 
-  notifIcon(t: string): string {
-    return ({
-      ASSIGNMENT: 'assignment_ind', ASSIGNMENT_CONFIRM: 'assignment_turned_in',
-      COMMENT: 'comment', WORKSPACE: 'group_add',
-      DUE_SOON: 'event_busy', MENTION: 'alternate_email', STATUS_CHANGE: 'swap_horiz',
-    } as Record<string, string>)[t] ?? 'notifications';
-  }
+  /**
+   * Icono y color ya NO se calculan aquí. Venían de dos mapas hardcodeados que
+   * duplicaban (mal) el catálogo del backend: agregar un tipo obligaba a tocar
+   * este archivo, la página de notificaciones y el Java del productor. Ahora
+   * cada mensaje trae los suyos desde `notif_tipo` y el fallback es del backend.
+   */
 
-  notifColor(t: string): string {
-    return ({
-      ASSIGNMENT: '#2563eb', ASSIGNMENT_CONFIRM: '#0d9488',
-      COMMENT: '#16a34a', WORKSPACE: '#0ea5e9',
-      DUE_SOON: '#dc2626', MENTION: '#7c3aed', STATUS_CHANGE: '#d97706',
-    } as Record<string, string>)[t] ?? '#64748b';
+  /** Realce de las urgentes: la campana debe distinguirlas de un vistazo. */
+  notifDestacada(n: NotificationItem): boolean {
+    return n.urgencia === 'URGENTE' || n.urgencia === 'CRITICA';
   }
 
   notifTimeAgo(iso: string): string {
@@ -202,6 +230,84 @@ export class SidebarComponent implements OnDestroy {
     this.role = user?.rol?.nombre ?? '';
     this.documento = user?.numero_de_documento ?? '';
     this.username = [user?.datos_basicos?.nombres, user?.datos_basicos?.apellidos].filter(Boolean).join(' ');
+
+    this.puedeIdentificar = this.resolverAccesoIdentificacion(user);
+
+    // Avatar del menú de perfil: re-lee para el usuario vigente y se mantiene
+    // sincronizado con la página de Cuenta.
+    this.profilePhotos.reload();
+    this.netSubs.push(
+      this.profilePhotos.photo$.subscribe(p => {
+        this.fotoPerfil = p;
+        this.cdr.markForCheck();
+      }),
+    );
+  }
+
+  /** Iniciales para el avatar cuando no hay foto. */
+  get iniciales(): string {
+    const parts = this.username.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '·';
+    const first = parts[0]?.[0] ?? '';
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+    return (first + last).toUpperCase();
+  }
+
+  /**
+   * ¿Este usuario puede identificar a otros? Se busca la ruta del panel en el árbol de
+   * permisos que el backend ya entrega en el login; si no está, sólo pasan ADMIN/GERENCIA.
+   */
+  private resolverAccesoIdentificacion(user: any): boolean {
+    const rol = String(user?.rol?.nombre ?? '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
+    if (this.ROLES_IDENTIFICACION.has(rol)) return true;
+
+    try {
+      let arbol: unknown = user?.permisos_tree ?? null;
+      if (!Array.isArray(arbol)) {
+        const crudo = getLocalStorageItem('permisos_tree');
+        arbol = crudo ? JSON.parse(crudo) : null;
+      }
+      return Array.isArray(arbol) && this.arbolTieneCarnet(arbol as any[]);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Recorre el árbol buscando un nodo cuya ruta apunte al panel de identificación. */
+  private arbolTieneCarnet(nodos: any[]): boolean {
+    for (const n of nodos) {
+      const ruta = String(n?.ruta ?? '').toLowerCase();
+      if (ruta.includes('carnet/identificar') || ruta.includes('carnet/verificar')) return true;
+      if (Array.isArray(n?.hijos) && this.arbolTieneCarnet(n.hijos)) return true;
+    }
+    return false;
+  }
+
+  /** Acciones del menú de perfil. */
+  irAConfiguracion(): void {
+    this.router.navigate(['/dashboard/configuracion/cuenta']);
+  }
+
+  /** Abre el carné en un diálogo — dos toques desde cualquier pantalla. */
+  abrirCarnet(): void {
+    import('../../submodule/carnet/components/carnet-dialog/carnet-dialog.component').then(m => {
+      this.dialog.open(m.CarnetDialogComponent, {
+        width: '440px',
+        maxWidth: '95vw',
+        maxHeight: '95vh',
+        autoFocus: false,
+        panelClass: 'carnet-dialog-panel',
+      });
+    });
+  }
+
+  irAIdentificar(): void {
+    this.router.navigate(['/dashboard/carnet/identificar']);
+  }
+
+  irACambiarContrasena(): void {
+    this.router.navigate(['/dashboard/users/change-password']);
   }
 
   abrirReporteBug(): void {

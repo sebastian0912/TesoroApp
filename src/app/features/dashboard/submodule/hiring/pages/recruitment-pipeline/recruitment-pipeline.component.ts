@@ -1,6 +1,6 @@
 import {
   Component, LOCALE_ID, inject, effect, signal, computed, DestroyRef, PLATFORM_ID,
-  ChangeDetectionStrategy
+  ChangeDetectionStrategy, untracked
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
@@ -757,13 +757,22 @@ export class RecruitmentPipelineComponent {
       // era lo que dejaba el avatar en blanco justo después de subirla).
       if (silencioso && !cambioPersona) return;
 
-      const bio = cand?.biometria ?? null;
-      if (!bio || this.isBioStale(bio)) {
-        this.refreshBiometriaForCandidate(ced).catch(() => this.biometria.set(null));
-      }
-      this.refreshExamenMedicoForCandidate(ced);
-      this.refreshArlForCandidate(ced);
-      this.refreshFotoForCandidate(ced);
+      // untracked: la cascada dispara HttpClient, y al suscribirse corren
+      // SÍNCRONOS los interceptores, que leen señales ajenas (el de loading lee
+      // `_pasos`, el offline lee `onlineStatus`). Sin untracked el effect queda
+      // suscrito a esas señales, que cambian con CADA respuesta HTTP → el
+      // effect relanzaba la cascada en bucle infinito hasta agotar el rate
+      // limit del gateway (tormenta de 429 del 2026-08-19). Este effect solo
+      // debe depender de `candidatoSeleccionado`.
+      untracked(() => {
+        const bio = cand?.biometria ?? null;
+        if (!bio || this.isBioStale(bio)) {
+          this.refreshBiometriaForCandidate(ced).catch(() => this.biometria.set(null));
+        }
+        this.refreshExamenMedicoForCandidate(ced);
+        this.refreshArlForCandidate(ced);
+        this.refreshFotoForCandidate(ced);
+      });
 
       // La vista previa local es del candidato ANTERIOR: si no se suelta, se
       // queda mostrando su foto encima del nuevo (y además fuga el blob).

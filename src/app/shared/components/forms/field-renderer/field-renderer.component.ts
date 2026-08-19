@@ -18,15 +18,16 @@ import { FileFieldComponent } from '../file/file-field.component';
 import { SignatureFieldComponent } from '../signature/signature-field.component';
 import { LocationFieldComponent } from '../location/location-field.component';
 import { CommentFieldComponent } from '../comment/comment-field.component';
+import { ScanFieldComponent } from '../scan/scan-field.component';
 
 /**
  * MOTOR DE RENDER de campos: despacha por `field.type` REAL al componente del tipo
  * (nunca por heurísticas sobre el nombre de la clave — la trampa PHOTO del origen).
  * SECTION se renderiza aquí mismo (título + hijos recursivos, un nivel).
  *
- * uploadFn: los campos de media (PHOTO/VIDEO/FILE/SIGNATURE) suben PRIMERO el archivo
- * y emiten la referencia; la página decide el destino (ms-documents autenticado o
- * endpoint público) inyectando esta función.
+ * uploadFn: los campos de media (PHOTO/VIDEO/FILE/SIGNATURE y los de escaneo
+ * SCAN_DOC/SCAN_ID) suben PRIMERO el archivo y emiten la referencia; la página decide
+ * el destino (ms-documents autenticado o endpoint público) inyectando esta función.
  */
 @Component({
   selector: 'app-field-renderer',
@@ -38,6 +39,7 @@ import { CommentFieldComponent } from '../comment/comment-field.component';
     SingleChoiceFieldComponent, DropdownFieldComponent, MultipleChoiceFieldComponent,
     PhotoFieldComponent, VideoFieldComponent, FileFieldComponent,
     SignatureFieldComponent, LocationFieldComponent, CommentFieldComponent,
+    ScanFieldComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -94,6 +96,16 @@ import { CommentFieldComponent } from '../comment/comment-field.component';
       }
       @case ('FILE') {
         <app-file-field [field]="field" [mode]="mode" [value]="value" [showErrors]="showErrors"
+                        [uploadFn]="uploadFn" [downloadUrlFn]="downloadUrlFn"
+                        (valueChange)="valueChange.emit($event)" />
+      }
+      @case ('SCAN_DOC') {
+        <app-scan-field [field]="field" [mode]="mode" [value]="value" [showErrors]="showErrors"
+                        [uploadFn]="uploadFn" [downloadUrlFn]="downloadUrlFn"
+                        (valueChange)="valueChange.emit($event)" />
+      }
+      @case ('SCAN_ID') {
+        <app-scan-field [field]="field" [mode]="mode" [value]="value" [showErrors]="showErrors"
                         [uploadFn]="uploadFn" [downloadUrlFn]="downloadUrlFn"
                         (valueChange)="valueChange.emit($event)" />
       }

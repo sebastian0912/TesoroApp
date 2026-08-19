@@ -6,6 +6,7 @@ import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { getLocalStorageItem } from '../utils/safe-storage';
 import { entryHostMatchesCurrent, fromCacheKey } from '../utils/cache-key';
 import { categorizeCacheUrl, formatRelativeAge } from '../utils/offline-response';
+import { isCatalogUrl } from '../utils/catalog-endpoints';
 import { OfflineDbService } from '../db/offline-db.service';
 import { SyncQueueItem, StoredFile } from '../db/offline-db.types';
 
@@ -258,6 +259,16 @@ export class OfflineSyncService {
         console.log(`[Cache] ${stale.length} URL(s) con host obsoleto purgadas.`);
         const staleSet = new Set(stale);
         apiUrls = apiUrls.filter(u => !staleSet.has(u));
+      }
+
+      // La parametrización tiene su propio refresco (CatalogPreloadService, que
+      // además descubre catálogos nuevos). Si se dejara aquí competiría por el
+      // cupo de REFRESH_LIMIT: son decenas de URLs y desplazarían a los datos
+      // de trabajo, que sí cambian de un minuto a otro.
+      const catalogos = apiUrls.filter(u => isCatalogUrl(u)).length;
+      if (catalogos > 0) {
+        apiUrls = apiUrls.filter(u => !isCatalogUrl(u));
+        console.log(`[Cache] ${catalogos} URL(s) de parametrización las refresca CatalogPreloadService.`);
       }
 
       if (!this.permissions.canUseSeleccionPipeline()) {

@@ -26,19 +26,36 @@
     </div>
   </header>
 
-  <!-- Filtro por rango de fechas (re-consulta al servidor) -->
-  <section class="filtros-card" aria-label="Filtro por rango de fechas">
+  <!-- Filtro por rango + granularidad de la línea de tiempo (re-consulta al servidor) -->
+  <section class="filtros-card" aria-label="Filtro por rango y granularidad">
     <div class="filtro-campo">
       <label for="filtro-desde">Desde</label>
-      <input id="filtro-desde" type="date"
+      <input id="filtro-desde" [type]="granularidad() === 'hour' ? 'datetime-local' : 'date'"
              [ngModel]="desde()" (ngModelChange)="desde.set($event)"
              [attr.max]="hasta() || null" />
     </div>
     <div class="filtro-campo">
       <label for="filtro-hasta">Hasta</label>
-      <input id="filtro-hasta" type="date"
+      <input id="filtro-hasta" [type]="granularidad() === 'hour' ? 'datetime-local' : 'date'"
              [ngModel]="hasta()" (ngModelChange)="hasta.set($event)"
              [attr.min]="desde() || null" />
+    </div>
+    <div class="filtro-campo filtro-campo--gran">
+      <span class="filtro-campo__label" id="lbl-granularidad">Agrupar por</span>
+      <div class="segmentado" role="group" aria-labelledby="lbl-granularidad">
+        <button type="button" [class.activo]="granularidad() === 'day'"
+                [attr.aria-pressed]="granularidad() === 'day'"
+                (click)="cambiarGranularidad('day')" [disabled]="cargando()">
+          <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+          Día
+        </button>
+        <button type="button" [class.activo]="granularidad() === 'hour'"
+                [attr.aria-pressed]="granularidad() === 'hour'"
+                (click)="cambiarGranularidad('hour')" [disabled]="cargando()">
+          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+          Día y hora
+        </button>
+      </div>
     </div>
     <button type="button" class="btn-primario" (click)="aplicarFiltro()" [disabled]="cargando()">
       <span class="material-symbols-outlined" aria-hidden="true">filter_alt</span>
@@ -129,24 +146,30 @@
         }
       </section>
 
-      <!-- Serie diaria -->
-      <section class="grafica-card" aria-label="Respuestas por día">
-        <h2 class="grafica-card__titulo">Respuestas por día</h2>
-        @if (opcionDiaria(); as opcion) {
+      <!-- Línea de tiempo: cuándo llegaron las respuestas -->
+      <section class="grafica-card" [attr.aria-label]="granularidad() === 'hour' ? 'Respuestas por día y hora' : 'Respuestas por día'">
+        <h2 class="grafica-card__titulo">
+          {{ granularidad() === 'hour' ? 'Respuestas por día y hora' : 'Respuestas por día' }}
+        </h2>
+        @if (opcionSerie(); as opcion) {
           <div echarts [options]="opcion" class="grafica-linea"
-               role="img" aria-label="Gráfica de línea con las respuestas recibidas por día"></div>
+               role="img" [attr.aria-label]="'Gráfica de línea con las respuestas recibidas por '
+                 + (granularidad() === 'hour' ? 'día y hora' : 'día')"></div>
           <details class="tabla-datos">
             <summary>Ver datos de la serie</summary>
             <div class="tabla-datos__scroll">
               <table>
-                <caption class="sr-only">Respuestas por día</caption>
+                <caption class="sr-only">Respuestas recibidas en el tiempo</caption>
                 <thead>
-                  <tr><th scope="col">Fecha</th><th scope="col">Respuestas</th></tr>
+                  <tr>
+                    <th scope="col">{{ granularidad() === 'hour' ? 'Fecha y hora' : 'Fecha' }}</th>
+                    <th scope="col">Respuestas</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  @for (punto of tablaDiaria(); track punto.date) {
+                  @for (punto of tablaSerie(); track punto.bucket) {
                     <tr>
-                      <td>{{ fechaLarga(punto.date) }}</td>
+                      <td>{{ etiquetaLarga(punto.bucket) }}</td>
                       <td class="num">{{ punto.total | number }}</td>
                     </tr>
                   }
@@ -155,9 +178,38 @@
             </div>
           </details>
         } @else {
-          <p class="sin-datos">Sin datos diarios para graficar en el rango.</p>
+          <p class="sin-datos">Sin envíos para graficar en el rango.</p>
         }
       </section>
+
+      <!-- A qué horas llenan el formulario (suma de todos los días del rango) -->
+      @if (opcionHoras(); as opcion) {
+        <section class="grafica-card" aria-label="Respuestas por hora del día">
+          <h2 class="grafica-card__titulo">Respuestas por hora del día</h2>
+          <p class="grafica-card__sub">Suma de todos los días del rango, franja por franja.</p>
+          <div echarts [options]="opcion" class="grafica-horas"
+               role="img" aria-label="Gráfica de barras con las respuestas recibidas en cada hora del día"></div>
+          <details class="tabla-datos">
+            <summary>Ver datos por hora</summary>
+            <div class="tabla-datos__scroll">
+              <table>
+                <caption class="sr-only">Respuestas por hora del día</caption>
+                <thead>
+                  <tr><th scope="col">Franja</th><th scope="col">Respuestas</th></tr>
+                </thead>
+                <tbody>
+                  @for (franja of horasDelDia(); track franja.hour) {
+                    <tr>
+                      <td>{{ franjaHoraria(franja.hour) }}</td>
+                      <td class="num">{{ franja.total | number }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </section>
+      }
 
       <!-- Distribución por campo (barras horizontales) -->
       @if (camposConDistribucion().length > 0) {

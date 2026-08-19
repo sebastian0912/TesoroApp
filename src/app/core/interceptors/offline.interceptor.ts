@@ -6,7 +6,7 @@ import {
   HttpRequest,
   HttpResponse,
 } from '@angular/common/http';
-import { inject } from '@angular/core';
+import { inject, untracked } from '@angular/core';
 import { Observable, from, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { NetworkStatusService } from '../services/network-status.service';
@@ -264,7 +264,11 @@ export const offlineInterceptor: HttpInterceptorFn = (
     return next(req);
   }
 
-  if (!networkStatus.isOnline) {
+  // untracked: el interceptor corre síncrono al suscribirse el HTTP. Si el HTTP
+  // nace dentro de un effect()/computed, leer aquí la señal onlineStatus le
+  // crearía a ese contexto una dependencia accidental (mismo patrón que causó
+  // la tormenta de 429 del 2026-08-19 con la señal del loading).
+  if (!untracked(() => networkStatus.isOnline)) {
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
       return handleOfflineWrite(req);
     }

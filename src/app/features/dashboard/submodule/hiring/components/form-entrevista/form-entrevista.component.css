@@ -12,7 +12,7 @@
 html,
 body,
 .contenedor {
-  font-family: 'Open Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: 'Instrument Sans', 'Open Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
 }
 
 /* Layout interno del form-entrevista en 3 zonas:
@@ -60,7 +60,7 @@ h3 {
 }
 
 h1 {
-  font-family: "Oswald", sans-serif;
+  font-family: 'Archivo', 'Oswald', sans-serif;
   font-size: 30pt;
 }
 
@@ -219,7 +219,7 @@ h1 {
 .mat-mdc-unelevated-button,
 .mat-mdc-snack-bar-container,
 .mat-mdc-tooltip {
-  font-family: 'Open Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: 'Instrument Sans', 'Open Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
 }
 
 /* ========= Material Icons ========= */

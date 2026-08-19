@@ -77,3 +77,20 @@
   .cfg-actions { justify-content: stretch; }
   .cfg-actions .btn { justify-content: center; width: 100%; }
 }
+
+/* ── Multi-sede (V40): agrupación "Tus sedes" / "Otras sedes" ── */
+.notice--info { background: #eff6ff; color: #1e40af; }
+
+.sede-group__label {
+  display: flex; align-items: center; gap: 6px;
+  margin: 14px 0 8px; font-size: 0.78rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em; color: #475569;
+}
+
+.sede-group__label mat-icon {
+  font-size: 16px; width: 16px; height: 16px; color: #f59e0b;
+}
+
+.sede-group__label--otras { color: #94a3b8; }
+
+.sede-item__badge--asignada { color: #1e40af; background: #dbeafe; }

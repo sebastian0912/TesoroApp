@@ -19,7 +19,7 @@ export class MatderMobileNavComponent {
     { icon: 'dashboard_customize',label: 'Tableros',     path: '/dashboard/matder/boards' },
     { icon: 'workspaces',         label: 'Workspaces',   path: '/dashboard/matder/workspaces' },
     { icon: 'calendar_month',     label: 'Calendario',   path: '/dashboard/matder/calendar' },
-    { icon: 'notifications',      label: 'Alertas',      path: '/dashboard/matder/notifications' },
+    { icon: 'notifications',      label: 'Novedades',    path: '/dashboard/novedades' },
   ];
 
   constructor(private router: Router) {}

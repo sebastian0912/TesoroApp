@@ -7,7 +7,17 @@
 export type FieldType =
   | 'TEXT_SHORT' | 'TEXT_LONG' | 'DATE' | 'TIME' | 'NUMBER' | 'CURRENCY' | 'RATING'
   | 'SINGLE_CHOICE' | 'DROPDOWN' | 'MULTIPLE_CHOICE'
-  | 'PHOTO' | 'VIDEO' | 'FILE' | 'SIGNATURE' | 'LOCATION' | 'COMMENT' | 'SECTION';
+  | 'PHOTO' | 'VIDEO' | 'FILE' | 'SIGNATURE' | 'LOCATION' | 'COMMENT' | 'SECTION'
+  | 'SCAN_DOC' | 'SCAN_ID';
+
+/** Tipos cuyo valor son referencias a documentos de ms-documents. */
+export const TIPOS_ARCHIVO: readonly FieldType[] =
+  ['PHOTO', 'VIDEO', 'FILE', 'SIGNATURE', 'SCAN_DOC', 'SCAN_ID'] as const;
+
+/** Tipos que se capturan con el escáner (frente/reverso o documento libre). */
+export function esTipoEscaneo(type: FieldType): boolean {
+  return type === 'SCAN_DOC' || type === 'SCAN_ID';
+}
 
 export interface FieldValidation {
   required?: boolean;
@@ -32,6 +42,27 @@ export interface FieldOption {
   label: string;
 }
 
+/**
+ * RUTA DE RESPUESTAS de un campo de selección única (SINGLE_CHOICE / DROPDOWN con
+ * opciones estáticas): "si responde X, salta a la sección Y".
+ *
+ * `option` cita el `value` de la opción; `go_to` es el `code` de una sección POSTERIOR
+ * o 'END' (terminar el formulario ahí). Vacío = seguir el recorrido normal. La primera
+ * regla que case gana. Solo hacia adelante: el servidor lo exige al publicar, así el
+ * recorrido siempre termina y el formulario nunca queda imposible de enviar.
+ */
+export interface FieldRoutingRule {
+  option: string;
+  go_to: string;
+}
+
+export interface FieldRouting {
+  rules: FieldRoutingRule[];
+}
+
+/** Destino especial de una ruta: terminar el formulario. */
+export const FIN_DEL_FORMULARIO = 'END';
+
 export interface RatingConfig {
   scale_max: number;
   mode: 'NUMERIC' | 'STARS';
@@ -52,6 +83,8 @@ export interface FieldSchema {
    */
   options_source?: { source: string; parent_field?: string | null };
   rating_config?: RatingConfig;
+  /** Ruta de respuestas (solo selección única con opciones estáticas). */
+  routing?: FieldRouting;
   ui?: { variant?: string; full_width?: boolean };
   validation?: FieldValidation;
 }
@@ -203,7 +236,9 @@ export function validateFieldValue(field: DynamicField, value: FieldValue): stri
     case 'PHOTO':
     case 'VIDEO':
     case 'FILE':
-    case 'SIGNATURE': {
+    case 'SIGNATURE':
+    case 'SCAN_DOC':
+    case 'SCAN_ID': {
       const refs = asDocumentRefs(value);
       if (refs.length === 0) return field.required ? 'Este campo es obligatorio' : null;
       const maxFiles = val.max_files ?? defaultMaxFiles(type);

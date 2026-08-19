@@ -1,11 +1,13 @@
 import { Routes } from '@angular/router';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { dynamicFormRouteMatch } from './submodule/dynamic-forms/dynamic-form-route.guard';
+import { permisosLecturaGuard } from '../../core/guards/permisos-lectura.guard';
 
 export const routes: Routes = [
   {
     path: '',
     component: DashboardComponent,
+    canActivateChild: [permisosLecturaGuard],
     children: [
       { path: '', loadComponent: () => import('./submodule/home/home/home.component').then(m => m.HomeComponent) },
       { path: 'authorizations', loadChildren: () => import('./submodule/authorizations/authorizations.routes').then(m => m.routes) },
@@ -42,6 +44,7 @@ export const routes: Routes = [
       { path: 'gestion-legal', loadChildren: () => import('./submodule/gestion-legal/gestion-legal.routes').then(m => m.routes) },
       { path: 'audit-logs', loadChildren: () => import('./submodule/audit-logs/audit-logs.routes').then(m => m.routes) },
       // Configuración de la app (antes escondida en el engranaje del header).
+      { path: 'novedades', loadChildren: () => import('./submodule/novedades/novedades.routes').then(m => m.routes) },
       { path: 'configuracion', loadChildren: () => import('./submodule/configuracion/configuracion.routes').then(m => m.routes) },
 
       // Redirects para módulos PADRE del menú (db_admin.modulo) cuyas rutas apuntan

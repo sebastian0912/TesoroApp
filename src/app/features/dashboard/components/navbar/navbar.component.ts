@@ -393,11 +393,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
    */
   private decorate(n: PermNode): PermNode {
     const hijos = (n.hijos ?? []).map(h => this.decorate(h));
+    // Los hijos sin permiso de lectura se podan aquí: el template recorre
+    // node.hijos sin re-evaluar permisos, así que dejar un hijo no legible
+    // en la lista lo pintaría (p. ej. todo el subárbol de Tesorería para un
+    // rol que solo puede leer una de sus hojas).
     return {
       ...n,
       acciones: n.acciones ?? [],
       permiso_ids: n.permiso_ids ?? {},
-      hijos,
+      hijos: hijos.filter(h => h.__canRead),
       __route: this.computeRoute(n),
       __icon: this.computeIcon(n),
       __canRead: this.computeCanRead(n, hijos),

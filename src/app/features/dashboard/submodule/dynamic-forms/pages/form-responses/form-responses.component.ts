@@ -158,6 +158,12 @@ export class FormResponsesComponent implements OnInit {
   /** Estructuras por versión: la ficha se pinta con el esquema CON EL QUE se respondió. */
   private estructuraPorVersion = signal<Record<number, FormStructure>>({});
 
+  /**
+   * Respuesta que la URL pide abrir (?registro=), pendiente de que llegue la lista.
+   * La pone el buscador inteligente del header al saltar directo a un registro.
+   */
+  private registroPedido = signal<number | null>(null);
+
   cargando = signal(false);
   exportando = signal(false);
   /** Generación del resumen IA en vuelo (el texto anterior sigue visible mientras tanto). */
@@ -234,7 +240,8 @@ export class FormResponsesComponent implements OnInit {
           'Borrador': { color: '#475467', background: '#f2f4f7' },
         },
       },
-      { name: 'enviado', header: 'Enviado', type: 'date', width: '150px', align: 'center' },
+      // Fecha Y hora: saber a qué hora llegó cada respuesta es parte del dato.
+      { name: 'enviado', header: 'Enviado', type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '170px', align: 'center' },
       { name: 'usuario', header: 'Usuario', type: 'text', width: '220px' },
     ];
     const preguntas: ColumnDefinition[] = this.columnas().map(col => {
@@ -402,14 +409,55 @@ export class FormResponsesComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // Con id inyectado por el host, el setter ya inicializó: no se lee la ruta.
-    if (this.idPorInput != null) return;
-    // El formId llega por la ruta; si cambia (navegación entre formularios) se reinicia todo.
-    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(pm => {
-      const id = Number(pm.get('formId'));
+    // El formId llega por la ruta; si cambia (navegación entre formularios) se reinicia
+    // todo. Con id inyectado por el host, el setter ya inicializó y la ruta no se mira.
+    if (this.idPorInput == null) {
+      this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(pm => {
+        const id = Number(pm.get('formId'));
+        if (!Number.isFinite(id) || id <= 0) return;
+        this.inicializar(id);
+      });
+    }
+    // ?registro= : el buscador del header entra directo a la ficha de un registro. Va
+    // DESPUÉS de la ruta a propósito (así la carga ya está en vuelo) y en su propia
+    // suscripción, porque saltar de un registro a otro del mismo formulario solo cambia
+    // el query param y no vuelve a pasar por inicializar().
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(qp => {
+      const id = Number(qp.get('registro'));
       if (!Number.isFinite(id) || id <= 0) return;
-      this.inicializar(id);
+      this.registroPedido.set(id);
+      this.abrirRegistroPedido();
     });
+  }
+
+  /**
+   * Abre la respuesta que pide la URL. Puede no estar entre las filas cargadas (el tope
+   * de filas, o un filtro de versión/estado): en ese caso se pide suelta al backend y se
+   * antepone, para que la ficha y las flechas de anterior/siguiente funcionen igual.
+   */
+  private abrirRegistroPedido(): void {
+    const id = this.registroPedido();
+    if (id == null) return;
+    if (this.filas().some(f => f.id === id)) {
+      this.registroPedido.set(null);
+      this.seleccionar(id);
+      this.pestana.set(1);
+      return;
+    }
+    if (this.cargando()) return; // siguen llegando páginas: se reintenta al terminar
+
+    this.registroPedido.set(null);
+    this.submissionsSvc.get(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: sub => {
+          if (sub.form_id !== this.formId()) return; // el enlace apunta a otro formulario
+          this.filas.set([sub, ...this.filas()]);
+          this.seleccionar(sub.id);
+          this.pestana.set(1);
+        },
+        error: () => this.snack.open('No se encontró ese registro.', 'Cerrar', { duration: 4000 }),
+      });
   }
 
   /** Reinicia filtros y carga base, estructura y respuestas del formulario `id`. */
@@ -561,6 +609,7 @@ export class FormResponsesComponent implements OnInit {
             return;
           }
           this.cargando.set(false);
+          this.abrirRegistroPedido();
           // La ficha individual necesita el formato de la versión de la respuesta abierta.
           if (this.pestana() === 1) this.asegurarEstructuraDeSeleccion();
         },
@@ -569,6 +618,8 @@ export class FormResponsesComponent implements OnInit {
           this.cargando.set(false);
           // Lo ya acumulado se conserva: media lista es mejor que ninguna.
           if (pagina === 0) { this.filas.set([]); this.total.set(0); }
+          // Aunque el listado falle, el registro que pide la URL se puede traer suelto.
+          this.abrirRegistroPedido();
           this.snack.open(
             await this.mensajeProblema(err, 'No se pudieron cargar las respuestas.'),
             'Cerrar', { duration: 5000 },
@@ -630,7 +681,9 @@ export class FormResponsesComponent implements OnInit {
       case 'PHOTO':
       case 'VIDEO':
       case 'FILE':
-      case 'SIGNATURE': {
+      case 'SIGNATURE':
+      case 'SCAN_DOC':
+      case 'SCAN_ID': {
         const refs = asDocumentRefs(valor as FieldValue);
         if (refs.length === 0) return null;
         if (col.tipo === 'SIGNATURE') return 'Firmado';

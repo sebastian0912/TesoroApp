@@ -8,10 +8,11 @@ import { FieldTypeInfo } from '../../models/dynamic-forms.models';
 /**
  * SELECTOR DE TIPO DE CAMPO en hoja modal.
  *
- * La paleta lateral solo sirve donde hay sitio para tres columnas y un puntero que
- * arrastre. Este selector es la otra vía —la única en móvil— y la que usa el botón
- * "Agregar pregunta" de cada sección: se abre sobre el lienzo, se busca por nombre y
- * al elegir un tipo el campo se apendiza a ESA sección.
+ * Es la ÚNICA vía para agregar un campo (antes convivía con una paleta lateral, que
+ * solo servía en escritorio y comía una columna del lienzo): la abre el botón
+ * "Agregar campo" de cada sección y los puntos de inserción que hay entre pregunta y
+ * pregunta; se busca por nombre y al elegir un tipo el campo entra en ESA sección, en
+ * la posición desde la que se abrió (el texto de `ubicacion` la describe).
  *
  * No conoce el estado del constructor: recibe el catálogo y emite el tipo elegido.
  */
@@ -27,7 +28,7 @@ import { FieldTypeInfo } from '../../models/dynamic-forms.models';
         <div class="ftp-head">
           <div class="ftp-head__texto">
             <h2 class="ftp-titulo" id="ftp-titulo">Agregar campo</h2>
-            <p class="ftp-sub">Se añade al final de {{ destino() || 'la sección' }}.</p>
+            <p class="ftp-sub">{{ ubicacion() || ('Se añade al final de ' + (destino() || 'la sección') + '.') }}</p>
           </div>
           <button type="button" class="ftp-cerrar" (click)="cerrar.emit()" aria-label="Cerrar">
             <span class="material-symbols-outlined">close</span>
@@ -210,6 +211,11 @@ export class FieldTypePickerComponent {
   readonly types = input<FieldTypeInfo[]>([]);
   /** Nombre de la sección destino, solo para el subtítulo. */
   readonly destino = input('');
+  /**
+   * Frase completa de dónde va a caer el campo ("Se inserta en Sección 1, antes de
+   * «Día»."). Si viene vacía se cae al texto de siempre: al final de la sección.
+   */
+  readonly ubicacion = input('');
 
   readonly elegir = output<FieldTypeInfo>();
   readonly cerrar = output<void>();

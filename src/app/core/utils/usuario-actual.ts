@@ -37,10 +37,17 @@ import { getLocalStorageItem } from './safe-storage';
 export interface UsuarioActual {
   /** "NOMBRES APELLIDOS" con espacios colapsados. Cadena vacia si no hay dato. */
   nombreCompleto: string;
-  /** Nombre de la sede/oficina. Cadena vacia si el usuario no tiene sede. */
+  /** Nombre de la sede/oficina PRINCIPAL. Cadena vacia si el usuario no tiene sede. */
   sedeNombre: string;
-  /** Nombre del rol ("ADMIN", "INCAPACIDADES"...). Cadena vacia si no hay. */
+  /** Nombre del rol PRINCIPAL ("ADMIN", "INCAPACIDADES"...). Cadena vacia si no hay. */
   rol: string;
+  /**
+   * Multi-sede (V40): nombres de TODAS las sedes asignadas, principal incluida.
+   * Con una sola, equivale a [sedeNombre]; vacio si no tiene ninguna.
+   */
+  sedes: string[];
+  /** Multi-rol (V40): nombres de todos los roles vigentes, principal incluido. */
+  roles: string[];
   /** Id (UUID) del usuario. Cadena vacia si no hay. */
   id: string;
   /** Correo electronico. Cadena vacia si no hay. */
@@ -52,6 +59,8 @@ export const USUARIO_ACTUAL_VACIO: Readonly<UsuarioActual> = Object.freeze({
   nombreCompleto: '',
   sedeNombre: '',
   rol: '',
+  sedes: [] as string[],
+  roles: [] as string[],
   id: '',
   email: '',
 });
@@ -109,9 +118,22 @@ export function leerUsuarioCrudo(): Record<string, unknown> | null {
  * this.nombreQuienRecibe.set(u.nombreCompleto);
  * this.oficinaBloqueada.set(!!u.sedeNombre);
  */
+/**
+ * Nombres a partir de una lista de asignaciones (`sedes`/`roles` del backend
+ * V40). Tolera items como objeto {nombre} o string plano; dedup conservando
+ * el orden de llegada.
+ */
+function nombresDeLista(cruda: unknown): string[] {
+  if (!Array.isArray(cruda)) return [];
+  const nombres = cruda
+    .map((item) => (typeof item === 'string' ? texto(item) : primero(prop(item, 'nombre'))))
+    .filter((n) => n.length > 0);
+  return Array.from(new Set(nombres));
+}
+
 export function obtenerUsuarioActual(): UsuarioActual {
   const user = leerUsuarioCrudo();
-  if (!user) return { ...USUARIO_ACTUAL_VACIO };
+  if (!user) return { ...USUARIO_ACTUAL_VACIO, sedes: [], roles: [] };
 
   const basicos = prop(user, 'datos_basicos');
 
@@ -181,7 +203,16 @@ export function obtenerUsuarioActual(): UsuarioActual {
     prop(user, 'primercorreoelectronico'),
   );
 
-  return { nombreCompleto, sedeNombre, rol, id, email };
+  // ── Listas multi-sede / multi-rol (V40) ──────────────────────────────
+  // El backend nuevo manda `sedes`/`roles`; con sesiones viejas (o data sin
+  // backfill) se cae a la asignacion unica para que nada quede vacio.
+  const sedes = nombresDeLista(prop(user, 'sedes'));
+  if (sedeNombre && !sedes.includes(sedeNombre)) sedes.unshift(sedeNombre);
+
+  const roles = nombresDeLista(prop(user, 'roles'));
+  if (rol && !roles.includes(rol)) roles.unshift(rol);
+
+  return { nombreCompleto, sedeNombre, rol, sedes, roles, id, email };
 }
 
 /**

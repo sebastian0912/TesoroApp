@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@/environments/environment';
 import {
+  AiSummary,
   BuilderRequest,
   FormDetail,
   FormPatchRequest,
@@ -13,7 +14,11 @@ import {
   ProvisioningResult,
   VersionInfo,
 } from '../models/dynamic-forms.models';
-import { SupportFile } from '../models/placement.models';
+import {
+  SupportDownloadLog,
+  SupportsPage,
+  SupportsZipRequest,
+} from '../models/placement.models';
 
 /**
  * Formularios Dinámicos — gestión (ms-forms vía gateway, /api/dynamic-forms).
@@ -70,6 +75,20 @@ export class DynamicFormService {
     return this.http.put<FormDetail>(`${this.base}/forms/${id}/ui`, { ui });
   }
 
+  /** Resumen IA guardado (el último generado). No llama al modelo. */
+  aiSummary(id: number): Observable<AiSummary> {
+    return this.http.get<AiSummary>(`${this.base}/forms/${id}/ai-summary`);
+  }
+
+  /**
+   * Regenera el resumen IA y lo persiste. Cuesta una llamada al modelo, así que va
+   * SIEMPRE por acción explícita del usuario. Si la IA no responde el backend
+   * devuelve 503 (df_ai_unavailable) y el resumen anterior se conserva intacto.
+   */
+  generateAiSummary(id: number): Observable<AiSummary> {
+    return this.http.post<AiSummary>(`${this.base}/forms/${id}/ai-summary`, {});
+  }
+
   patch(id: number, req: FormPatchRequest): Observable<FormDetail> {
     return this.http.patch<FormDetail>(`${this.base}/forms/${id}`, req);
   }
@@ -97,15 +116,54 @@ export class DynamicFormService {
   }
 
   /**
-   * Archivos adjuntos (soportes) de las respuestas de un formulario, paginados en
-   * el servidor. Cada elemento es un documento subido en un campo PHOTO/FILE/... de
-   * una respuesta; el JWT lo agrega el auth.interceptor.
+   * Archivos adjuntos (soportes) de las respuestas, paginados y FILTRADOS en el
+   * servidor. Cada elemento trae ya su identificador corto ({cédula}-{pregunta}) y
+   * la lista de preguntas con soportes viene en `fields`, para clasificar sin
+   * pedir la estructura aparte. El JWT lo agrega el auth.interceptor.
    */
-  supports(id: number, page = 0, size = 25): Observable<PageResult<SupportFile>> {
-    const params = new HttpParams()
-      .set('page', String(page))
-      .set('size', String(size));
-    return this.http.get<PageResult<SupportFile>>(`${this.base}/forms/${id}/supports`, { params });
+  supports(id: number, opts: {
+    q?: string;
+    fields?: string[];
+    types?: string[];
+    page?: number;
+    size?: number;
+  } = {}): Observable<SupportsPage> {
+    let params = new HttpParams()
+      .set('page', String(opts.page ?? 0))
+      .set('size', String(opts.size ?? 24));
+    if (opts.q?.trim()) params = params.set('q', opts.q.trim());
+    for (const f of opts.fields ?? []) params = params.append('fields', f);
+    for (const t of opts.types ?? []) params = params.append('types', t);
+    return this.http.get<SupportsPage>(`${this.base}/forms/${id}/supports`, { params });
+  }
+
+  /**
+   * Descarga de UN soporte por ms-forms (no por ms-documents): así sale con su nombre
+   * corto y la descarga queda registrada. `observe: 'response'` para poder leer el
+   * nombre del Content-Disposition cuando el borde lo expone.
+   */
+  supportDownload(id: number, documentId: number, submissionId: number) {
+    const params = new HttpParams().set('submission_id', String(submissionId));
+    return this.http.get(`${this.base}/forms/${id}/supports/${documentId}/download`, {
+      params,
+      responseType: 'blob',
+      observe: 'response',
+    });
+  }
+
+  /** ZIP con los soportes seleccionados (o con todo lo que casa con la búsqueda). */
+  supportsZip(id: number, req: SupportsZipRequest) {
+    return this.http.post(`${this.base}/forms/${id}/supports/zip`, req, {
+      responseType: 'blob',
+      observe: 'response',
+    });
+  }
+
+  /** Registro de actividad: quién descargó soportes de este formulario y cuándo. */
+  supportDownloads(id: number, page = 0, size = 25): Observable<PageResult<SupportDownloadLog>> {
+    const params = new HttpParams().set('page', String(page)).set('size', String(size));
+    return this.http.get<PageResult<SupportDownloadLog>>(
+      `${this.base}/forms/${id}/supports/downloads`, { params });
   }
 
   provisionRetry(id: number): Observable<ProvisioningResult> {

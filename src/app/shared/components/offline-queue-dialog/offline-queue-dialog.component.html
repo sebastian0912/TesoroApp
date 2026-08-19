@@ -148,7 +148,60 @@
           <p class="empty-title">Navegador no compatible</p>
           <p class="empty-sub">Este navegador no soporta almacenamiento local (IndexedDB).</p>
         </div>
-      } @else if (cacheCategories.length === 0) {
+      } @else {
+
+        <!-- ─── Parametrización: catálogos de TODOS los módulos ───
+             Va aparte y siempre visible (aunque esté todo sincronizado)
+             porque es lo que decide si se puede trabajar sin conexión: sin
+             estas listas, los formularios salen con los desplegables vacíos. -->
+        <div class="param-card" [class.vacio]="totalCatalogos === 0">
+          <mat-icon class="param-icon">tune</mat-icon>
+          <div class="param-body">
+            <div class="param-head">
+              <span class="param-name">Parametrización</span>
+              @if (totalCatalogos > 0 && catalogLastRun) {
+                <span class="param-age">{{ catalogLastRun }}</span>
+              }
+            </div>
+            <p class="param-sub">
+              @if (totalCatalogos > 0) {
+                {{ totalCatalogos }} lista(s) guardada(s) en este equipo
+              } @else {
+                Aún no hay listas guardadas en este equipo
+              }
+            </p>
+            <p class="param-note">
+              Tipos de documento, sedes, cargos, centros de costo, conceptos de nómina,
+              catálogos de formularios… Con ellas descargadas, los formularios de todos
+              los módulos se pueden diligenciar sin conexión.
+            </p>
+            @if (catalogProgress) {
+              <div class="param-progress">
+                <!-- Barra propia en vez de <mat-progress-bar>: SharedModule no
+                     exporta MatProgressBarModule y no vale la pena cargarlo
+                     en toda la app por una barra de un solo diálogo. -->
+                <div class="param-bar" role="progressbar"
+                  [attr.aria-valuenow]="catalogProgress.current"
+                  [attr.aria-valuemax]="catalogProgress.total">
+                  <span class="param-bar-fill"
+                    [style.width.%]="catalogProgress.total ? (catalogProgress.current / catalogProgress.total) * 100 : 0">
+                  </span>
+                </div>
+                <span class="param-progress-text">
+                  Descargando {{ catalogProgress.current }} de {{ catalogProgress.total }} · {{ catalogProgress.label }}
+                </span>
+              </div>
+            }
+          </div>
+          <button mat-stroked-button class="param-btn"
+            [disabled]="!isOnline || catalogProgress !== null"
+            (click)="actualizarParametrizacion()">
+            <mat-icon>cloud_download</mat-icon>
+            {{ catalogProgress ? 'Descargando…' : (totalCatalogos > 0 ? 'Actualizar' : 'Descargar') }}
+          </button>
+        </div>
+
+      @if (cacheCategories.length === 0) {
         <div class="state-center empty">
           <mat-icon class="empty-icon">storage</mat-icon>
           <p class="empty-title">Sin datos en caché</p>
@@ -167,7 +220,7 @@
           </button>
         </div>
 
-        @if (visibleCategories.length === 0) {
+        @if (visibleCategoriesSinCatalogos.length === 0) {
           <div class="state-center empty" style="padding:24px 12px">
             <mat-icon class="empty-icon">check_circle</mat-icon>
             <p class="empty-title">Todo sincronizado</p>
@@ -175,7 +228,7 @@
           </div>
         } @else {
           <div class="cache-list">
-            @for (cat of visibleCategories; track trackByCat($index, cat)) {
+            @for (cat of visibleCategoriesSinCatalogos; track trackByCat($index, cat)) {
               <div class="cache-row" [class]="'status-' + cat.status">
                 <mat-icon class="cache-icon">{{ cat.icon }}</mat-icon>
                 <div class="cache-body">
@@ -203,6 +256,7 @@
             Limpiar caché local
           </button>
         </div>
+      }
       }
     }
   }

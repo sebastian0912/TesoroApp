@@ -5,6 +5,35 @@ import { firstValueFrom, Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 
+/** Asignación de rol (multi-rol V40). `vigente_hasta` null = indefinido. */
+export interface RolAsignado {
+  id: string;
+  nombre: string;
+  es_principal: boolean;
+  vigente_desde?: string | null;
+  vigente_hasta?: string | null;
+  vigente: boolean;
+}
+
+export interface SedeAsignada {
+  id: string;
+  nombre: string;
+  activa: boolean;
+  es_principal: boolean;
+}
+
+/** Item de entrada del campo `roles` al crear/editar. */
+export interface RolAsignacionPayload {
+  rol_id: string;
+  es_principal?: boolean;
+  vigente_hasta?: string | null;
+}
+
+export interface SedeAsignacionPayload {
+  sede_id: string;
+  es_principal?: boolean;
+}
+
 export interface UsuarioDetail {
   id: string;
   numero_de_documento: string;
@@ -12,8 +41,11 @@ export interface UsuarioDetail {
   correo_electronico: string;
   estado_solicitudes: boolean;
   empresa?: { id: string; nombre: string } | null;
+  // `sede`/`rol` singulares = asignación PRINCIPAL (compat); las listas traen todas.
   sede?: { id: string; nombre: string; activa: boolean } | null;
   rol?: { id: string; nombre: string } | null;
+  roles?: RolAsignado[];
+  sedes?: SedeAsignada[];
   datos_basicos?: { usuario: string; nombres: string; apellidos: string; celular?: string | null } | null;
   permisos_efectivos?: Array<{ id: string; nombre: string; modulo: string; accion: string }>;
   permisos_tree?: any[];
@@ -42,6 +74,9 @@ export type CrearUsuarioPayload = {
   estado_solicitudes?: boolean;
   /** data-URL ya reescalada; opcional, se guarda junto con el alta. */
   foto?: string | null;
+  // Asignaciones múltiples (V40). Si vienen, ganan sobre `rol`/`sede` singulares.
+  roles?: RolAsignacionPayload[];
+  sedes?: SedeAsignacionPayload[];
 };
 
 export type ActualizarUsuarioPayload = Partial<CrearUsuarioPayload>;

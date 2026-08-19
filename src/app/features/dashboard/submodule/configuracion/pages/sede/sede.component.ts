@@ -39,6 +39,9 @@ export class SedeConfigComponent implements OnInit {
   guardando = false;
   isOnline = true;
 
+  /** Multi-sede (V40): ids de las sedes ASIGNADAS al usuario (principal incluida). */
+  sedesAsignadasIds = new Set<string>();
+
   constructor(
     private readonly util: UtilityServiceService,
     private readonly network: NetworkStatusService,
@@ -53,8 +56,34 @@ export class SedeConfigComponent implements OnInit {
     this.sedeActualId = String(user?.sede?.id ?? '');
     this.seleccionId = this.sedeActualId;
 
+    // Multi-sede (V40): con varias asignadas, la lista se parte en "Tus sedes"
+    // y "Otras sedes". Sesiones previas al despliegue solo traen el singular.
+    const asignadas: any[] = Array.isArray(user?.sedes) ? user.sedes : [];
+    this.sedesAsignadasIds = new Set(
+      asignadas.map((s: any) => String(s?.id ?? '')).filter(Boolean),
+    );
+    if (this.sedeActualId) this.sedesAsignadasIds.add(this.sedeActualId);
+
     this.hidratarDesdeCache();
     this.cargarSedes();
+  }
+
+  /** Sedes asignadas al usuario presentes en el catálogo (principal primero). */
+  get sedesPropias(): Sede[] {
+    return this.sedes
+      .filter((s) => this.sedesAsignadasIds.has(String(s.id)))
+      .sort((a, b) =>
+        Number(String(b.id) === this.sedeActualId) - Number(String(a.id) === this.sedeActualId)
+        || (a?.nombre ?? '').localeCompare(b?.nombre ?? ''));
+  }
+
+  get sedesOtras(): Sede[] {
+    return this.sedes.filter((s) => !this.sedesAsignadasIds.has(String(s.id)));
+  }
+
+  /** true si el usuario tiene más de una sede asignada: activa la vista agrupada. */
+  get tieneVarias(): boolean {
+    return this.sedesAsignadasIds.size > 1;
   }
 
   private hidratarDesdeCache(): void {
@@ -147,6 +176,19 @@ export class SedeConfigComponent implements OnInit {
           nombre: nombreSede,
           activa: encontrada?.activa ?? true,
         };
+        // Multi-sede (V40): el backend marca la elegida como principal y CONSERVA
+        // las demás asignaciones; se refleja lo mismo en la copia local.
+        const idNueva = String(user.sede.id);
+        const previas: any[] = Array.isArray(user.sedes) ? user.sedes : [];
+        let estaba = false;
+        user.sedes = previas.map((s: any) => {
+          const esNueva = String(s?.id) === idNueva;
+          if (esNueva) estaba = true;
+          return { ...s, es_principal: esNueva };
+        });
+        if (!estaba) {
+          user.sedes.push({ ...user.sede, es_principal: true });
+        }
         try {
           setLocalStorageItem('user', JSON.stringify(user));
         } catch {

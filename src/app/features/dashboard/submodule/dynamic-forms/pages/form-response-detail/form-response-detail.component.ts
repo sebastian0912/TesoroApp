@@ -400,7 +400,9 @@ export class FormResponseDetailComponent {
       case 'PHOTO':
       case 'VIDEO':
       case 'FILE':
-      case 'SIGNATURE': {
+      case 'SIGNATURE':
+      case 'SCAN_DOC':
+      case 'SCAN_ID': {
         // Media = nombre(s) de archivo; el binario no viaja al PDF.
         const nombres = asDocumentRefs(value).map(r => r.filename).join(', ');
         return nombres || '—';

@@ -582,6 +582,15 @@
     --m-text-strong: rgba(255, 255, 255, 0.96);
     --m-divider: rgba(255, 255, 255, 0.06);
     --m-sheet-bg: linear-gradient(180deg, #1d2538 0%, #1a2235 100%);
+
+    /* Chips de la tira de submódulos: colores OPACOS ya mezclados sobre el fondo
+       de la tira (#1c2234). Con fondos translúcidos, cualquier resto de pintura
+       del compositor (la tira es position:fixed y su nav scrollea en horizontal)
+       se transparenta a través del chip y se lee como texto duplicado/encimado. */
+    --m-chip-bg: #2c3242;
+    --m-chip-bg-hover: #373d4c;
+    --m-chip-bg-active: #2c3b2d;
+    --m-chip-border: #3a4152;
   }
 
   .sidebar-overlay {
@@ -710,16 +719,25 @@
     flex-shrink: 0;
   }
 
-  /* Etiqueta debajo del icono — visible solo en mobile */
+  /* Etiqueta debajo del icono — visible solo en mobile.
+     Los nombres de módulo son palabras sueltas y largas ("AFILIACIONES",
+     "COMERCIALIZADORA"): no parten en dos líneas de forma legible, así que se
+     mantienen en una sola con elipsis. Para que quepan más letras antes de
+     recortar, la etiqueta usa todo el ancho del botón (sin el padding lateral)
+     y una tipografía algo más compacta. */
   .module-buttons > button .m-btn-label,
   .sidebar-logo-btn .m-btn-label {
     display: block;
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
     line-height: 1.1;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
     text-transform: uppercase;
-    max-width: 100%;
+    /* +10px: recupera el padding lateral del botón (6px por lado) como espacio
+       útil de texto. Con `align-items:center` el excedente se reparte simétrico. */
+    width: calc(100% + 10px);
+    max-width: calc(100% + 10px);
+    text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -982,6 +1000,17 @@
     /* Sin mask-image (misma razón que .module-buttons): enmascarar un contenedor
        con scroll horizontal provoca texto fantasma/duplicado de los chips en el
        WebView de Android. */
+
+    /* El scroller es su propia capa de pintura, opaca y recortada a su caja:
+       así el compositor no puede reutilizar tiles viejos del panel fijo que hay
+       detrás (era lo que dejaba dos etiquetas encimadas dentro de un mismo chip
+       al deslizar la tira). `contain: paint` además evita que un chip se dibuje
+       fuera del scroller. */
+    background-color: #1b2233;
+    contain: paint;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
   .sidebar .right nav::-webkit-scrollbar {
@@ -1011,20 +1040,39 @@
     min-height: 36px;
     max-height: 36px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid var(--m-chip-border);
+    background: var(--m-chip-bg);
     white-space: nowrap;
     margin-bottom: 0;
     font-size: 12px;
     font-weight: 500;
     color: var(--m-text);
     transform: none !important;
+
+    /* El estilo de escritorio pone `width: 100%` (menú vertical). En la tira
+       horizontal ese 100% se resuelve contra un .tree-wrap de ancho automático
+       y estira el chip mucho más allá de su texto ("items muy alargados").
+       Aquí el chip debe medir exactamente lo que ocupa su contenido. */
+    width: auto !important;
+    /* Un nombre de submódulo muy largo no debe comerse la pantalla entera:
+       se recorta con elipsis y el resto se alcanza deslizando la tira. */
+    max-width: 60vw;
+    overflow: hidden;
   }
 
   .sidebar .right .submodule-button:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--m-chip-bg-hover);
     color: var(--m-text-strong);
     transform: none !important;
+  }
+
+  /* El texto cede ancho (y se recorta) antes que el icono */
+  .sidebar .right .submodule-text {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .sidebar .right .submodule-button .mat-icon {
@@ -1041,9 +1089,9 @@
 
   /* Chip activo */
   .sidebar .right .submodule-button.active-submodule {
-    background: var(--m-accent-soft) !important;
+    background: var(--m-chip-bg-active) !important;
     color: var(--m-accent-strong) !important;
-    border-color: rgba(141, 213, 10, 0.30) !important;
+    border-color: #3f5c2a !important;
     box-shadow: none !important;
   }
 

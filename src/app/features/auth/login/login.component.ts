@@ -10,6 +10,7 @@ import { SharedModule } from '../../../shared/shared.module';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { setLocalStorageItem } from '../../../core/utils/safe-storage';
 import { OfflineSyncService } from '../../../core/services/offline-sync.service';
+import { CatalogPreloadService } from '../../../core/services/catalog-preload.service';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import {
@@ -131,6 +132,7 @@ export class LoginComponent implements OnInit {
     private loginS: LoginService,
     private router: Router,
     private offlineSync: OfflineSyncService,
+    private catalogPreload: CatalogPreloadService,
   ) {}
 
   ngOnInit(): void {
@@ -256,6 +258,9 @@ export class LoginComponent implements OnInit {
       const rolNombre = resp.user?.rol?.nombre ?? '';
 
       this.offlineSync.syncNow().catch(() => null);
+      // La parametrización se baja tras entrar (no al arrancar la app): antes
+      // del login no hay token y todos los catálogos responderían 401.
+      this.catalogPreload.preload().catch(() => null);
 
       if (origen === 'formulario') {
         // Se ofrece ANTES de navegar: la contraseña en claro solo existe aquí.

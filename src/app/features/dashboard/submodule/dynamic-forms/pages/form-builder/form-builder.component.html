@@ -12,7 +12,7 @@
           @if (esEdicion()) {
             Al publicar se creará la versión v{{ versionActual() + 1 }} · {{ totalCampos() }} campos
           } @else {
-            Crea secciones, agrégales campos y pruébalo en el teléfono · {{ totalCampos() }} campos
+            Crea secciones, agrégales campos y pruébalo en móvil o escritorio · {{ totalCampos() }} campos
           }
         </p>
       </div>
@@ -34,6 +34,12 @@
                 title="Pedirle a la IA las preguntas que faltan">
           <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
           Asistente IA
+        </button>
+        <button type="button" class="fb-btn fb-btn--ghost" (click)="importarAbierto.set(true)"
+                [disabled]="cargando()"
+                title="Descargar la plantilla parametrizada o cargar las preguntas desde un Excel">
+          <span class="material-symbols-outlined" aria-hidden="true">table_view</span>
+          Desde Excel
         </button>
         <button type="button" class="fb-btn fb-btn--primary"
                 (click)="guardar()"
@@ -58,15 +64,11 @@
     </p>
   } @else {
 
-    <!-- 3 columnas: paleta | canvas | teléfono. El grupo CDK conecta paleta y secciones. -->
-    <div class="fb-layout" cdkDropListGroup>
+    <!-- 2 columnas: canvas | vista previa. El grupo CDK conecta las listas de las
+         secciones entre sí (arrastrar un campo de una sección a otra). -->
+    <div class="fb-layout" [class.fb-layout--ancha]="vistaPrevia() === 'escritorio'" cdkDropListGroup>
 
-      <!-- IZQUIERDA: paleta de tipos -->
-      <aside class="fb-col fb-col--paleta">
-        <app-field-palette [types]="tipos()" (add)="agregarTipo($event)" />
-      </aside>
-
-      <!-- CENTRO: metadatos + permisos + secciones -->
+      <!-- IZQUIERDA: metadatos + permisos + secciones -->
       <main class="fb-col fb-col--canvas">
 
         <section class="fb-panel">
@@ -328,44 +330,57 @@
           }
         </section>
 
-        <!-- Permisos de llenado: SOLO en creación (en edición se gestionan aparte) -->
-        @if (!esEdicion()) {
-          <section class="fb-panel">
-            <button type="button" class="fb-panel__toggle"
-                    [attr.aria-expanded]="panelAbierto('permisos')"
-                    aria-controls="fb-panel-permisos"
-                    (click)="alternarPanel('permisos')">
-              <span class="material-symbols-outlined" aria-hidden="true">group</span>
-              <span class="fb-panel__nombre">Permisos de llenado</span>
-              <span class="fb-panel__resumen">{{ resumenPermisos() }}</span>
-              <span class="material-symbols-outlined fb-panel__chevron"
-                    [class.fb-panel__chevron--abierto]="panelAbierto('permisos')"
-                    aria-hidden="true">expand_more</span>
-            </button>
-            @if (panelAbierto('permisos')) {
-            <div id="fb-panel-permisos">
-            <p class="fb-ayuda">Los roles seleccionados verán el formulario en su menú y podrán llenarlo.</p>
-            @if (cargandoRoles()) {
-              <p class="fb-ayuda" role="status">Cargando roles…</p>
-            }
-            <div class="fb-roles">
-              @for (rol of roles(); track rol.id) {
-                <label class="fb-rol" [class.fb-rol--activo]="rolesSel().includes(rol.id)">
-                  <input type="checkbox"
-                         [checked]="rolesSel().includes(rol.id)"
-                         (change)="toggleRol(rol.id)" />
-                  {{ rol.nombre }}
-                </label>
-              } @empty {
-                @if (!cargandoRoles()) {
-                  <p class="fb-ayuda">No hay roles disponibles; podrás asignarlos después.</p>
-                }
+        <!-- Permisos: quién ve qué. Los roles de MENÚ solo en creación; la matriz por rol
+             y el control del proceso, siempre (en edición el diálogo guarda por su cuenta). -->
+        <section class="fb-panel">
+          <button type="button" class="fb-panel__toggle"
+                  [attr.aria-expanded]="panelAbierto('permisos')"
+                  aria-controls="fb-panel-permisos"
+                  (click)="alternarPanel('permisos')">
+            <span class="material-symbols-outlined" aria-hidden="true">group</span>
+            <span class="fb-panel__nombre">Permisos y control del proceso</span>
+            <span class="fb-panel__resumen">{{ resumenAcceso() }}</span>
+            <span class="material-symbols-outlined fb-panel__chevron"
+                  [class.fb-panel__chevron--abierto]="panelAbierto('permisos')"
+                  aria-hidden="true">expand_more</span>
+          </button>
+          @if (panelAbierto('permisos')) {
+          <div id="fb-panel-permisos">
+
+          <p class="fb-ayuda">
+            Define a quién va dirigido —por su rol, por su finca o empresa usuaria, por su
+            oficina o por su nombre— y qué ve dentro: solo el formulario, o también sus
+            respuestas, el control del proceso o la analítica, hasta el detalle de qué
+            columnas puede llenar.
+          </p>
+          <button type="button" class="fb-btn-secundario" (click)="abrirPermisos()">
+            <span class="material-symbols-outlined" aria-hidden="true">admin_panel_settings</span>
+            Configurar permisos
+          </button>
+
+          @if (!esEdicion()) {
+            <!-- El menú lo reparte ms-auth-admin por ROL: no es una segunda lista que
+                 marcar, sale de los permisos de arriba. -->
+            <p class="fb-ayuda fb-ayuda--separada">
+              @if (rolesDelMenu().length) {
+                Verán la entrada en su menú lateral los roles con permiso de llenar:
+              } @else {
+                Ningún rol tiene todavía permiso de llenar, así que la entrada no aparecerá
+                en el menú de nadie. Los destinatarios por finca, oficina o nombre siempre
+                abren el formulario por su enlace.
               }
-            </div>
-            </div>
+            </p>
+            @if (rolesDelMenu().length) {
+              <div class="fb-roles">
+                @for (rol of rolesDelMenu(); track rol.id) {
+                  <span class="fb-rol fb-rol--activo">{{ rol.nombre }}</span>
+                }
+              </div>
             }
-          </section>
-        }
+          }
+          </div>
+          }
+        </section>
 
         <!-- Ubicación en el menú: editable SOLO en creación (en edición se gestiona desde el listado) -->
         @if (!esEdicion()) {
@@ -522,12 +537,41 @@
               </button>
             </div>
 
+            <!-- Ruta de respuestas: a dónde ir al terminar esta sección -->
+            @if (destinosDesde(si).length > 1 || destinoDeSeccion(si)) {
+              <div class="fb-ruta">
+                <span class="material-symbols-outlined" aria-hidden="true">alt_route</span>
+                <label [attr.for]="'fb-ruta-' + si">Al terminar esta sección, ir a</label>
+                <select [id]="'fb-ruta-' + si"
+                        [value]="destinoDeSeccion(si)"
+                        (change)="cambiarDestinoDeSeccion(si, $any($event.target).value)">
+                  <option value="">La siguiente sección</option>
+                  @for (d of destinosDesde(si); track d.code) {
+                    <option [value]="d.code">{{ d.nombre }}</option>
+                  }
+                </select>
+                <span class="fb-ruta__nota">Las respuestas con regla propia mandan sobre esto.</span>
+              </div>
+            }
+
             <div class="fb-seccion__lista"
                  cdkDropList
                  [id]="'fb-sec-' + si"
                  [cdkDropListData]="si"
                  (cdkDropListDropped)="soltarCampo($event, si)">
               @for (campo of sec.fields; track $index; let fi = $index) {
+                <!-- Punto de inserción: aparece al pasar el mouse (o al enfocarlo) por
+                     el hueco entre dos preguntas y mete el campo nuevo justo ahí. -->
+                <button type="button" class="fb-insertar"
+                        (click)="abrirPickerDeCampo(si, fi)"
+                        [attr.aria-label]="'Insertar un campo antes de ' + (campo.label || ('la pregunta ' + (fi + 1))) + ', en la sección ' + (si + 1)">
+                  <span class="fb-insertar__linea" aria-hidden="true"></span>
+                  <span class="fb-insertar__pill">
+                    <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                    Insertar campo aquí
+                  </span>
+                  <span class="fb-insertar__linea" aria-hidden="true"></span>
+                </button>
                 <div class="fb-carta" cdkDrag [cdkDragData]="campo">
                   <div class="fb-carta__placeholder" *cdkDragPlaceholder></div>
                   <button type="button" class="fb-handle" cdkDragHandle
@@ -539,6 +583,7 @@
                       [field]="campo"
                       [types]="tipos()"
                       [siblings]="camposEncadenables(si, fi)"
+                      [destinos]="destinosDesde(si)"
                       (fieldChange)="actualizarCampo(si, fi, $event)"
                       (duplicateField)="duplicarCampo(si, fi)"
                       (removeField)="quitarCampo(si, fi)"
@@ -551,8 +596,20 @@
                     <span class="material-symbols-outlined" aria-hidden="true">add_circle</span>
                     Agregar la primera pregunta
                   </button>
-                  <p class="fb-vacia__pista">También puedes arrastrar un tipo desde la paleta.</p>
                 </div>
+              }
+              @if (sec.fields.length) {
+                <!-- Último hueco: cierra la serie de puntos de inserción con el "al final". -->
+                <button type="button" class="fb-insertar fb-insertar--final"
+                        (click)="abrirPickerDeCampo(si, sec.fields.length)"
+                        [attr.aria-label]="'Agregar un campo al final de la sección ' + (si + 1)">
+                  <span class="fb-insertar__linea" aria-hidden="true"></span>
+                  <span class="fb-insertar__pill">
+                    <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                    Agregar campo al final
+                  </span>
+                  <span class="fb-insertar__linea" aria-hidden="true"></span>
+                </button>
               }
             </div>
           </section>
@@ -564,14 +621,16 @@
         </button>
       </main>
 
-      <!-- DERECHA: preview teléfono en vivo (derivado del estado) -->
+      <!-- DERECHA: vista previa en vivo (derivada del estado), en móvil o escritorio -->
       <aside class="fb-col fb-col--preview">
-        <app-form-preview-phone
+        <app-form-preview
             [formName]="nombre()"
             [formDescription]="descripcion()"
             [sections]="sections()"
             [theme]="tema()"
-            [wizard]="pasoAPaso()" />
+            [wizard]="pasoAPaso()"
+            [dispositivo]="vistaPrevia()"
+            (dispositivoChange)="cambiarVistaPrevia($event)" />
       </aside>
     </div>
 
@@ -580,6 +639,7 @@
       <app-field-type-picker
           [types]="tipos()"
           [destino]="destinoDelPicker()"
+          [ubicacion]="ubicacionDelPicker()"
           (elegir)="agregarDesdePicker($event)"
           (cerrar)="cerrarPickerDeCampo()" />
     }
@@ -603,5 +663,17 @@
         [edicion]="totalCampos() > 0"
         [contexto]="contextoIa()"
         (elegir)="aplicarInicio($event)" />
+  }
+
+  <!-- Carga por Excel: baja la plantilla ya parametrizada y sube el archivo lleno; lo
+       leído se vuelca aquí mismo, sin guardar nada. -->
+  @if (importarAbierto()) {
+    <app-excel-import-dialog
+        [nombreInicial]="nombre()"
+        [descripcionInicial]="descripcion()"
+        [categoriaInicial]="categoria()"
+        (abrir)="aplicarImportado($event)"
+        (creados)="irAlListado()"
+        (cerrar)="importarAbierto.set(false)" />
   }
 </div>

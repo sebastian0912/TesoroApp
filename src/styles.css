@@ -16,6 +16,18 @@
 @import "@fontsource/roboto/500.css";
 @import "@fontsource/roboto/700.css";
 @import "@fontsource/roboto/900.css";
+/* Rediseño pipeline 2026-08: Archivo (titulares) + Instrument Sans (texto).
+   Auto-hosteadas via @fontsource, igual que Roboto (el APK/Electron corre
+   offline: NADA de Google Fonts por red). Solo las consume la página del
+   pipeline vía sus propias reglas; el resto de la app sigue en Roboto. */
+@import "@fontsource/archivo/500.css";
+@import "@fontsource/archivo/600.css";
+@import "@fontsource/archivo/700.css";
+@import "@fontsource/archivo/800.css";
+@import "@fontsource/instrument-sans/400.css";
+@import "@fontsource/instrument-sans/500.css";
+@import "@fontsource/instrument-sans/600.css";
+@import "@fontsource/instrument-sans/700.css";
 @import "material-icons/iconfont/material-icons.css";
 @import "material-symbols/outlined.css";
 
@@ -1237,6 +1249,12 @@ button {
 .notif-menu-panel .notif-item:hover { background: #f6f8fc; }
 .notif-menu-panel .notif-item.is-unread { background: #f2f7ff; border-left-color: #3b82f6; }
 .notif-menu-panel .notif-item.is-unread:hover { background: #e9f2ff; }
+
+/* Urgencia URGENTE/CRITICA: la campana tiene que distinguirlas de un vistazo,
+   sin depender del color del icono (que lo define cada tipo del catalogo y
+   podria coincidir con el de un tipo informativo). */
+.notif-menu-panel .notif-item.is-urgent { border-left-color: #dc2626; }
+.notif-menu-panel .notif-item.is-urgent .notif-title { color: #b91c1c; }
 
 .notif-menu-panel .notif-avatar {
   flex: 0 0 auto;

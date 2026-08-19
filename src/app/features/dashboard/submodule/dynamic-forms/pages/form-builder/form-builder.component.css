@@ -124,16 +124,21 @@
 
 .fb-btn--primary:hover:not(:disabled) { filter: brightness(1.05); }
 
-/* ── Layout de 3 columnas ─────────────────────────────────────────── */
+/* ── Layout de 2 columnas ─────────────────────────────────────────── */
 
 .fb-layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 420px;
+  grid-template-columns: minmax(0, 1fr) 420px;
   gap: 18px;
   align-items: start;
 }
 
-.fb-col--paleta,
+/* Con la vista previa en escritorio, 420px mienten sobre cómo se verá el formulario:
+   la maqueta necesita ancho real, así que las dos columnas se reparten el espacio. */
+.fb-layout--ancha {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+}
+
 .fb-col--preview {
   position: sticky;
   top: 12px;
@@ -147,10 +152,10 @@
 }
 
 @media (max-width: 1100px) {
-  .fb-layout { grid-template-columns: 1fr; }
-  .fb-col--paleta,
+  .fb-layout,
+  .fb-layout--ancha { grid-template-columns: 1fr; }
   .fb-col--preview { position: static; }
-  /* En una columna el orden útil es: paleta, canvas, teléfono (orden natural). */
+  /* En una columna el orden útil es: lienzo y luego teléfono (orden natural). */
 }
 
 .fb-cargando {
@@ -475,10 +480,84 @@
 .fb-seccion__lista {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* Sin gap: la separación entre tarjetas la ponen los puntos de inserción, que
+     miden siempre lo mismo estén visibles o no (así el hover no mueve nada). */
+  gap: 0;
   min-height: 56px;
   border-radius: var(--r-sm, 10px);
   padding: 2px;
+}
+
+/* Punto de inserción entre preguntas (estilo Google Forms): ocupa el hueco que antes
+   era `gap`, es invisible en reposo y se revela al pasar por encima o al enfocarlo.
+   Como el alto es fijo, mostrarlo no empuja ninguna tarjeta. */
+.fb-insertar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--slate-500, #64748b);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.fb-insertar:hover,
+.fb-insertar:focus-visible { opacity: 1; outline: none; }
+
+.fb-insertar__linea {
+  flex: 1;
+  height: 1px;
+  background: var(--slate-300, #d8e0ea);
+}
+
+.fb-insertar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 2px 10px;
+  border: 1px solid var(--slate-300, #d8e0ea);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.fb-insertar:hover .fb-insertar__pill {
+  border-color: var(--navy, #21263c);
+  color: var(--navy, #21263c);
+}
+
+.fb-insertar:focus-visible .fb-insertar__pill {
+  border-color: var(--navy, #21263c);
+  color: var(--navy, #21263c);
+  outline: 2px solid var(--lime, #8cd50a);
+  outline-offset: 2px;
+}
+
+.fb-insertar .material-symbols-outlined { font-size: 15px; }
+
+/* Mientras se arrastra, el hueco no debe ofrecer nada: estorba al soltar. */
+.fb-seccion__lista.cdk-drop-list-dragging .fb-insertar,
+.fb-seccion__lista.cdk-drop-list-receiving .fb-insertar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Sin mouse no hay hover: en táctil los puntos quedan siempre a la vista, tenues. */
+@media (hover: none) {
+  .fb-insertar { opacity: 0.55; height: 20px; }
+  .fb-insertar:active { opacity: 1; }
 }
 
 /* Resaltar la lista mientras un drag está encima */
@@ -505,7 +584,6 @@
 
 .fb-vacia__texto { margin: 0; }
 
-.fb-vacia__pista { margin: 0; font-size: 0.76rem; }
 
 /* La sección vacía es donde se atasca quien empieza: el botón tiene que ser
    la acción evidente, no una nota al pie del área de arrastre. */
@@ -863,20 +941,11 @@
 
 /* ── Móvil: el lienzo es la app ────────────────────────────────────── */
 
-/* La paleta lateral pide una tercera columna y un puntero que arrastre: en un
-   teléfono no hay ninguna de las dos, y apilada solo empujaba las secciones —lo que
-   de verdad se está armando— fuera de la primera pantalla. Aquí desaparece y el
-   camino es: crear secciones y, dentro de cada una, "Agregar campo". */
 @media (max-width: 860px) {
-  .fb-col--paleta { display: none; }
-
   /* El header lleva cuatro acciones (Volver, Plantillas, Asistente IA y guardar):
      sin envolver, la de guardar se salía de la pantalla en un teléfono. */
   .header-content { flex-wrap: wrap; }
   .header-actions { flex-wrap: wrap; justify-content: flex-end; width: 100%; }
-
-  /* Sin paleta, la pista que remite a ella sobra. */
-  .fb-vacia__pista { display: none; }
 
   .fb-page { padding: 12px; gap: 14px; }
 
@@ -894,4 +963,43 @@
   .fb-prompt__barra .fb-btn { flex: 1 1 auto; justify-content: center; }
 
   .fb-portada__vista { width: 100%; }
+}
+
+/* ── Ruta de respuestas: destino por defecto de la sección ───────────── */
+
+.fb-ruta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px dashed var(--slate-200, #e8edf3);
+  border-radius: var(--r-sm, 10px);
+  background: var(--slate-50, #f8fafc);
+  font-size: 0.82rem;
+  color: var(--slate-700, #334155);
+}
+
+.fb-ruta .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--slate-500, #64748b);
+}
+
+.fb-ruta select {
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--navy, #21263c);
+}
+
+.fb-ruta__nota {
+  flex: 1 1 100%;
+  font-size: 0.74rem;
+  color: var(--muted, #94a3b8);
 }

@@ -15,31 +15,38 @@ import Swal from 'sweetalert2';
 import { environment } from '@/environments/environment';
 import { DynamicFormService } from '../../services/dynamic-form.service';
 import { FieldTypeService } from '../../services/field-type.service';
-import { RolesService, RolResumen } from '../../services/roles.service';
+import { MatDialog } from '@angular/material/dialog';
+import {
+  FormAccessDialogComponent, FormAccessDialogData,
+} from '../../components/form-access-dialog/form-access-dialog.component';
+import { FormAccessConfig, FormColumn } from '../../models/process.models';
 import { PlacementService } from '../../services/placement.service';
 import {
   ApiProblem, BuilderRequest, DynamicField, FieldTypeInfo, FormDetail, FormSection,
   FormTheme, FormUi,
 } from '../../models/dynamic-forms.models';
+import { FIN_DEL_FORMULARIO, tieneRamificacion } from '../../models/form-routing';
 import { PRESETS_TEMA, PresetTema, temaEfectivo } from '../../models/form-theme';
 import { campoDesdeBorrador, seccionesDesdeBorrador } from '../../models/form-drafts';
 import {
   ESTILOS_PORTADA, EstiloPortada, FormDesignService, SugerenciaDiseno,
 } from '../../services/form-design.service';
 import { ModuleNode, Placement, PlacementRequest } from '../../models/placement.models';
-import { FieldPaletteComponent } from '../../components/field-palette/field-palette.component';
 import {
   FieldConfigCardComponent, clonarCampoParaDuplicar, crearCampoDesdeTipo,
 } from '../../components/field-config-card/field-config-card.component';
-import { FormPreviewPhoneComponent } from '../../components/form-preview-phone/form-preview-phone.component';
+import { DispositivoPreview, FormPreviewComponent } from '../../components/form-preview/form-preview.component';
 import { ModuleTreePickerComponent } from '../../components/module-tree-picker/module-tree-picker.component';
 import { FieldTypePickerComponent } from '../../components/field-type-picker/field-type-picker.component';
 import { FormStartComponent, InicioElegido } from '../../components/form-start/form-start.component';
 import {
   AiQuestionsDialogComponent, ContextoFormulario, PropuestaAceptada,
 } from '../../components/ai-questions-dialog/ai-questions-dialog.component';
+import { ExcelImportDialogComponent } from '../../components/excel-import-dialog/excel-import-dialog.component';
+import { FormImportService } from '../../services/form-import.service';
+import { ImportedForm } from '../../models/form-import.models';
 import { leerUsuarioCrudo } from '@/app/core/utils/usuario-actual';
-import { setLocalStorageItem } from '@/app/core/utils/safe-storage';
+import { getLocalStorageItem, setLocalStorageItem } from '@/app/core/utils/safe-storage';
 
 /**
  * Deriva el slug en cliente (solo para la vista previa; la ruta canónica la
@@ -66,12 +73,24 @@ function claveAleatoria(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
+/**
+ * En qué maqueta se mira la vista previa. Es una preferencia de TRABAJO de quien
+ * construye —no del formulario— así que se recuerda en el navegador y no viaja al API.
+ */
+const CLAVE_VISTA_PREVIA = 'formularios:vistaPrevia';
+
+function leerVistaPrevia(): DispositivoPreview {
+  return getLocalStorageItem(CLAVE_VISTA_PREVIA) === 'escritorio' ? 'escritorio' : 'movil';
+}
+
 /** Paneles plegables de la columna central del constructor. */
 type PanelKey = 'datos' | 'diseno' | 'permisos' | 'ubicacion';
 
 /**
- * Constructor de Formularios Dinámicos — 3 columnas:
- *   paleta de tipos | metadatos + secciones con tarjetas de campo | preview teléfono.
+ * Constructor de Formularios Dinámicos — 2 columnas:
+ *   metadatos + secciones con tarjetas de campo | preview teléfono.
+ * Los campos se agregan SIEMPRE por el selector de tipo (`abrirPickerDeCampo`), que es
+ * el mismo camino en escritorio y en móvil; ya no hay paleta lateral que arrastrar.
  *
  * Estado 100% con signals e INMUTABLE: toda mutación de secciones/campos crea
  * arrays y objetos nuevos para que OnPush repinte (el preview se deriva de aquí).
@@ -89,9 +108,9 @@ type PanelKey = 'datos' | 'diseno' | 'permisos' | 'ubicacion';
   imports: [
     CommonModule, FormsModule,
     CdkDropListGroup, CdkDropList, CdkDrag, CdkDragHandle, CdkDragPlaceholder,
-    FieldPaletteComponent, FieldConfigCardComponent, FormPreviewPhoneComponent,
+    FieldConfigCardComponent, FormPreviewComponent,
     ModuleTreePickerComponent, FieldTypePickerComponent,
-    FormStartComponent, AiQuestionsDialogComponent,
+    FormStartComponent, AiQuestionsDialogComponent, ExcelImportDialogComponent,
   ],
   templateUrl: './form-builder.component.html',
   styleUrl: './form-builder.component.css',
@@ -99,13 +118,14 @@ type PanelKey = 'datos' | 'diseno' | 'permisos' | 'ubicacion';
 export class FormBuilderComponent {
   private formsSvc = inject(DynamicFormService);
   private tiposSvc = inject(FieldTypeService);
-  private rolesSvc = inject(RolesService);
   private placementSvc = inject(PlacementService);
   private designSvc = inject(FormDesignService);
+  private importSvc = inject(FormImportService);
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private snack = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
   private destroyRef = inject(DestroyRef);
 
   private static readonly RUTA_LISTADO = '/dashboard/gestion-del-programa/formularios-dinamicos';
@@ -117,7 +137,7 @@ export class FormBuilderComponent {
   esPublico = signal(false);
 
   // ── Estructura ────────────────────────────────────────────────────
-  sections = signal<FormSection[]>([{ order_no: 1, title: 'Sección 1', fields: [] }]);
+  sections = signal<FormSection[]>([{ code: 'sec_root', order_no: 1, title: 'Sección 1', fields: [] }]);
   seccionActiva = signal(0);
 
   // ── Diseño (tema + recorrido) ─────────────────────────────────────
@@ -130,6 +150,19 @@ export class FormBuilderComponent {
   /** Recorrido: paso a paso (default con 2+ secciones) o todo de corrido. */
   pasoAPaso = signal(true);
   mostrarProgreso = signal(true);
+
+  // ── Vista previa ──────────────────────────────────────────────────
+  /**
+   * El mismo formulario se llena desde el APK y desde un escritorio, así que la
+   * maqueta la elige quien construye. En 'escritorio' la vista previa necesita ancho
+   * real: la columna se ensancha (ver .fb-layout--ancha).
+   */
+  vistaPrevia = signal<DispositivoPreview>(leerVistaPrevia());
+
+  cambiarVistaPrevia(d: DispositivoPreview): void {
+    this.vistaPrevia.set(d);
+    setLocalStorageItem(CLAVE_VISTA_PREVIA, d);
+  }
 
   /** Portada: objectURL para verla aquí; en el tema solo viaja la referencia. */
   portadaUrl = signal<string | null>(null);
@@ -440,6 +473,8 @@ export class FormBuilderComponent {
   mostrarInicio = signal(false);
   /** Asistente de preguntas: propone lo que falta, en creación y en edición. */
   asistenteAbierto = signal(false);
+  /** Carga por Excel: plantilla ya parametrizada + archivo lleno. */
+  importarAbierto = signal(false);
 
   /**
    * Lo que el asistente necesita saber del formulario: nunca respuestas de nadie.
@@ -462,6 +497,11 @@ export class FormBuilderComponent {
    * portada se puede reabrir con el formulario a medias).
    */
   async aplicarInicio(elegido: InicioElegido): Promise<void> {
+    if (elegido.origen === 'excel') {
+      this.mostrarInicio.set(false);
+      this.importarAbierto.set(true);
+      return;
+    }
     if (elegido.origen === 'blanco' || !elegido.secciones?.length) {
       this.mostrarInicio.set(false);
       return;
@@ -489,7 +529,7 @@ export class FormBuilderComponent {
     }
 
     if (reemplazar) {
-      this.sections.set(secciones);
+      this.fijarSecciones(secciones);
       this.seccionActiva.set(0);
       // Los metadatos solo se rellenan si el usuario no había escrito los suyos.
       if (elegido.nombre && !this.nombre().trim()) this.nombre.set(elegido.nombre);
@@ -503,7 +543,7 @@ export class FormBuilderComponent {
     } else {
       const actuales = this.clonarSecciones();
       const nuevas = secciones.map((sec, i) => ({ ...sec, order_no: actuales.length + i + 1 }));
-      this.sections.set([...actuales, ...nuevas]);
+      this.fijarSecciones([...actuales, ...nuevas]);
       this.seccionActiva.set(actuales.length);
     }
 
@@ -546,7 +586,7 @@ export class FormBuilderComponent {
       ultima = destino;
     }
 
-    this.sections.set(secs);
+    this.fijarSecciones(secs);
     this.seccionActiva.set(ultima);
     this.asistenteAbierto.set(false);
     this.snack.open(
@@ -556,11 +596,110 @@ export class FormBuilderComponent {
       'OK', { duration: 5000 });
   }
 
+  // ── Carga por Excel ───────────────────────────────────────────────
+
+  /**
+   * Vuelca en el constructor un formulario leído de un Excel: metadatos, secciones con
+   * sus preguntas, roles de llenado y ubicación en el menú. Es exactamente lo que se
+   * habría armado a mano —de hecho es el mismo `BuilderRequest` que se guardaría—, así
+   * que desde aquí todo se edita igual y NADA se ha guardado todavía.
+   */
+  aplicarImportado(f: ImportedForm): void {
+    if (this.totalCampos() === 0) {
+      this.volcarImportado(f, true);
+      return;
+    }
+    // Con contenido a medias, reemplazar es destructivo: decide el usuario.
+    void Swal.fire({
+      icon: 'question',
+      title: 'Ya tienes preguntas',
+      text: 'Puedes agregar las del archivo al final o reemplazar todo lo que llevas.',
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: 'Agregar al final',
+      denyButtonText: 'Reemplazar todo',
+      cancelButtonText: 'Cancelar',
+    }).then(r => {
+      if (r.isConfirmed) this.volcarImportado(f, false);
+      else if (r.isDenied) this.volcarImportado(f, true);
+    });
+  }
+
+  private volcarImportado(f: ImportedForm, reemplazar: boolean): void {
+    // Clon profundo: el estado del constructor es suyo, no el objeto de la respuesta HTTP.
+    const secciones = structuredClone(f.form.sections ?? []);
+    if (!secciones.length) {
+      this.snack.open('El archivo no trajo preguntas para este formulario.', 'Cerrar', { duration: 5000 });
+      return;
+    }
+
+    let avisoRutas = false;
+    if (reemplazar) {
+      this.fijarSecciones(secciones);
+      this.seccionActiva.set(0);
+      this.nombre.set(f.form.name ?? '');
+      this.descripcion.set(f.form.description ?? '');
+      this.categoria.set(f.form.category ?? '');
+      this.esPublico.set(!!f.form.is_public);
+      // El tema no viaja en el Excel (es visual): se queda el preset que ya hubiera.
+      this.pasoAPaso.set(f.form.ui?.navigation?.mode !== 'single');
+      this.mostrarProgreso.set(f.form.ui?.navigation?.progress !== false);
+      this.aplicarUbicacionImportada(f);
+    } else {
+      // Al agregar al final, los códigos de sección del archivo se regeneran para no chocar
+      // con los que ya existen — y una ruta que cite el código viejo apuntaría a otra
+      // sección. Se quitan los saltos de lo importado y se avisa: mejor sin ramificación
+      // que con una ramificación equivocada.
+      const actuales = this.clonarSecciones();
+      avisoRutas = secciones.some(sec => sec.next_section || sec.fields?.some(c => c.schema?.routing));
+      const nuevas = secciones.map((sec, i) => ({
+        ...sec,
+        code: undefined,
+        next_section: null,
+        order_no: actuales.length + i + 1,
+        fields: (sec.fields ?? []).map(c => c.schema?.routing ? { ...c, schema: { ...c.schema, routing: undefined } } : c),
+      }));
+      this.fijarSecciones([...actuales, ...nuevas]);
+      this.seccionActiva.set(actuales.length);
+    }
+
+    this.importarAbierto.set(false);
+    this.mostrarInicio.set(false);
+    this.abrirPanel('datos');
+    const cuantas = secciones.reduce((a, sec) => a + (sec.fields?.length ?? 0), 0);
+    this.snack.open(
+      `Archivo cargado: ${cuantas} pregunta(s) en ${secciones.length} sección(es).`
+      + (avisoRutas ? ' Los saltos entre secciones del archivo se quitaron al agregarlo al final.' : '')
+      + ' Revísalas y guarda cuando estés listo.',
+      'OK', { duration: 7000 });
+  }
+
+  /** Destino y permisos que venían escritos en el archivo (solo al reemplazar). */
+  private aplicarUbicacionImportada(f: ImportedForm): void {
+    const roles = f.placement?.fill_role_ids ?? f.form.fill_role_ids ?? [];
+    if (roles.length) this.rolesSel.set([...roles]);
+    const padre = f.placement?.parent_module_id;
+    if (padre) {
+      this.ubicPadre.set(padre);
+      this.noPublicar.set(false);
+      // El selector de módulos vive dentro del panel plegado: abrirlo lo monta, con lo que
+      // se preselecciona el módulo del archivo y el resumen deja de decir que falta elegirlo.
+      this.abrirPanel('ubicacion');
+    }
+    if (f.placement?.menu_label) this.ubicLabel.set(f.placement.menu_label);
+    if (f.placement?.icon) this.ubicIcono.set(f.placement.icon);
+    if (f.placement?.order_no != null) this.ubicOrden.set(f.placement.order_no);
+    this.ubicRespuestas.set(f.placement?.responses_menu_enabled !== false);
+  }
+
   // ── Catálogos y permisos ──────────────────────────────────────────
   tipos = signal<FieldTypeInfo[]>([]);
-  roles = signal<RolResumen[]>([]);
+  /**
+   * Roles importados de un Excel (`fill_role_ids`). El catálogo de roles ya no se carga
+   * aquí: lo pide el diálogo de permisos junto con grupos, oficinas y personas, que es
+   * donde de verdad se eligen. Esto solo conserva lo que venga escrito en un archivo.
+   */
   rolesSel = signal<string[]>([]);
-  cargandoRoles = signal(false);
 
   // ── Ubicación en el menú (solo en creación) ───────────────────────
   // El BuilderRequest NO lleva menu_parent_module_id: el formulario nace PENDING
@@ -627,12 +766,6 @@ export class FormBuilderComponent {
     return `${preset} · ${recorrido}${t.cover_document_id || t.cover_url ? ' · con portada' : ''}`;
   });
 
-  readonly resumenPermisos = computed(() => {
-    const n = this.rolesSel().length;
-    if (n === 0) return 'Sin roles (se asignan después)';
-    return n === 1 ? '1 rol' : `${n} roles`;
-  });
-
   readonly resumenUbicacion = computed(() => {
     if (this.noPublicar()) return 'Sin publicar por ahora';
     const nodo = this.ubicPadreNodo();
@@ -669,26 +802,15 @@ export class FormBuilderComponent {
       this.formId.set(Number(idParam));
       this.cargarEdicion(Number(idParam));
     } else {
-      this.cargarRoles();
-      // Creación: se abre la portada (plantillas / IA / en blanco) antes del lienzo.
-      this.mostrarInicio.set(true);
+      // El listado pudo dejar un formulario leído de un Excel: entonces no hay nada que
+      // elegir —ya se eligió allá— y se entra directo al lienzo con todo cargado.
+      const importado = this.importSvc.tomarPendiente();
+      if (importado) this.aplicarImportado(importado);
+      else this.mostrarInicio.set(true);
     }
   }
 
   // ── Carga inicial ─────────────────────────────────────────────────
-
-  private cargarRoles(): void {
-    this.cargandoRoles.set(true);
-    this.rolesSvc.list()
-      .pipe(takeUntilDestroyed())
-      .subscribe({
-        next: rs => { this.roles.set(rs); this.cargandoRoles.set(false); },
-        error: () => {
-          this.cargandoRoles.set(false);
-          this.snack.open('No se pudieron cargar los roles; el formulario se creará sin permisos de llenado.', 'OK', { duration: 6000 });
-        },
-      });
-  }
 
   private cargarEdicion(id: number): void {
     this.cargando.set(true);
@@ -703,7 +825,7 @@ export class FormBuilderComponent {
           this.aplicarUiCargada(detalle.ui ?? estructura.ui ?? null);
           this.versionActual.set(estructura.version.version);
           // Clon profundo: el estado del builder es nuestro, no el objeto del HTTP cache.
-          this.sections.set(structuredClone(estructura.sections));
+          this.fijarSecciones(structuredClone(estructura.sections));
           this.seccionActiva.set(0);
           this.cargando.set(false);
         },
@@ -735,23 +857,101 @@ export class FormBuilderComponent {
   agregarSeccion(): void {
     const secs = [...this.sections()];
     secs.push({ order_no: secs.length + 1, title: `Sección ${secs.length + 1}`, fields: [] });
-    this.sections.set(secs);
+    this.fijarSecciones(secs);
     this.seccionActiva.set(secs.length - 1);
+  }
+
+  /**
+   * Escribe el signal asegurando que TODA sección tenga `code` estable antes de que
+   * alguien pueda apuntarle una ruta. El criterio es el mismo del servidor
+   * (sec_root para la primera, sec_N para el resto), así el code que se ve en el
+   * constructor es el que queda publicado.
+   */
+  private fijarSecciones(secs: FormSection[]): void {
+    const usados = new Set<string>();
+    const conCodigo = secs.map((sec, i) => {
+      if (sec.code && !usados.has(sec.code)) {
+        usados.add(sec.code);
+        return sec;
+      }
+      let code = i === 0 && !usados.has('sec_root') ? 'sec_root' : `sec_${i + 1}`;
+      let n = 2;
+      while (usados.has(code)) code = `sec_${i + 1}_${n++}`;
+      usados.add(code);
+      return { ...sec, code };
+    });
+    this.sections.set(conCodigo);
   }
 
   renombrarSeccion(i: number, titulo: string): void {
     const secs = [...this.sections()];
     secs[i] = { ...secs[i], title: titulo };
-    this.sections.set(secs);
+    this.fijarSecciones(secs);
   }
 
   quitarSeccion(i: number): void {
     if (this.sections()[i].fields.length > 0) return; // solo si está vacía
-    const secs = this.sections().filter((_, k) => k !== i);
-    this.sections.set(secs);
+    const codigo = this.sections()[i].code;
+    // Quitar la sección deja huérfana cualquier ruta que apuntara a ella; publicar así
+    // fallaría con "apunta a una sección que no existe". Se limpia aquí, no al guardar.
+    const secs = this.sections().filter((_, k) => k !== i).map(sec => this.sinRutasHacia(sec, codigo));
+    this.fijarSecciones(secs);
     this.seccionActiva.set(Math.max(0, Math.min(this.seccionActiva(), secs.length - 1)));
     // El selector apuntaba a un índice que ya no existe (o se corrió una posición).
     this.seccionDelPicker.set(null);
+  }
+
+  // ── Ruta de respuestas ────────────────────────────────────────────
+
+  /**
+   * Destinos válidos desde la sección `si`: las secciones POSTERIORES y "terminar".
+   * Solo hacia adelante — es lo que el servidor acepta al publicar, y lo que garantiza
+   * que el formulario siempre se pueda enviar (sin ciclos).
+   */
+  destinosDesde(si: number): Array<{ code: string; nombre: string }> {
+    const secs = this.sections();
+    const out = secs
+      .map((sec, i) => ({ i, code: sec.code ?? '', nombre: sec.title?.trim() || `Sección ${i + 1}` }))
+      .filter(d => d.i > si && !!d.code)
+      .map(d => ({ code: d.code, nombre: d.nombre }));
+    out.push({ code: FIN_DEL_FORMULARIO, nombre: 'Terminar el formulario' });
+    return out;
+  }
+
+  /** Valor del selector "al terminar ir a" ('' = la siguiente por orden). */
+  destinoDeSeccion(si: number): string {
+    return this.sections()[si]?.next_section ?? '';
+  }
+
+  cambiarDestinoDeSeccion(si: number, destino: string): void {
+    const secs = this.clonarSecciones();
+    secs[si] = { ...secs[si], next_section: destino.trim() || null };
+    this.fijarSecciones(secs);
+  }
+
+  /** ¿Hay alguna ramificación configurada? (mueve el aviso del pie del constructor). */
+  readonly hayRamificacion = computed(() => tieneRamificacion(this.sections()));
+
+  /** Copia de la sección sin las reglas que apuntaban al código dado. */
+  private sinRutasHacia(sec: FormSection, codigo: string | undefined): FormSection {
+    if (!codigo) return sec;
+    const limpiaCampo = (f: DynamicField): DynamicField => {
+      const reglas = f.schema?.routing?.rules;
+      if (!reglas?.length) return f;
+      const quedan = reglas.filter(r => r.go_to !== codigo);
+      if (quedan.length === reglas.length) return f;
+      const schema = { ...f.schema };
+      if (quedan.length === 0) delete schema.routing;
+      else schema.routing = { rules: quedan };
+      return { ...f, schema };
+    };
+    return {
+      ...sec,
+      next_section: sec.next_section === codigo ? null : sec.next_section,
+      fields: sec.fields.map(f => (f.children
+        ? { ...limpiaCampo(f), children: f.children.map(limpiaCampo) }
+        : limpiaCampo(f))),
+    };
   }
 
   // ── Campos ────────────────────────────────────────────────────────
@@ -759,12 +959,17 @@ export class FormBuilderComponent {
   /**
    * Sección para la que está abierto el selector de tipo, o null si está cerrado.
    *
-   * La paleta lateral necesita una tercera columna y un puntero que arrastre: en móvil
-   * no existe ninguna de las dos cosas. Este selector es la vía que sí funciona en todas
-   * partes, y además da a cada sección un punto de entrada explícito para su PRIMERA
-   * pregunta, que con la paleta sola había que adivinar.
+   * El selector de tipo es la ÚNICA vía para agregar un campo, y da a cada sección un
+   * punto de entrada explícito para su PRIMERA pregunta.
    */
   seccionDelPicker = signal<number | null>(null);
+
+  /**
+   * Posición DENTRO de la sección donde entrará el campo nuevo: el índice ante el que
+   * se inserta, o `null` para apendizar al final (que es lo que hace el botón de la
+   * cabecera). Lo fijan los puntos de inserción que hay entre tarjeta y tarjeta.
+   */
+  posicionDelPicker = signal<number | null>(null);
 
   readonly pickerAbierto = computed(() => this.seccionDelPicker() !== null);
 
@@ -775,57 +980,72 @@ export class FormBuilderComponent {
     return this.sections()[i]?.title?.trim() || `Sección ${i + 1}`;
   });
 
-  abrirPickerDeCampo(si: number): void {
+  /**
+   * Dónde va a caer el campo, en palabras, para que el selector no mienta cuando se
+   * abrió desde un punto de inserción intermedio ("se añade al final" solo es cierto
+   * si vino del botón de la cabecera).
+   */
+  readonly ubicacionDelPicker = computed(() => {
+    const si = this.seccionDelPicker();
+    if (si == null) return '';
+    const destino = this.destinoDelPicker();
+    const campos = this.sections()[si]?.fields ?? [];
+    const pos = this.posicionDelPicker();
+    if (pos == null || pos >= campos.length) return `Se añade al final de ${destino}.`;
+    const etiqueta = (campos[pos]?.label || '').trim();
+    return etiqueta
+      ? `Se inserta en ${destino}, antes de «${etiqueta}».`
+      : `Se inserta en ${destino}, en la posición ${pos + 1}.`;
+  });
+
+  /**
+   * Abre el selector para una sección. `pos` es el índice ante el que se insertará el
+   * campo; sin `pos` se apendiza al final (comportamiento del botón de la cabecera).
+   */
+  abrirPickerDeCampo(si: number, pos: number | null = null): void {
     this.seccionActiva.set(si);
+    this.posicionDelPicker.set(pos);
     this.seccionDelPicker.set(si);
   }
 
   cerrarPickerDeCampo(): void {
     this.seccionDelPicker.set(null);
-  }
-
-  /** Tipo elegido en el selector: se agrega a la sección desde la que se abrió. */
-  agregarDesdePicker(t: FieldTypeInfo): void {
-    const si = this.seccionDelPicker();
-    if (si == null) return;
-    this.seccionDelPicker.set(null);
-    const secs = this.clonarSecciones();
-    if (si >= secs.length) return;
-    secs[si].fields.push(crearCampoDesdeTipo(t));
-    this.sections.set(secs);
-    this.seccionActiva.set(si);
-  }
-
-  /** Clic en la paleta: agrega al FINAL de la sección activa. */
-  agregarTipo(t: FieldTypeInfo): void {
-    const secs = this.clonarSecciones();
-    if (secs.length === 0) {
-      secs.push({ order_no: 1, title: 'Sección 1', fields: [] });
-      this.seccionActiva.set(0);
-    }
-    const idx = Math.min(this.seccionActiva(), secs.length - 1);
-    secs[idx].fields.push(crearCampoDesdeTipo(t));
-    this.sections.set(secs);
+    this.posicionDelPicker.set(null);
   }
 
   /**
-   * Drop CDK sobre la lista de una sección: puede venir de la paleta (COPIAR:
-   * id 'palette' + FieldTypeInfo en item.data), de la misma lista (reordenar)
-   * o de otra sección (transferir). Todo sobre copias — nunca se mutan las
-   * arrays que ya están en el signal.
+   * Tipo elegido en el selector: entra en la sección desde la que se abrió, en la
+   * posición pedida (o al final si se abrió desde la cabecera).
+   */
+  agregarDesdePicker(t: FieldTypeInfo): void {
+    const si = this.seccionDelPicker();
+    const pos = this.posicionDelPicker();
+    if (si == null) return;
+    this.seccionDelPicker.set(null);
+    this.posicionDelPicker.set(null);
+    const secs = this.clonarSecciones();
+    if (si >= secs.length) return;
+    const campos = secs[si].fields;
+    const donde = pos == null ? campos.length : Math.max(0, Math.min(pos, campos.length));
+    campos.splice(donde, 0, crearCampoDesdeTipo(t));
+    this.fijarSecciones(secs);
+    this.seccionActiva.set(si);
+  }
+
+  /**
+   * Drop CDK sobre la lista de una sección: reordenar dentro de la misma lista o
+   * transferir desde otra sección. Todo sobre copias — nunca se mutan las arrays
+   * que ya están en el signal.
    */
   soltarCampo(ev: CdkDragDrop<number>, destino: number): void {
     const secs = this.clonarSecciones();
-    if (ev.previousContainer.id === 'palette') {
-      const tipo = ev.item.data as FieldTypeInfo;
-      secs[destino].fields.splice(ev.currentIndex, 0, crearCampoDesdeTipo(tipo));
-    } else if (ev.previousContainer === ev.container) {
+    if (ev.previousContainer === ev.container) {
       moveItemInArray(secs[destino].fields, ev.previousIndex, ev.currentIndex);
     } else {
       const origen = ev.previousContainer.data;
       transferArrayItem(secs[origen].fields, secs[destino].fields, ev.previousIndex, ev.currentIndex);
     }
-    this.sections.set(secs);
+    this.fijarSecciones(secs);
     this.seccionActiva.set(destino);
   }
 
@@ -847,19 +1067,19 @@ export class FormBuilderComponent {
   actualizarCampo(si: number, fi: number, actualizado: DynamicField): void {
     const secs = this.clonarSecciones();
     secs[si].fields[fi] = actualizado;
-    this.sections.set(secs);
+    this.fijarSecciones(secs);
   }
 
   duplicarCampo(si: number, fi: number): void {
     const secs = this.clonarSecciones();
     secs[si].fields.splice(fi + 1, 0, clonarCampoParaDuplicar(secs[si].fields[fi]));
-    this.sections.set(secs);
+    this.fijarSecciones(secs);
   }
 
   quitarCampo(si: number, fi: number): void {
     const secs = this.clonarSecciones();
     secs[si].fields.splice(fi, 1);
-    this.sections.set(secs);
+    this.fijarSecciones(secs);
   }
 
   /**
@@ -872,14 +1092,7 @@ export class FormBuilderComponent {
     const campo = secs[si].fields[fi];
     secs[si].fields[fi] = { ...campo, children: (campo.children ?? []).filter(c => c !== hijo) };
     secs[si].fields.splice(fi + 1, 0, hijo);
-    this.sections.set(secs);
-  }
-
-  // ── Permisos ──────────────────────────────────────────────────────
-
-  toggleRol(id: string): void {
-    const sel = this.rolesSel();
-    this.rolesSel.set(sel.includes(id) ? sel.filter(r => r !== id) : [...sel, id]);
+    this.fijarSecciones(secs);
   }
 
   // ── Guardar ───────────────────────────────────────────────────────
@@ -927,8 +1140,9 @@ export class FormBuilderComponent {
       return;
     }
 
-    // CREACIÓN: los roles seleccionados van como fill_role_ids.
-    if (this.rolesSel().length > 0) req.fill_role_ids = this.rolesSel();
+    // CREACIÓN: los roles con permiso de llenar son los que ven la entrada en el menú.
+    const menu = this.idsDeMenu();
+    if (menu.length > 0) req.fill_role_ids = menu;
     this.guardando.set(true);
     this.formsSvc.createBuilder(req)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -964,7 +1178,8 @@ export class FormBuilderComponent {
     const orden = this.ubicOrden();
     if (orden != null && Number.isFinite(Number(orden))) req.order_no = Number(orden);
     // Los roles de llenado elegidos también gobiernan quién ve la entrada de menú.
-    if (this.rolesSel().length > 0) req.fill_role_ids = this.rolesSel();
+    const idsMenu = this.idsDeMenu();
+    if (idsMenu.length > 0) req.fill_role_ids = idsMenu;
 
     this.guardando.set(true);
     this.placementSvc.place(detalle.id, req)
@@ -1081,6 +1296,97 @@ export class FormBuilderComponent {
     return null;
   }
 
+  // ── Permisos por rol y control del proceso (V14) ──────────────────
+
+  /**
+   * Configuración de permisos elegida en el diálogo. null = no se tocó, y el formulario
+   * queda en modo OWNER (lo gestiona su dueño; el resto solo lo llena), que es el
+   * comportamiento de siempre.
+   */
+  readonly accessCfg = signal<FormAccessConfig | null>(null);
+
+  /** Resumen del panel: qué se configuró, sin abrir el diálogo. */
+  readonly resumenAcceso = computed(() => {
+    const cfg = this.accessCfg();
+    if (!cfg || cfg.access_mode !== 'ROLES') {
+      return cfg?.process_enabled ? 'Con control del proceso' : 'Solo el creador y los administradores';
+    }
+    const n = cfg.rules.length;
+    const quienes = n === 0 ? 'sin destinatarios' : (n === 1 ? '1 destinatario' : `${n} destinatarios`);
+    return cfg.process_enabled ? `${quienes} · con control del proceso` : quienes;
+  });
+
+  /**
+   * Roles que además verán la entrada en su MENÚ lateral.
+   *
+   * NO es una segunda lista que marcar: sale de las reglas de permiso con «Llenar» cuyo
+   * destinatario es un ROL. El menú lo reparte ms-auth-admin por rol y no entiende de
+   * fincas ni de personas, así que los demás destinatarios abren el formulario por su
+   * enlace. Tener dos listas de roles —una para permisos y otra para el menú— era la
+   * fuente garantizada de "le di permiso y no le aparece".
+   */
+  readonly rolesDelMenu = computed<Array<{ id: string; nombre: string }>>(() => {
+    const cfg = this.accessCfg();
+    if (!cfg || cfg.access_mode !== 'ROLES') return [];
+    return cfg.rules
+      .filter(r => (r.subject_kind ?? 'ROL') === 'ROL' && r.can_fill)
+      .map(r => ({
+        id: r.role_id ?? r.subject_ref ?? '',
+        nombre: r.subject_label || r.role_name || '',
+      }))
+      .filter(r => !!r.id);
+  });
+
+  /** Ids que viajan como `fill_role_ids`; con permisos configurados mandan ellos. */
+  private idsDeMenu(): string[] {
+    const derivados = this.rolesDelMenu().map(r => r.id);
+    // Sin permisos por reglas se conserva lo que traía un import de Excel (fill_role_ids).
+    return derivados.length > 0 ? derivados : this.rolesSel();
+  }
+
+  /**
+   * Columnas del formulario tal como está AHORA en el constructor. En creación no existen
+   * todavía en el servidor, así que se derivan de las secciones abiertas: es lo que
+   * permite elegir el campo llave y las columnas por rol antes de guardar nada.
+   */
+  private columnasActuales(): FormColumn[] {
+    const out: FormColumn[] = [];
+    for (const s of this.sections()) {
+      const codigo = s.code ?? '';
+      for (const f of s.fields ?? []) {
+        if (f.type === 'COMMENT' || f.type === 'SECTION') continue;
+        out.push({
+          key: `${codigo}__${f.name ?? ''}`,
+          section: codigo,
+          section_title: s.title ?? null,
+          name: f.name ?? '',
+          label: f.label?.trim() || f.name || '',
+          type: f.type,
+          required: f.required === true,
+        });
+      }
+    }
+    return out;
+  }
+
+  abrirPermisos(): void {
+    const data: FormAccessDialogData = {
+      // En edición el diálogo guarda directo contra el backend; en creación devuelve la
+      // configuración para que viaje con la estructura.
+      formId: this.esEdicion() ? this.formId() : null,
+      formName: this.nombre().trim() || undefined,
+      config: this.accessCfg(),
+      columns: this.columnasActuales(),
+    };
+    this.dialog.open(FormAccessDialogComponent, {
+      width: '820px',
+      maxWidth: '96vw',
+      data,
+    }).afterClosed().subscribe((cfg?: FormAccessConfig) => {
+      if (cfg) this.accessCfg.set(cfg);
+    });
+  }
+
   // ── Armado del request ────────────────────────────────────────────
 
   private construirRequest(): BuilderRequest {
@@ -1090,10 +1396,13 @@ export class FormBuilderComponent {
       category: this.categoria().trim() || null,
       is_public: this.esPublico(),
       ui: this.uiActual(),
+      // Solo viaja si se configuró algo: un request sin `access` deja los permisos como estén.
+      ...(this.accessCfg() ? { access: this.accessCfg() } : {}),
       sections: this.sections().map((s, si) => ({
         ...(s.code ? { code: s.code } : {}),
         title: s.title?.trim() || null,
         order_no: si + 1,
+        next_section: (s.next_section ?? '').trim() || null,
         fields: s.fields.map((f, fi) => ({
           ...f,
           order_no: fi + 1,

@@ -1,10 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { RouterLink } from '@angular/router';
-import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { Router, RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 
 import { MatCardModule } from '@angular/material/card';
@@ -12,21 +9,29 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatButtonToggleModule, MatButtonToggleChange } from '@angular/material/button-toggle';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 import { environment } from '@/environments/environment';
+import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { DynamicFormService } from '../../services/dynamic-form.service';
 import { PlacementService } from '../../services/placement.service';
-import { ApiProblem, FormDetail, FormSummary } from '../../models/dynamic-forms.models';
+import { ProcessControlService } from '../../services/process-control.service';
+import {
+  FormAccessDialogComponent, FormAccessDialogData,
+} from '../../components/form-access-dialog/form-access-dialog.component';
+import { FormColumn } from '../../models/process.models';
+import { AiSummary, ApiProblem, FormDetail, FormSummary } from '../../models/dynamic-forms.models';
 import { Placement, PlacementStatus } from '../../models/placement.models';
 import { PublicLinksDialogComponent, PublicLinksDialogData } from '../../components/public-links-dialog/public-links-dialog.component';
 import { PlacementDialogComponent, PlacementDialogData } from '../../components/placement-dialog/placement-dialog.component';
+import { ExcelImportDialogComponent } from '../../components/excel-import-dialog/excel-import-dialog.component';
+import { FormImportService } from '../../services/form-import.service';
+import { ImportedForm } from '../../models/form-import.models';
 import { leerUsuarioCrudo } from '@/app/core/utils/usuario-actual';
 import { setLocalStorageItem } from '@/app/core/utils/safe-storage';
 
@@ -35,6 +40,24 @@ type FiltroEstado = 'todos' | 'activos' | 'inactivos';
 
 /** Filtro solo-cliente por estado de ubicación en el menú. */
 type FiltroUbic = 'todos' | PlacementStatus;
+
+/**
+ * Fila tal como la consume la tabla estándar: valores PLANOS (lo que se busca,
+ * ordena y filtra) más `_f`, el summary original que usan las plantillas y las
+ * acciones. Sin esta capa habría que meter el formateo dentro de la tabla común.
+ */
+interface FilaForm {
+  formulario: string;
+  resumen_ia: string;
+  categoria: string;
+  version: string;
+  respuestas: number;
+  publico: string;
+  estado: string;
+  ubicacion: string;
+  actualizado: string | null;
+  _f: FormSummary;
+}
 
 /**
  * True si el usuario logueado puede borrar DEFINITIVAMENTE un formulario.
@@ -70,8 +93,9 @@ function calcularEsAdmin(): boolean {
   imports: [
     CommonModule, RouterLink,
     MatCardModule, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule,
-    MatFormFieldModule, MatInputModule, MatButtonToggleModule, MatPaginatorModule,
-    MatProgressBarModule, MatSnackBarModule, MatDialogModule,
+    MatButtonToggleModule, MatProgressSpinnerModule, MatSnackBarModule, MatDialogModule,
+    StandardFilterTable, ColumnCellTemplateDirective,
+    ExcelImportDialogComponent,
   ],
   templateUrl: './forms-list.component.html',
   styleUrl: './forms-list.component.css',
@@ -79,12 +103,56 @@ function calcularEsAdmin(): boolean {
 export class FormsListComponent {
   private svc = inject(DynamicFormService);
   private placementSvc = inject(PlacementService);
+  private processSvc = inject(ProcessControlService);
   private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+  private router = inject(Router);
+  private importSvc = inject(FormImportService);
 
   /** Base ABSOLUTA de las rutas del submódulo (coincide con el módulo sembrado en db_admin). */
   readonly base = '/dashboard/gestion-del-programa/formularios-dinamicos';
+
+  /**
+   * Abrir un formulario = ir a SU pantalla, la que trae las cinco vistas en pestañas
+   * (formulario · respuestas · control del proceso · soportes · analítica). Antes cada
+   * vista era una ruta suelta desde el listado y para pasar de una a otra había que volver.
+   *
+   * Qué pestañas ve cada quien lo decide el backend con los permisos del formulario: quien
+   * solo tiene llenado entra al formulario y no ve barra de pestañas.
+   */
+  abrir(fila: { _f?: FormSummary } | FormSummary): void {
+    const f = (fila as { _f?: FormSummary })._f ?? (fila as FormSummary);
+    if (f?.id) this.abrirVista(f.id, '');
+  }
+
+  /** Abre el formulario directamente en una de sus vistas. */
+  abrirVista(formId: number, sufijo: string): void {
+    void this.router.navigateByUrl(`${this.base}/${formId}${sufijo}`);
+  }
+
+  /**
+   * Permisos por rol y control del proceso, sin pasar por el constructor: aquí se define
+   * quién ve qué del formulario y hasta qué columnas puede llenar. El diálogo carga la
+   * configuración vigente del backend y guarda por su cuenta.
+   */
+  abrirPermisos(f: FormSummary): void {
+    const abrir = (columns: FormColumn[]) => {
+      const data: FormAccessDialogData = {
+        formId: f.id,
+        formName: f.name,
+        config: null,
+        columns,
+      };
+      this.dialog.open(FormAccessDialogComponent, { width: '820px', maxWidth: '96vw', data });
+    };
+    // Las columnas salen de la versión publicada; si el formulario aún no tiene una, el
+    // diálogo sigue sirviendo para repartir permisos (solo no ofrece elegir columnas).
+    this.processSvc.columns(f.id).subscribe({
+      next: cols => abrir(cols),
+      error: () => abrir([]),
+    });
+  }
 
   /** Solo ADMIN/GERENCIA ven el borrado definitivo. Se calcula una vez por sesión de la vista. */
   readonly esAdmin = calcularEsAdmin();
@@ -102,26 +170,62 @@ export class FormsListComponent {
   /** Id de la fila con una acción en curso (deshabilita sus botones). */
   readonly busyId = signal<number | null>(null);
 
+  /** Diálogo de carga por Excel (plantilla parametrizada + carga individual o masiva). */
+  readonly importarAbierto = signal(false);
+
+  /** Fila con el resumen IA en curso (solo una a la vez: cada una cuesta una llamada). */
+  readonly resumenBusyId = signal<number | null>(null);
+
   /** Filas visibles tras aplicar el filtro de ubicación en cliente. */
-  readonly filasVisibles = computed<FormSummary[]>(() => {
+  private readonly filasVisibles = computed<FormSummary[]>(() => {
     const f = this.filtroUbic();
     if (f === 'todos') return this.rows();
     return this.rows().filter(r => this.estadoUbic(r) === f);
   });
-  /** Texto de búsqueda YA aplicado (el input escribe en `buscar$`, no aquí). */
+
+  /** Lo que recibe la tabla estándar: valores planos + el summary original en `_f`. */
+  readonly filas = computed<FilaForm[]>(() => this.filasVisibles().map(f => ({
+    formulario: f.name,
+    resumen_ia: this.resumenPlano(f),
+    categoria: f.category || '—',
+    version: f.current_version != null ? `v${f.current_version}` : 'Sin publicar',
+    respuestas: f.submissions_count,
+    publico: f.is_public ? 'Sí' : 'No',
+    estado: f.active ? 'Activo' : 'Inactivo',
+    ubicacion: this.ubicacionPlano(f),
+    actualizado: f.updated_at || f.created_at,
+    _f: f,
+  })));
+
+  /** Columnas de la tabla estándar. El resumen IA va junto al nombre, antes de Categoría. */
+  readonly columnas: ColumnDefinition[] = [
+    { name: 'formulario', header: 'Formulario', type: 'custom', width: '230px' },
+    { name: 'resumen_ia', header: 'Resumen IA', type: 'custom', width: '380px', sortable: false },
+    { name: 'categoria', header: 'Categoría', type: 'text', width: '150px' },
+    { name: 'version', header: 'Versión', type: 'custom', width: '120px', align: 'center' },
+    { name: 'respuestas', header: 'Respuestas', type: 'number', width: '120px', align: 'center' },
+    {
+      name: 'publico', header: 'Público', type: 'status', width: '110px', align: 'center',
+      statusConfig: {
+        'Sí': { color: '#067647', background: '#ecfdf3' },
+        'No': { color: '#475467', background: '#f2f4f7' },
+      },
+    },
+    {
+      name: 'estado', header: 'Estado', type: 'status', width: '120px', align: 'center',
+      statusConfig: {
+        'Activo': { color: '#067647', background: '#ecfdf3' },
+        'Inactivo': { color: '#b42318', background: '#fef3f2' },
+      },
+    },
+    { name: 'ubicacion', header: 'Ubicación', type: 'custom', width: '280px' },
+    { name: 'actualizado', header: 'Actualizado', type: 'date', width: '140px', align: 'center' },
+    { name: 'actions', header: 'Acciones', type: 'custom', width: '220px', stickyEnd: true, sortable: false, filterable: false },
+  ];
+  /** Texto de búsqueda YA aplicado (lo manda la tabla estándar en modo servidor). */
   private readonly q = signal('');
 
-  /** Búsqueda con debounce: se dispara sola 350 ms después de dejar de teclear. */
-  private readonly buscar$ = new Subject<string>();
-
   constructor() {
-    this.buscar$
-      .pipe(debounceTime(350), distinctUntilChanged(), takeUntilDestroyed())
-      .subscribe(texto => {
-        this.q.set(texto);
-        this.page.set(0);
-        this.cargar();
-      });
     this.cargar();
   }
 
@@ -149,8 +253,17 @@ export class FormsListComponent {
     });
   }
 
-  onSearchInput(texto: string): void {
-    this.buscar$.next(texto);
+  /**
+   * La búsqueda la resuelve ms-forms sobre TODO el universo, no sobre la página.
+   * La tabla estándar ya emite con debounce de 400 ms; aquí solo se descarta el
+   * texto que no cambió nada (p. ej. al perder y recuperar el foco).
+   */
+  onServerSearch(texto: string): void {
+    const limpio = texto.trim();
+    if (limpio === this.q()) return;
+    this.q.set(limpio);
+    this.page.set(0);
+    this.cargar();
   }
 
   setFiltro(e: MatButtonToggleChange): void {
@@ -160,9 +273,9 @@ export class FormsListComponent {
     this.cargar();
   }
 
-  onPage(e: PageEvent): void {
-    this.page.set(e.pageIndex);
-    this.size.set(e.pageSize);
+  onPageChange(e: { page: number; size: number }): void {
+    this.page.set(e.page);
+    this.size.set(e.size);
     this.cargar();
   }
 
@@ -337,6 +450,90 @@ export class FormsListComponent {
     return s.replace(/[&<>"']/g, c => mapa[c] ?? c);
   }
 
+  // ── Resumen IA ──────────────────────────────────────────────────────
+
+  /**
+   * Genera un resumen NUEVO (ms-forms → ms-ai) y lo deja guardado. Es explícito a
+   * propósito: cada generación cuesta una llamada al modelo. Si falla, el backend
+   * responde 503 sin tocar lo guardado, así que la celda sigue mostrando el anterior.
+   */
+  generarResumen(f: FormSummary): void {
+    if (this.resumenBusyId() !== null) return;
+    this.resumenBusyId.set(f.id);
+    this.svc.generateAiSummary(f.id).subscribe({
+      next: (r: AiSummary) => {
+        this.resumenBusyId.set(null);
+        this.aplicarResumen(f.id, r);
+        this.snack.open(`Resumen de "${f.name}" actualizado`, 'Cerrar', { duration: 4000 });
+      },
+      error: (err: unknown) => {
+        this.resumenBusyId.set(null);
+        this.snack.open(
+          this.mensajeError(err, 'No se pudo generar el resumen. Se conserva el anterior.'),
+          'Cerrar', { duration: 6000 });
+      },
+    });
+  }
+
+  /** Resumen completo en un diálogo: en la celda va recortado a dos líneas. */
+  verResumen(f: FormSummary): void {
+    if (!f.ai_summary) return;
+    const respuestas = f.ai_responses_summary
+      ? `<p style="margin:12px 0 0"><b>Respuestas registradas</b><br>${this.esc(f.ai_responses_summary)}</p>`
+      : '';
+    const desactualizado = this.resumenDesactualizado(f)
+      ? `<p style="margin:12px 0 0;color:#b54708"><b>Hay respuestas nuevas</b> desde que se generó `
+        + `(${f.ai_summary_submissions ?? 0} de ${f.submissions_count}). Regenéralo para incluirlas.</p>`
+      : '';
+    void Swal.fire({
+      icon: 'info',
+      title: f.name,
+      html: `<div style="text-align:left">`
+        + `<p style="margin:0"><b>De qué trata</b><br>${this.esc(f.ai_summary)}</p>`
+        + respuestas + desactualizado
+        + `</div>`,
+      showCancelButton: true,
+      confirmButtonText: 'Regenerar con IA',
+      cancelButtonText: 'Cerrar',
+      width: '640px',
+    }).then(res => {
+      if (res.isConfirmed) this.generarResumen(f);
+    });
+  }
+
+  /** Llegaron respuestas después de generarlo: el texto sigue siendo el vigente. */
+  resumenDesactualizado(f: FormSummary): boolean {
+    return !!f.ai_summary
+      && f.ai_summary_submissions != null
+      && f.submissions_count > f.ai_summary_submissions;
+  }
+
+  /** Actualiza SOLO la fila tocada: recargar la página entera perdería el scroll. */
+  private aplicarResumen(id: number, r: AiSummary): void {
+    this.rows.update(list => list.map(f => f.id === id ? {
+      ...f,
+      ai_summary: r.summary ?? null,
+      ai_responses_summary: r.responses_summary ?? null,
+      ai_summary_at: r.generated_at ?? null,
+      ai_summary_submissions: r.submissions_count ?? null,
+    } : f));
+  }
+
+  /** Texto plano del resumen: es lo que ordena y filtra la tabla en esa columna. */
+  private resumenPlano(f: FormSummary): string {
+    return [f.ai_summary, f.ai_responses_summary].filter(Boolean).join(' · ') || 'Sin resumen';
+  }
+
+  /** Ubicación en texto plano (la celda la pinta con chips). */
+  private ubicacionPlano(f: FormSummary): string {
+    switch (this.estadoUbic(f)) {
+      case 'LINKED': return f.route_path || f.menu_label || '—';
+      case 'UNLINKED': return 'Desvinculado';
+      case 'FAILED': return 'Error';
+      default: return 'Pendiente';
+    }
+  }
+
   // ── Acciones por fila ───────────────────────────────────────────────
 
   abrirLinksPublicos(f: FormSummary): void {
@@ -477,6 +674,27 @@ export class FormsListComponent {
         });
       });
     });
+  }
+
+  // ── Carga por Excel ─────────────────────────────────────────────────
+
+  /**
+   * Un formulario leído del Excel se abre en el CONSTRUCTOR con todo cargado: es ahí donde
+   * se revisa y se guarda. Como /builder no admite un objeto por parámetro de ruta, viaja
+   * por el buzón del servicio de importación y el constructor lo recoge al montarse.
+   */
+  abrirImportado(f: ImportedForm): void {
+    this.importSvc.dejarPendiente(f);
+    this.importarAbierto.set(false);
+    void this.router.navigate([`${this.base}/builder`]);
+  }
+
+  /** La carga masiva ya creó formularios: el listado tiene que reflejarlos. */
+  trasCrearMasivo(cuantos: number): void {
+    this.snack.open(
+      cuantos === 1 ? 'Se creó 1 formulario desde el archivo.' : `Se crearon ${cuantos} formularios desde el archivo.`,
+      'OK', { duration: 5000 });
+    this.cargar();
   }
 
   // ── Utilidades ──────────────────────────────────────────────────────

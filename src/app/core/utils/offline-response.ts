@@ -1,3 +1,5 @@
+import { catalogLabel } from './catalog-endpoints';
+
 /**
  * Utilidades compartidas para razonar sobre respuestas / requests que pasaron
  * por la cola offline (offline.interceptor.ts + offline-sync.service.ts).
@@ -78,6 +80,17 @@ export interface UrlCategory {
 
 /** Traduce una URL de API a un grupo de recurso legible para la UI de caché. */
 export function categorizeCacheUrl(url: string): UrlCategory {
+  // La parametrización va PRIMERO y en su propio grupo: son las tablas
+  // maestras que alimentan los desplegables de todos los módulos, y el usuario
+  // necesita verlas juntas para saber si puede trabajar sin conexión. Si se
+  // dejara caer en las reglas de abajo, los tipos de documento aparecerían
+  // como "Documentos" y los conceptos como "Nómina", mezclados con datos de
+  // trabajo.
+  const catalogo = catalogLabel(url);
+  if (catalogo) {
+    return { label: catalogo, category: 'Parametrización', icon: 'tune' };
+  }
+
   const u = (url || '').toLowerCase();
 
   if (u.includes('/reportes')) return { label: 'Reportes de Contratación', category: 'Reportes', icon: 'assessment' };

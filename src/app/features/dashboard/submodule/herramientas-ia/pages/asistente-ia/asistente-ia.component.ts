@@ -1,10 +1,11 @@
 import {
   Component, ChangeDetectionStrategy, OnInit, signal, computed, inject,
-  ViewChild, ElementRef,
+  ViewChild, ElementRef, DestroyRef, PLATFORM_ID,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -40,6 +41,10 @@ const TODOS_MODULOS = ['nomina', 'contratacion', 'documentos', 'tesoreria', 'afi
 })
 export class AsistenteIaComponent implements OnInit {
   private svc = inject(AsistenteIaService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
+  private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   @ViewChild('scrollBox') scrollBox?: ElementRef<HTMLElement>;
   @ViewChild('fileInput') fileInput?: ElementRef<HTMLInputElement>;
@@ -112,6 +117,36 @@ export class AsistenteIaComponent implements OnInit {
     this.svc.modulosDisponibles().subscribe({ next: (m) => this.modulosDisponibles.set(m ?? []), error: () => {} });
     this.cargarFolders();
     this.cargarConversaciones();
+    this.escucharPreguntaDeLaUrl();
+  }
+
+  /**
+   * Pregunta que llega desde el menú inteligente del header (`?q=`): abre una
+   * conversación nueva con ella y la envía sola, para que el usuario no tenga
+   * que volver a escribirla. El parámetro se limpia de la URL enseguida, así
+   * recargar la pantalla (o volver atrás) no reenvía la misma pregunta.
+   * Se escucha el stream y no el snapshot porque, estando ya en el asistente,
+   * preguntar otra vez desde el header no vuelve a construir el componente.
+   */
+  private escucharPreguntaDeLaUrl(): void {
+    if (!this.isBrowser) return;
+
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        const pregunta = (params.get('q') ?? '').trim();
+        if (!pregunta || this.sending()) return;
+
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: {},
+          replaceUrl: true,
+        });
+
+        this.nuevaConversacion();
+        this.draft.set(pregunta);
+        this.enviar();
+      });
   }
 
   // ── Historial ─────────────────────────────────────────────────────────────────

@@ -37,10 +37,19 @@
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
 }
 
-/* === TÍTULO IZQUIERDO === */
+/* === MARCA / TÍTULO IZQUIERDO === */
 .cajontitulo {
   display: flex;
   align-items: center;
+}
+
+/* Logo de empresa: sólo se muestra en mobile (en desktop la marca ya vive en
+   el rail izquierdo del navbar). */
+.header-brand {
+  display: none;
+  height: 34px;
+  width: auto;
+  object-fit: contain;
 }
 
 .cajontitulo .titulo {
@@ -328,6 +337,76 @@ button.mat-icon-button:hover {
   transform: translateY(-1px);
 }
 
+/* === MENÚ DE PERFIL (avatar del header) === */
+.botonPerfil { display: flex; align-items: center; }
+
+.perfil-avatar-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  transition: box-shadow .15s ease, transform .1s ease;
+}
+.perfil-avatar-btn:hover { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+.perfil-avatar-btn:active { transform: translateY(1px); }
+
+.perfil-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+.perfil-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: .02em;
+}
+
+/* Cabecera del desplegable de perfil */
+::ng-deep .perfil-menu-panel .mat-mdc-menu-content { padding-top: 0; }
+.perfil-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eef2f7;
+}
+/* La foto ya no se repite dentro del menú (el propio botón que lo abre es la foto),
+   así que la cabecera es sólo nombre + rol. */
+.perfil-menu-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.perfil-menu-name { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+.perfil-menu-role {
+  align-self: flex-start; font-size: 0.66rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .03em; color: #3730a3; background: #e0e7ff; padding: 2px 8px; border-radius: 999px;
+}
+.perfil-menu-meta {
+  padding: 10px 16px; border-bottom: 1px solid #eef2f7; display: flex; flex-direction: column; gap: 6px;
+}
+/* El carné es la acción que más se usa de este menú: se destaca sin sacarla de la lista. */
+.perfil-menu-carnet { font-weight: 700; }
+.perfil-menu-carnet .mat-icon { color: #1d5aa8; }
+.perfil-menu-meta p {
+  margin: 0; display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #475569;
+}
+.perfil-menu-meta .mat-icon {
+  font-size: 17px; width: 17px; height: 17px; color: #94a3b8;
+}
+
 /* === MENÚ === */
 ::ng-deep .mat-mdc-menu-panel {
   border-radius: 12px !important;
@@ -384,6 +463,17 @@ button.mat-icon-button:hover {
     font-size: 1.25rem;
   }
 
+  /* Mobile: logo de empresa arriba a la izquierda, controles a la derecha
+     (el space-between del header ya los empuja al borde derecho). */
+  .cajontitulo {
+    flex: 0 0 auto;
+  }
+
+  .header-brand {
+    display: block;
+    height: 30px;
+  }
+
   .system-info,
   .separador-vertical,
   .auth-info .detalle {
@@ -436,25 +526,16 @@ button.mat-icon-button:hover {
   }
 }
 
-/* En pantallas angostas el saludo "Hola, {nombre}" + 4 iconos no caben junto
-   al título "Bienvenido". Se oculta el título (redundante con el saludo) y se
-   trunca el nombre para que nada se salga de la barra. */
+/* En pantallas muy angostas se compacta el logo y se cierran los gaps para que
+   la marca (izquierda) y todos los controles (derecha) quepan en una fila. */
 @media (max-width: 600px) {
-  .cajontitulo {
-    display: none;
+  .header-brand {
+    height: 26px;
+    max-width: 42vw;
   }
 
   .opciones {
     gap: 4px;
-  }
-
-  .username {
-    display: inline-block;
-    max-width: 34vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: bottom;
   }
 
   button.mat-icon-button {

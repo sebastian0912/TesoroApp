@@ -15,7 +15,8 @@ import { BorradorIa, FormAiService } from '../../services/form-ai.service';
 
 /** Punto de partida elegido en la portada del constructor. */
 export interface InicioElegido {
-  origen: 'blanco' | 'plantilla' | 'ia';
+  /** 'excel' no trae contenido: pide abrir el diálogo de carga por Excel. */
+  origen: 'blanco' | 'plantilla' | 'ia' | 'excel';
   nombre?: string;
   descripcion?: string;
   categoria?: string;
@@ -25,7 +26,7 @@ export interface InicioElegido {
   secciones?: SeccionBorrador[];
 }
 
-type Pestana = 'plantillas' | 'ia' | 'blanco';
+type Pestana = 'plantillas' | 'ia' | 'excel' | 'blanco';
 
 /**
  * CÓMO EMPEZAR un formulario nuevo.
@@ -76,6 +77,11 @@ type Pestana = 'plantillas' | 'ia' | 'blanco';
                   [attr.aria-selected]="pestana() === 'ia'" (click)="pestana.set('ia')">
             <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
             Diseñar con IA
+          </button>
+          <button type="button" role="tab" class="fs-tab" [class.fs-tab--activa]="pestana() === 'excel'"
+                  [attr.aria-selected]="pestana() === 'excel'" (click)="pestana.set('excel')">
+            <span class="material-symbols-outlined" aria-hidden="true">table_view</span>
+            Desde Excel
           </button>
           @if (!edicion()) {
             <button type="button" role="tab" class="fs-tab" [class.fs-tab--activa]="pestana() === 'blanco'"
@@ -248,6 +254,26 @@ type Pestana = 'plantillas' | 'ia' | 'blanco';
                 </p>
               }
             }
+          }
+
+          <!-- ── Desde Excel ────────────────────────────────────────── -->
+          @if (pestana() === 'excel') {
+            <div class="fs-blanco">
+              <span class="material-symbols-outlined fs-blanco__icono" aria-hidden="true">table_view</span>
+              <p class="fs-ayuda">
+                Descarga una plantilla de Excel ya parametrizada —a quién se le presta, en qué
+                módulo queda, visibilidad y recorrido—, llénala con las preguntas y súbela: el
+                formulario aparece aquí mismo con todo cargado, listo para revisar.
+              </p>
+              <p class="fs-ayuda fs-ayuda--nota">
+                La plantilla explica cada tipo de dato y trae un ejemplo de pregunta de cada uno.
+                Sirve para un formulario o para varios de una sola carga.
+              </p>
+              <button type="button" class="fs-btn fs-btn--primary" (click)="desdeExcel()">
+                <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+                Abrir la carga por Excel
+              </button>
+            </div>
           }
 
           <!-- ── En blanco ──────────────────────────────────────────── -->
@@ -501,6 +527,15 @@ export class FormStartComponent {
 
   enBlanco(): void {
     this.elegir.emit({ origen: 'blanco' });
+  }
+
+  /**
+   * La carga por Excel no produce contenido aquí: pide al constructor que abra su propio
+   * diálogo (que sí conoce roles, módulos y el API de importación). Esta portada solo
+   * elige el punto de partida.
+   */
+  desdeExcel(): void {
+    this.elegir.emit({ origen: 'excel' });
   }
 
   usarPlantilla(p: PlantillaFormulario): void {

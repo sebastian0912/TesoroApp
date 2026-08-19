@@ -71,22 +71,6 @@
       </div>
 
       <mat-form-field appearance="outline" subscriptSizing="fixed">
-        <mat-label>Rol</mat-label>
-        <mat-select formControlName="rol_id">
-          @for (r of roles(); track r) {
-            <mat-option [value]="r.id">{{ r.nombre }}</mat-option>
-          }
-        </mat-select>
-        <mat-icon matPrefix>manage_accounts</mat-icon>
-        @if (form.get('rol_id')?.hasError('required')) {
-          <mat-error>Debes seleccionar un rol</mat-error>
-        }
-        @if (form.get('rol_id')?.hasError('serverError')) {
-          <mat-error>{{ form.get('rol_id')?.getError('serverError') }}</mat-error>
-        }
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" subscriptSizing="fixed">
         <mat-label>Empresa</mat-label>
         <mat-select formControlName="empresa_id">
           <mat-option [value]="null">— Sin empresa —</mat-option>
@@ -97,16 +81,162 @@
         <mat-icon matPrefix>business</mat-icon>
       </mat-form-field>
 
-      <mat-form-field appearance="outline" subscriptSizing="fixed">
-        <mat-label>Sede</mat-label>
-        <mat-select formControlName="sede_id">
-          <mat-option [value]="null">— Sin sede —</mat-option>
-          @for (s of sedes(); track s) {
-            <mat-option [value]="s.id">{{ s.nombre }}</mat-option>
+      <!-- ── Roles (multi-rol con temporizador) ── -->
+      <div class="asig-block span-full">
+        <div class="asig-head">
+          <mat-icon>manage_accounts</mat-icon>
+          <span class="asig-title">Roles</span>
+          <span class="asig-hint">La estrella marca el rol principal; el reloj limita su vigencia.</span>
+        </div>
+
+        <mat-form-field appearance="outline" subscriptSizing="fixed" class="asig-add">
+          <mat-label>Agregar rol…</mat-label>
+          <mat-select #selRol (selectionChange)="agregarRol($event.value); selRol.writeValue(null)">
+            @for (r of rolesDisponibles(); track r.id) {
+              <mat-option [value]="r.id">{{ r.nombre }}</mat-option>
+            }
+          </mat-select>
+          <mat-icon matPrefix>add_circle_outline</mat-icon>
+        </mat-form-field>
+
+        @if (!rolesAsignados().length && rolesTocados()) {
+          <div class="asig-error">
+            <mat-icon>error_outline</mat-icon>
+            <span>Debes asignar al menos un rol</span>
+          </div>
+        }
+
+        <div class="asig-list">
+          @for (r of rolesAsignados(); track r.id) {
+            <div class="asig-item" [class.asig-item--vencido]="esVencido(r)">
+              <button mat-icon-button type="button" class="asig-star"
+                (click)="marcarRolPrincipal(r.id)"
+                [matTooltip]="r.es_principal ? 'Rol principal' : 'Marcar como principal'">
+                <mat-icon [class.star-on]="r.es_principal">{{ r.es_principal ? 'star' : 'star_outline' }}</mat-icon>
+              </button>
+              <span class="asig-nombre">{{ r.nombre }}</span>
+              @if (r.es_principal) { <span class="asig-chip asig-chip--principal">Principal</span> }
+              @if (esVencido(r)) { <span class="asig-chip asig-chip--vencido">Vencido</span> }
+              <span class="asig-vigencia" [class.asig-vigencia--activa]="!!r.vigente_hasta && !esVencido(r)">
+                {{ vigenciaLabel(r) }}
+              </span>
+              <button mat-icon-button type="button" [matMenuTriggerFor]="menuVigencia"
+                (click)="abrirMenuVigencia(r.id)" matTooltip="Temporizador: hasta cuándo tendrá este rol">
+                <mat-icon>schedule</mat-icon>
+              </button>
+              <button mat-icon-button type="button" class="asig-quitar" (click)="quitarRol(r.id)" matTooltip="Quitar rol">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            @if (vigenciaEnEdicion() === r.id) {
+              <div class="asig-item asig-item--fecha">
+                <mat-icon>event</mat-icon>
+                <label class="asig-fecha-label">Vigente hasta:</label>
+                <input type="datetime-local" class="asig-fecha-input"
+                  [value]="vigenciaLocalDe(r)" (change)="setVigenciaFecha(r.id, $event)">
+              </div>
+            }
+          } @empty {
+            <div class="asig-vacio">Sin roles asignados. Agrega al menos uno.</div>
           }
-        </mat-select>
-        <mat-icon matPrefix>location_city</mat-icon>
-      </mat-form-field>
+        </div>
+      </div>
+
+      <mat-menu #menuVigencia="matMenu">
+        <button mat-menu-item type="button" (click)="setVigenciaPreset(null)">
+          <mat-icon>all_inclusive</mat-icon><span>Sin límite (indefinido)</span>
+        </button>
+        <button mat-menu-item type="button" (click)="setVigenciaPreset(1)">
+          <mat-icon>schedule</mat-icon><span>1 día</span>
+        </button>
+        <button mat-menu-item type="button" (click)="setVigenciaPreset(7)">
+          <mat-icon>schedule</mat-icon><span>1 semana</span>
+        </button>
+        <button mat-menu-item type="button" (click)="setVigenciaPreset(30)">
+          <mat-icon>schedule</mat-icon><span>30 días</span>
+        </button>
+        <button mat-menu-item type="button" (click)="abrirVigenciaPersonalizada()">
+          <mat-icon>event</mat-icon><span>Elegir fecha y hora…</span>
+        </button>
+      </mat-menu>
+
+      <!-- ── Sedes (multi-sede) ── -->
+      <div class="asig-block span-full">
+        <div class="asig-head">
+          <mat-icon>location_city</mat-icon>
+          <span class="asig-title">Sedes</span>
+          <span class="asig-hint">La estrella marca la sede principal.</span>
+        </div>
+
+        <mat-form-field appearance="outline" subscriptSizing="fixed" class="asig-add">
+          <mat-label>Agregar sede…</mat-label>
+          <mat-select #selSede (selectionChange)="agregarSede($event.value); selSede.writeValue(null)">
+            @for (s of sedesDisponibles(); track s.id) {
+              <mat-option [value]="s.id">{{ s.nombre }}</mat-option>
+            }
+          </mat-select>
+          <mat-icon matPrefix>add_circle_outline</mat-icon>
+        </mat-form-field>
+
+        <div class="asig-list">
+          @for (s of sedesAsignadas(); track s.id) {
+            <div class="asig-item">
+              <button mat-icon-button type="button" class="asig-star"
+                (click)="marcarSedePrincipal(s.id)"
+                [matTooltip]="s.es_principal ? 'Sede principal' : 'Marcar como principal'">
+                <mat-icon [class.star-on]="s.es_principal">{{ s.es_principal ? 'star' : 'star_outline' }}</mat-icon>
+              </button>
+              <span class="asig-nombre">{{ s.nombre }}</span>
+              @if (s.es_principal) { <span class="asig-chip asig-chip--principal">Principal</span> }
+              <span class="asig-vigencia"></span>
+              <button mat-icon-button type="button" class="asig-quitar" (click)="quitarSede(s.id)" matTooltip="Quitar sede">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @empty {
+            <div class="asig-vacio">Sin sedes asignadas (opcional).</div>
+          }
+        </div>
+      </div>
+
+      <!-- ── Grupos y etiquetas (audiencia, NO permisos) ── -->
+      <div class="asig-block span-full">
+        <div class="asig-head">
+          <mat-icon>sell</mat-icon>
+          <span class="asig-title">Grupos y etiquetas</span>
+          <span class="asig-hint">
+            Marcan a quién va dirigido algo (finca, empresa usuaria, etiqueta propia).
+            No dan permisos: eso lo sigue decidiendo el rol.
+          </span>
+        </div>
+
+        <mat-form-field appearance="outline" subscriptSizing="fixed" class="asig-add">
+          <mat-label>Agregar grupo o etiqueta…</mat-label>
+          <mat-select #selGrupo (selectionChange)="agregarGrupo($event.value); selGrupo.writeValue(null)">
+            @for (g of gruposDisponibles(); track g.id) {
+              <mat-option [value]="g.id">{{ g.nombre }} · {{ nombreTipoGrupo(g.tipo) }}</mat-option>
+            }
+          </mat-select>
+          <mat-icon matPrefix>add_circle_outline</mat-icon>
+        </mat-form-field>
+
+        <div class="asig-list">
+          @for (g of gruposAsignados(); track g.id) {
+            <div class="asig-item">
+              <span class="asig-punto" [style.background]="g.color || '#21263c'" aria-hidden="true"></span>
+              <span class="asig-nombre">{{ g.nombre }}</span>
+              <span class="asig-chip">{{ nombreTipoGrupo(g.tipo) }}</span>
+              <span class="asig-vigencia"></span>
+              <button mat-icon-button type="button" class="asig-quitar" (click)="quitarGrupo(g.id)"
+                      matTooltip="Quitar del grupo">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @empty {
+            <div class="asig-vacio">Sin grupos ni etiquetas (opcional).</div>
+          }
+        </div>
+      </div>
 
       <!-- ============ Datos personales ============ -->
       <div class="section-head span-full">

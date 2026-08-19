@@ -12,6 +12,10 @@ import Swal from 'sweetalert2';
 import { SharedModule } from '../../shared.module';
 import { OfflineSyncService, CacheCategory } from '../../../core/services/offline-sync.service';
 import { NetworkStatusService } from '../../../core/services/network-status.service';
+import {
+  CatalogPreloadService,
+  CatalogPreloadProgress,
+} from '../../../core/services/catalog-preload.service';
 import { describeQueuedRequest, formatRelativeAge } from '../../../core/utils/offline-response';
 
 interface QueuedRow {
@@ -51,6 +55,9 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
   isOnline = true;
   syncing = false;
   showAllCache = false;
+  /** Progreso de la precarga de parametrización (null = no está corriendo). */
+  catalogProgress: CatalogPreloadProgress | null = null;
+  catalogLastRun = '';
   hasLocalDb = false;   // true en todos los navegadores modernos (IndexedDB o SQLite)
   activeTab: 'queue' | 'cache' = 'queue';
 
@@ -63,6 +70,7 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
     private dialogRef: MatDialogRef<OfflineQueueDialogComponent>,
     private offlineSync: OfflineSyncService,
     private networkStatus: NetworkStatusService,
+    private catalogPreload: CatalogPreloadService,
     private cdr: ChangeDetectorRef,
   ) {}
 
@@ -83,6 +91,14 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
       }),
       this.offlineSync.syncProgress$.subscribe(progress => {
         this.syncing = progress !== null;
+        this.cdr.detectChanges();
+      }),
+      this.catalogPreload.progress$.subscribe(progress => {
+        this.catalogProgress = progress;
+        this.cdr.detectChanges();
+      }),
+      this.catalogPreload.lastRun$.subscribe(iso => {
+        this.catalogLastRun = iso ? formatRelativeAge(iso) : '';
         this.cdr.detectChanges();
       }),
     );
@@ -120,6 +136,24 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
 
   get totalCacheEntries(): number {
     return this.cacheCategories.reduce((s, c) => s + c.count, 0);
+  }
+
+  /**
+   * Grupo de parametrización (tablas maestras que alimentan los desplegables
+   * de todos los módulos). Se muestra aparte y SIEMPRE, aunque esté todo
+   * sincronizado: es el indicador de si se puede trabajar sin conexión.
+   */
+  get catalogCategory(): CacheCategory | null {
+    return this.cacheCategories.find(c => c.name === 'Parametrización') ?? null;
+  }
+
+  get totalCatalogos(): number {
+    return this.catalogCategory?.count ?? 0;
+  }
+
+  /** Categorías de la lista general, sin la de parametrización (va aparte). */
+  get visibleCategoriesSinCatalogos(): CacheCategory[] {
+    return this.visibleCategories.filter(c => c.name !== 'Parametrización');
   }
 
   private scheduleReload(): void {
@@ -212,6 +246,34 @@ export class OfflineQueueDialogComponent implements OnInit, OnDestroy {
     if (!confirm.isConfirmed) return;
     await this.offlineSync.discardRequest(row.id);
     await this.reload();
+  }
+
+  /**
+   * Baja de nuevo TODA la parametrización, sin esperar al refresco automático.
+   * Es la acción que deja el equipo listo para irse a trabajar sin señal.
+   */
+  async actualizarParametrizacion(): Promise<void> {
+    if (!this.isOnline || this.catalogProgress !== null) return;
+    const res = await this.catalogPreload.preloadNow();
+    await this.reload();
+    if (res.omitido) {
+      Swal.fire({
+        icon: 'info',
+        title: 'No se pudo actualizar',
+        text: `Precarga omitida: ${res.omitido}.`,
+        confirmButtonColor: '#3085d6',
+      });
+      return;
+    }
+    Swal.fire({
+      icon: res.fallidos > 0 ? 'warning' : 'success',
+      title: 'Parametrización actualizada',
+      html: `${res.ok} catálogo(s) guardado(s) en este equipo.`
+        + (res.fallidos > 0
+          ? `<br><small>${res.fallidos} no se pudieron bajar (sin permiso o servicio caído).</small>`
+          : ''),
+      confirmButtonColor: '#3085d6',
+    });
   }
 
   limpiarCache(): void {

@@ -42,9 +42,10 @@ export function derivarSlug(texto: string): string {
  *
  * Publica (POST /placement, idempotente) o mueve/renombra/reordena (PATCH). El
  * formulario es una VISTA de un módulo anfitrión: se elige el módulo padre con
- * el árbol, la etiqueta, el icono y el orden. El backend crea SIEMPRE las 4 vistas
- * (Formulario, Respuestas, Soportes y Analítica) bajo ese padre. Muestra en vivo la
- * ruta final y cómo se verá la entrada en el sidebar.
+ * el árbol, la etiqueta, el icono y el orden. El backend crea UNA sola entrada de
+ * menú; Formulario, Respuestas, Soportes y Analítica son tabs dentro de esa pantalla
+ * (los de gestión solo los ve el dueño/admin). Muestra en vivo la ruta final y cómo
+ * se verá la entrada en el sidebar.
  *
  * Al confirmar: si la respuesta trae `warnings` o `placement_status === 'FAILED'`
  * los muestra y NO cierra; si queda LINKED cierra devolviendo el Placement.
@@ -116,10 +117,12 @@ export function derivarSlug(texto: string): string {
             <mat-hint>Opcional. Posición entre los hermanos.</mat-hint>
           </mat-form-field>
 
-          <!-- El backend crea SIEMPRE las 4 vistas del formulario bajo el módulo padre. -->
+          <!-- El backend crea UNA entrada; las 4 vistas son tabs de la misma pantalla. -->
           <p class="pd-info-vistas" role="note">
             <span class="material-symbols-outlined" aria-hidden="true">info</span>
-            Se crearán 4 entradas en el menú: Formulario, Respuestas, Soportes y Analítica.
+            Se creará una única entrada en el menú. Respuestas, Soportes y Analítica
+            aparecen como pestañas dentro de esa pantalla (solo para quien gestiona el
+            formulario).
           </p>
         </section>
       </div>
@@ -324,7 +327,7 @@ export class PlacementDialogComponent {
       return;
     }
 
-    // El backend crea SIEMPRE las 4 vistas; no se envía responses_menu_enabled.
+    // El backend crea UNA entrada (las vistas son tabs); no se envía responses_menu_enabled.
     const req: PlacementRequest = {
       parent_module_id: padre,
       menu_label: this.menuLabel().trim() || this.data.formName,

@@ -23,7 +23,7 @@
       [subtitle]="((dim1$ | async) === 'oficina' ? 'Contrataciones por oficina' : 'Contrataciones por empresa (Apoyo Laboral y Tu Alianza)')
         + ', por ' + ((gran$ | async) === 'dia' ? 'día (usa el rango de fechas de arriba)' : 'mes (histórico)')
         + ' de ' + (baseFechaLabel$ | async)"
-      [loading]="false">
+      [loading]="(cargandoTimeline1$ | async) ?? false">
       <div actions class="dim-toggle">
         <mat-button-toggle-group [value]="gran$ | async" (change)="setGran($event.value)" style="margin-right:8px">
           <mat-button-toggle value="mes">Por Mes</mat-button-toggle>
@@ -46,7 +46,7 @@
     <app-chart-card
       title="Contratación por Responsable"
       [subtitle]="'Contrataciones por responsable, por ' + ((gran$ | async) === 'dia' ? 'día (usa el rango de fechas de arriba)' : 'mes (histórico)') + ' de ' + (baseFechaLabel$ | async)"
-      [loading]="false">
+      [loading]="(cargandoTimelineResp$ | async) ?? false">
       <app-contratacion-timeline-chart
         [points]="timelineResponsable$ | async"
         [maxSeries]="10">
@@ -59,7 +59,8 @@
 
     <!-- Resumen por Oficina -->
     <app-chart-card title="Resumen por Oficina"
-      subtitle="Total de contrataciones agrupadas por oficina" [loading]="false">
+      subtitle="Total de contrataciones agrupadas por oficina"
+      [loading]="(cargandoResumen$ | async) ?? false">
       @if (resumenOficinas$ | async; as oficinas) {
         <div class="resumen-list">
           @for (item of oficinas; track item.oficina) {
@@ -93,7 +94,8 @@
 
     <!-- Resumen por Empresa -->
     <app-chart-card title="Resumen por Empresa"
-      subtitle="Total de contrataciones agrupadas por empresa" [loading]="false">
+      subtitle="Total de contrataciones agrupadas por empresa"
+      [loading]="(cargandoResumen$ | async) ?? false">
       @if (resumenEmpresas$ | async; as empresas) {
         <div class="resumen-list">
           @for (item of empresas; track item.empresa) {
@@ -130,7 +132,7 @@
   <div class="chart-grid full-width-chart">
     <app-chart-card title="Consolidado de Contrataciones"
       [subtitle]="'Detalle filtrado y ordenado por ' + (baseFechaLabel$ | async) + ' en el rango seleccionado'"
-      [loading]="false">
+      [loading]="(cargandoTabla$ | async) ?? false">
       @if (tablePage$ | async; as tp) {
         <app-contrataciones-table
           [data]="tp.rows"

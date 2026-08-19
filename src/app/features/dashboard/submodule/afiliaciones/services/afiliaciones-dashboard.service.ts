@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '@/environments/environment';
 import { Observable, BehaviorSubject, combineLatest, of } from 'rxjs';
-import { map, shareReplay, switchMap, catchError, debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { map, shareReplay, switchMap, catchError, debounceTime, distinctUntilChanged, finalize } from 'rxjs/operators';
 import * as _moment from 'moment';
 // @ts-ignore
 const moment = _moment.default || _moment;
@@ -129,10 +129,29 @@ export class AfiliacionesDashboardService {
   // ──────────────────────────────────────────────
   // Resumen agregado (KPIs + por oficina + por empresa)
   // ──────────────────────────────────────────────
+  /**
+   * Indicadores de carga por bloque. Las tarjetas del tablero tenían `[loading]="false"`
+   * fijo: durante los segundos que tarda la agregación en SQL el usuario veía tarjetas
+   * vacías, sin forma de distinguir "cargando" de "no hay datos".
+   *
+   * Se marcan ANTES de lanzar la petición (dentro del switchMap, no en un tap previo)
+   * para que un cambio de filtro que cancela la petición en vuelo deje el flag en true
+   * y lo baje la nueva, sin parpadeo intermedio.
+   */
+  private cargandoResumenSubject = new BehaviorSubject<boolean>(true);
+  public cargandoResumen$ = this.cargandoResumenSubject.asObservable();
+
+  private cargandoTablaSubject = new BehaviorSubject<boolean>(true);
+  public cargandoTabla$ = this.cargandoTablaSubject.asObservable();
+
   private resumen$: Observable<ResumenApi> = this.filters$.pipe(
-    switchMap(f => this.http.get<ResumenApi>(`${this.apiUrl}/contratos/resumen`, { params: this.toParams(f) }).pipe(
-      catchError(() => of({ kpis: EMPTY_KPIS, porOficina: [], porEmpresa: [] } as ResumenApi))
-    )),
+    switchMap(f => {
+      this.cargandoResumenSubject.next(true);
+      return this.http.get<ResumenApi>(`${this.apiUrl}/contratos/resumen`, { params: this.toParams(f) }).pipe(
+        catchError(() => of({ kpis: EMPTY_KPIS, porOficina: [], porEmpresa: [] } as ResumenApi)),
+        finalize(() => this.cargandoResumenSubject.next(false))
+      );
+    }),
     shareReplay(1)
   );
 
@@ -171,9 +190,26 @@ export class AfiliacionesDashboardService {
   // acota de paso las pocas fechas basura (2017/2018/2028) fuera de rango.
   private readonly CHART_DESDE = '2023-01-01';
 
+  /** Un flag por dimensión: las dos gráficas del tablero cargan de forma independiente. */
+  private cargandoTimeline = new Map<TimelineDim, BehaviorSubject<boolean>>();
+
+  public cargandoTimeline$(dim: TimelineDim): Observable<boolean> {
+    return this.flagTimeline(dim).asObservable();
+  }
+
+  private flagTimeline(dim: TimelineDim): BehaviorSubject<boolean> {
+    let s = this.cargandoTimeline.get(dim);
+    if (!s) {
+      s = new BehaviorSubject<boolean>(true);
+      this.cargandoTimeline.set(dim, s);
+    }
+    return s;
+  }
+
   public getTimeline(dim: TimelineDim): Observable<TimelinePoint[]> {
     return this.chartFilters$.pipe(
       switchMap(f => {
+        this.flagTimeline(dim).next(true);
         // Por mes: ventana histórica fija (2023→hoy) sin importar el rango del filtro.
         // Por día: usa el rango seleccionado en los filtros de arriba (más útil para rangos cortos).
         const isDia = f.gran === 'dia';
@@ -197,7 +233,8 @@ export class AfiliacionesDashboardService {
           map(points => dim === 'empresa'
             ? (points || []).map(p => ({ ...p, label: this.empresaLabel(p.label) }))
             : (points || [])),
-          catchError(() => of([] as TimelinePoint[]))
+          catchError(() => of([] as TimelinePoint[])),
+          finalize(() => this.flagTimeline(dim).next(false))
         );
       }),
       shareReplay(1)
@@ -237,6 +274,7 @@ export class AfiliacionesDashboardService {
   // ──────────────────────────────────────────────
   public tablePage$: Observable<ContratacionesPage> = combineLatest([this.filters$, this.pageSubject]).pipe(
     switchMap(([f, pg]) => {
+      this.cargandoTablaSubject.next(true);
       // 'base' ya viaja dentro de toParams(): es el mismo anclaje que usan KPIs y resúmenes.
       const params = this.toParams(f)
         .set('page', String(pg.page))
@@ -246,7 +284,8 @@ export class AfiliacionesDashboardService {
           rows: (res?.results || []).map((r: any) => this.mapRow(r)),
           total: res?.total || 0
         } as ContratacionesPage)),
-        catchError(() => of({ rows: [], total: 0 } as ContratacionesPage))
+        catchError(() => of({ rows: [], total: 0 } as ContratacionesPage)),
+        finalize(() => this.cargandoTablaSubject.next(false))
       );
     }),
     shareReplay(1)

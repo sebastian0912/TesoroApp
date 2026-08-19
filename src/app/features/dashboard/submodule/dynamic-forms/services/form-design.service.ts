@@ -4,7 +4,7 @@ import { Observable, map, switchMap } from 'rxjs';
 
 import { environment } from '@/environments/environment';
 import { DocumentRef, FormTheme } from '../models/dynamic-forms.models';
-import { MediaOffloadService } from './media-offload.service';
+import { MediaOffloadService, TIPO_DOC_PORTADA } from './media-offload.service';
 
 /** Lo que devuelve ms-ai al pedirle una identidad visual para el formulario. */
 export interface SugerenciaDiseno {
@@ -14,6 +14,26 @@ export interface SugerenciaDiseno {
   tips: string[];
   images_enabled: boolean;
 }
+
+/** Prompt de portada ya pasado por los estándares de la plataforma. */
+export interface PromptRefinado {
+  prompt: string;
+  resumen: string;
+  tips: string[];
+  images_enabled: boolean;
+}
+
+/** Estilos que ofrece el constructor al refinar (los valida ms-ai con lista blanca). */
+export const ESTILOS_PORTADA = [
+  { id: 'abstracto', nombre: 'Abstracto' },
+  { id: 'geometrico', nombre: 'Geométrico' },
+  { id: 'ilustracion', nombre: 'Ilustración' },
+  { id: 'minimalista', nombre: 'Minimalista' },
+  { id: 'isometrico', nombre: 'Isométrico' },
+  { id: 'fotografico', nombre: 'Fotográfico' },
+] as const;
+
+export type EstiloPortada = (typeof ESTILOS_PORTADA)[number]['id'];
 
 interface ImagenGenerada {
   b64: string;
@@ -42,12 +62,37 @@ export class FormDesignService {
   sugerir(datos: {
     nombre: string;
     descripcion?: string | null;
+    categoria?: string | null;
     campos: string[];
   }): Observable<SugerenciaDiseno> {
     return this.http.post<SugerenciaDiseno>(`${this.base}/sugerir`, {
       nombre: datos.nombre,
       descripcion: datos.descripcion ?? '',
+      categoria: datos.categoria ?? '',
       campos: datos.campos.slice(0, 40),
+    });
+  }
+
+  /**
+   * REFINA el prompt de portada contra los estándares de la plataforma (ilustración
+   * corporativa, sin texto, apaisada, coherente con la paleta). Solo texto: se puede
+   * iterar las veces que haga falta antes de gastar una generación de imagen.
+   */
+  refinarPrompt(datos: {
+    prompt: string;
+    nombre: string;
+    descripcion?: string | null;
+    campos: string[];
+    paleta: string[];
+    estilo?: EstiloPortada | '';
+  }): Observable<PromptRefinado> {
+    return this.http.post<PromptRefinado>(`${this.base}/prompt-portada`, {
+      prompt: datos.prompt,
+      nombre: datos.nombre,
+      descripcion: datos.descripcion ?? '',
+      campos: datos.campos.slice(0, 40),
+      paleta: datos.paleta,
+      estilo: datos.estilo ?? '',
     });
   }
 
@@ -56,18 +101,29 @@ export class FormDesignService {
    * @param formId formulario dueño del documento (0 mientras el formulario no existe:
    *               la imagen queda igual guardada y el tema apunta a ella).
    */
-  generarPortada(prompt: string, formId: number): Observable<DocumentRef> {
+  generarPortada(prompt: string, formId: number, ownerKey: string): Observable<DocumentRef> {
     return this.http
       .post<ImagenGenerada>(`${this.base}/imagen`, { prompt, size: '1536x1024' })
       .pipe(
         map(img => this.comoArchivo(img)),
-        switchMap(file => this.media.upload(file, formId)),
+        switchMap(file => this.subirPortada(file, formId, ownerKey)),
       );
   }
 
-  /** Portada elegida a mano: misma tubería que la generada (ms-documents). */
-  subirPortada(file: File, formId: number): Observable<DocumentRef> {
-    return this.media.upload(file, formId);
+  /**
+   * Portada elegida a mano: misma tubería que la generada (ms-documents).
+   *
+   * `ownerKey` identifica la portada DE ESTE formulario. ms-documents deduplica por
+   * (ownerId, typeCode): si todas las portadas colgaran del usuario, cambiar la de un
+   * formulario reescribiría la versión vigente del documento que los otros ya apuntan.
+   */
+  subirPortada(file: File, formId: number, ownerKey: string): Observable<DocumentRef> {
+    return this.media.upload(file, formId, { typeCode: TIPO_DOC_PORTADA, ownerId: ownerKey });
+  }
+
+  /** Motivo legible de un fallo de subida (lo resuelve el offload de media). */
+  motivoDeFallo(err: unknown, porDefecto: string): string {
+    return this.media.motivoDeFallo(err, porDefecto);
   }
 
   /**

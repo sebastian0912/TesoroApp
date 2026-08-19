@@ -7,8 +7,12 @@ import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { interceptor } from './core/interceptors/auth.interceptor';
 import { offlineInterceptor } from './core/interceptors/offline.interceptor';
+import { loadingProgressInterceptor } from './core/interceptors/loading-progress.interceptor';
 import { OfflineSyncService } from './core/services/offline-sync.service';
 import { PipelinePreloadService } from './core/services/pipeline-preload.service';
+import { CatalogPreloadService } from './core/services/catalog-preload.service';
+import { CHOICE_OPTIONS_RESOLVER } from './shared/components/forms/choice-options';
+import { OptionSourceService } from './features/dashboard/submodule/dynamic-forms/services/option-source.service';
 
 /**
  * Web/SSR config: uses PathLocationStrategy (default).
@@ -16,6 +20,12 @@ import { PipelinePreloadService } from './core/services/pipeline-preload.service
  */
 export const appConfig: ApplicationConfig = {
   providers: [
+    /**
+     * Los campos de selección de shared/ pueden sacar sus opciones de una TABLA
+     * PARAMETRIZADA; quien las resuelve es el submódulo de Formularios Dinámicos.
+     * Se registra aquí para que shared/ no dependa de features/.
+     */
+    { provide: CHOICE_OPTIONS_RESOLVER, useExisting: OptionSourceService },
     /**
      * main.ts hacía `registerLocaleData(localeEsCo, 'es-CO')` pero nadie proveía
      * LOCALE_ID: registrar el locale NO basta. Sin esto, todos los pipes (number,
@@ -29,14 +39,14 @@ export const appConfig: ApplicationConfig = {
     provideClientHydration(withEventReplay()),
     provideHttpClient(
       withFetch(),
-      withInterceptors([interceptor, offlineInterceptor])
+      withInterceptors([loadingProgressInterceptor, interceptor, offlineInterceptor])
     ),
     provideAnimations(),
     // Instanciar servicios offline temprano para que escuchen isOnline$
     {
       provide: APP_INITIALIZER,
       useFactory: () => () => {},
-      deps: [OfflineSyncService, PipelinePreloadService],
+      deps: [OfflineSyncService, PipelinePreloadService, CatalogPreloadService],
       multi: true,
     },
   ],

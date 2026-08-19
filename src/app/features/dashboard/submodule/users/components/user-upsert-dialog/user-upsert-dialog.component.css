@@ -263,3 +263,165 @@
     align-items: flex-start;
   }
 }
+
+/* ── Asignaciones múltiples de roles y sedes (V40) ── */
+.asig-block {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+}
+
+.asig-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #0f172a;
+}
+
+.asig-head mat-icon {
+  color: #475569;
+}
+
+.asig-title {
+  font-weight: 600;
+}
+
+.asig-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: auto;
+  text-align: right;
+}
+
+.asig-add {
+  width: min(320px, 100%);
+}
+
+.asig-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.asig-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+.asig-item--vencido {
+  background: #fef3f2;
+  border-color: #fecdca;
+}
+
+.asig-item--fecha {
+  padding: 8px 12px;
+  margin-left: 24px;
+  color: #475569;
+}
+
+.asig-fecha-label {
+  font-size: 13px;
+  color: #475569;
+}
+
+.asig-fecha-input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  color: #0f172a;
+  background: #fff;
+}
+
+.asig-nombre {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.asig-chip {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.asig-chip--principal {
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.asig-chip--vencido {
+  color: #b42318;
+  background: #fef3f2;
+}
+
+.asig-vigencia {
+  margin-left: auto;
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.asig-vigencia--activa {
+  color: #b54708;
+  font-weight: 600;
+}
+
+.asig-star .star-on {
+  color: #f59e0b;
+}
+
+.asig-quitar {
+  color: #94a3b8;
+}
+
+.asig-quitar:hover {
+  color: #b42318;
+}
+
+.asig-vacio {
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 6px 2px;
+}
+
+.asig-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #b42318;
+  font-size: 13px;
+  margin: -4px 0 8px;
+}
+
+.asig-error mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 600px) {
+  .asig-hint {
+    display: none;
+  }
+  .asig-vigencia {
+    font-size: 11px;
+  }
+}
+
+/* Chip de color del grupo/etiqueta, alineado con el resto de la fila de asignación. */
+.asig-punto {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  margin: 0 6px 0 12px;
+  border-radius: 50%;
+}

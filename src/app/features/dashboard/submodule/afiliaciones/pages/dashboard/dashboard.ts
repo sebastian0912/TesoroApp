@@ -56,6 +56,12 @@ export class AfiliacionesDashboard {
   oficinas$ = this.service.oficinasDisponibles$;
   responsables$ = this.service.responsablesDisponibles$;
 
+  // Estado de carga por bloque. Sustituye al `[loading]="false"` fijo que dejaba las
+  // tarjetas indistinguibles entre "cargando" y "sin datos" durante toda la espera.
+  cargandoResumen$ = this.service.cargandoResumen$;
+  cargandoTabla$ = this.service.cargandoTabla$;
+  cargandoTimelineResp$ = this.service.cargandoTimeline$('usuario_responsable');
+
   // Dimensión de la primera gráfica temporal: por oficina o por empresa.
   dim1$ = new BehaviorSubject<TimelineDimension>('oficina');
 
@@ -64,6 +70,9 @@ export class AfiliacionesDashboard {
 
   // Series temporales agregadas (una petición por dimensión, reactiva a los filtros).
   timelinePrincipal$ = this.dim1$.pipe(switchMap(dim => this.service.getTimeline(dim)));
+  // La primera gráfica cambia de dimensión en caliente, así que su indicador de carga
+  // tiene que seguir a dim1$ y no quedarse mirando la dimensión inicial.
+  cargandoTimeline1$ = this.dim1$.pipe(switchMap(dim => this.service.cargandoTimeline$(dim)));
   timelineResponsable$ = this.service.getTimeline('usuario_responsable');
 
   setDim1(value: TimelineDimension) {

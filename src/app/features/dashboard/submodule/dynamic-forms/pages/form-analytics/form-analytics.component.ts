@@ -14,7 +14,7 @@ import type { EChartsOption } from 'echarts';
 import { FormAnalyticsService } from '../../services/form-analytics.service';
 import { DynamicFormService } from '../../services/dynamic-form.service';
 import {
-  ApiProblem, DailyPoint, FieldStats, FormAnalytics, FormDetail,
+  AnalyticsGranularity, ApiProblem, FieldStats, FormAnalytics, FormDetail, HourPoint, SeriesPoint,
 } from '../../models/dynamic-forms.models';
 
 /** Color de marca (var(--navy)); echarts pinta en canvas y no resuelve variables CSS. */
@@ -23,8 +23,8 @@ const NAVY = '#21263C';
 const GRIS_OTROS = '#94a3b8';
 /** Máximo de barras individuales por campo; el resto se agrupa en "Otros". */
 const TOP_BARRAS = 12;
-/** Por encima de este span (días) no se rellenan los días sin respuestas. */
-const MAX_DIAS_RELLENO = 400;
+/** Por encima de este número de huecos no se rellenan los tramos sin respuestas. */
+const MAX_RELLENO = { day: 400, hour: 1500 } as const;
 
 /** Presentación de cada estado de by_status (etiqueta ES + icono + clase de color). */
 const META_ESTADOS: Record<string, { etiqueta: string; icono: string; clase: string; orden: number }> = {
@@ -104,9 +104,13 @@ export class FormAnalyticsComponent implements OnInit {
   readonly formulario = signal<FormDetail | null>(null);
 
   // Filtro de rango: lo escrito en los inputs vs. lo realmente aplicado a la consulta.
+  // Con granularidad "hour" los inputs son datetime-local (yyyy-MM-ddTHH:mm).
   readonly desde = signal('');
   readonly hasta = signal('');
   readonly filtroAplicado = signal<{ from?: string; to?: string } | null>(null);
+
+  /** Granularidad de la línea de tiempo: por día o por día y hora. */
+  readonly granularidad = signal<AnalyticsGranularity>('day');
 
   ngOnInit(): void {
     // Con id del host, el setter ya inicializó: no se lee la ruta.
@@ -120,6 +124,7 @@ export class FormAnalyticsComponent implements OnInit {
     this.desde.set('');
     this.hasta.set('');
     this.filtroAplicado.set(null);
+    this.granularidad.set('day');
     if (!Number.isFinite(id) || id <= 0) {
       this.cargando.set(false);
       this.error.set('El identificador del formulario en la URL no es válido.');
@@ -140,7 +145,8 @@ export class FormAnalyticsComponent implements OnInit {
   cargar(): void {
     this.cargando.set(true);
     this.error.set(null);
-    this.analyticsSvc.analytics(this.formId(), this.filtroAplicado() ?? {})
+    this.analyticsSvc.analytics(this.formId(),
+      { ...(this.filtroAplicado() ?? {}), granularity: this.granularidad() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => {
@@ -172,6 +178,27 @@ export class FormAnalyticsComponent implements OnInit {
     this.cargar();
   }
 
+  /**
+   * Cambia la granularidad y recarga. Los inputs cambian de tipo (date ↔ datetime-local),
+   * así que el valor escrito se adapta: al pasar a hora se completa con las 00:00 y al
+   * volver a día se recorta la hora (un datetime-local no muestra "2026-08-19" a secas).
+   */
+  cambiarGranularidad(gran: AnalyticsGranularity): void {
+    if (this.granularidad() === gran) return;
+    this.granularidad.set(gran);
+    const ajustar = (v: string) => {
+      if (!v) return '';
+      return gran === 'hour'
+        ? (v.length === 10 ? `${v}T00:00` : v)
+        : v.slice(0, 10);
+    };
+    this.desde.update(ajustar);
+    this.hasta.update(ajustar);
+    const filtro = this.filtroAplicado();
+    if (filtro) this.filtroAplicado.set({ from: this.desde() || undefined, to: this.hasta() || undefined });
+    this.cargar();
+  }
+
   private mensajeError(err: HttpErrorResponse): string {
     const problema = err.error as ApiProblem | null;
     if (problema && typeof problema.detail === 'string' && problema.detail.trim()) {
@@ -200,19 +227,27 @@ export class FormAnalyticsComponent implements OnInit {
       .sort((a, b) => a.orden - b.orden || a.estado.localeCompare(b.estado));
   });
 
-  // ── Serie diaria ───────────────────────────────────────────────────
+  // ── Línea de tiempo (día o día y hora) ─────────────────────────────
 
-  /** Puntos crudos ordenados (para la tabla accesible bajo la gráfica). */
-  readonly tablaDiaria = computed<DailyPoint[]>(() => {
-    const diaria = this.datos()?.daily ?? [];
-    return [...diaria].sort((a, b) => a.date.localeCompare(b.date));
+  /**
+   * Puntos crudos ordenados (también alimentan la tabla accesible bajo la gráfica).
+   * Si el backend es anterior a `series`, se reconstruye desde la serie diaria.
+   */
+  readonly tablaSerie = computed<SeriesPoint[]>(() => {
+    const data = this.datos();
+    if (!data) return [];
+    const serie: SeriesPoint[] = data.series
+      ?? (data.daily ?? []).map(d => ({ bucket: `${d.date}T00:00`, total: d.total }));
+    return [...serie].sort((a, b) => a.bucket.localeCompare(b.bucket));
   });
 
-  readonly opcionDiaria = computed<EChartsOption | null>(() => {
-    const crudos = this.tablaDiaria();
+  readonly opcionSerie = computed<EChartsOption | null>(() => {
+    const crudos = this.tablaSerie();
     if (crudos.length === 0) return null;
-    const puntos = this.rellenarDias(crudos);
-    const conAnio = puntos[0].date.slice(0, 4) !== puntos[puntos.length - 1].date.slice(0, 4);
+    const paso = this.granularidad();
+    const puntos = this.rellenarBuckets(crudos, paso);
+    // Con un rango que cruza de año, la etiqueta lo dice (si no, "02 ene" es ambiguo).
+    const conAnio = puntos[0].bucket.slice(0, 4) !== puntos[puntos.length - 1].bucket.slice(0, 4);
     const unPunto = puntos.length <= 1;
     return {
       tooltip: { trigger: 'axis', confine: true },
@@ -220,8 +255,8 @@ export class FormAnalyticsComponent implements OnInit {
       xAxis: {
         type: 'category',
         boundaryGap: false,
-        data: puntos.map(p => this.etiquetaDia(p.date, conAnio)),
-        axisLabel: { color: '#64748b', fontSize: 11 },
+        data: puntos.map(p => this.etiquetaBucket(p.bucket, paso, conAnio)),
+        axisLabel: { color: '#64748b', fontSize: 11, hideOverlap: true },
         axisLine: { lineStyle: { color: '#d8e0ea' } },
         axisTick: { show: false },
       },
@@ -255,42 +290,107 @@ export class FormAnalyticsComponent implements OnInit {
   });
 
   /**
-   * Rellena con 0 los días sin respuestas entre el primero y el último punto,
-   * para que la línea no "una" fechas lejanas como si fueran contiguas.
-   * En rangos enormes (> MAX_DIAS_RELLENO días) se deja la serie tal cual.
+   * Rellena con 0 los tramos sin respuestas entre el primer y el último punto —días con
+   * granularidad "day", horas con "hour"— para que la línea no "una" instantes lejanos
+   * como si fueran contiguos. En rangos enormes se deja la serie tal cual.
    */
-  private rellenarDias(orden: DailyPoint[]): DailyPoint[] {
+  private rellenarBuckets(orden: SeriesPoint[], paso: AnalyticsGranularity): SeriesPoint[] {
     if (orden.length <= 1) return orden;
-    const validos = orden.filter(p => /^\d{4}-\d{2}-\d{2}$/.test(p.date));
+    const validos = orden.filter(p => !Number.isNaN(this.aFecha(p.bucket).getTime()));
     if (validos.length <= 1) return orden;
-    const porDia = new Map(validos.map(p => [p.date, p.total]));
-    const inicio = new Date(`${validos[0].date}T00:00:00`);
-    const fin = new Date(`${validos[validos.length - 1].date}T00:00:00`);
-    const span = Math.round((fin.getTime() - inicio.getTime()) / 86_400_000);
-    if (span <= 0 || span > MAX_DIAS_RELLENO) return validos;
-    const res: DailyPoint[] = [];
-    for (const d = new Date(inicio); d <= fin; d.setDate(d.getDate() + 1)) {
-      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      res.push({ date: iso, total: porDia.get(iso) ?? 0 });
+    const porBucket = new Map(validos.map(p => [this.claveBucket(this.aFecha(p.bucket), paso), p.total]));
+    const inicio = this.aFecha(validos[0].bucket);
+    const fin = this.aFecha(validos[validos.length - 1].bucket);
+    const ms = paso === 'hour' ? 3_600_000 : 86_400_000;
+    const huecos = Math.round((fin.getTime() - inicio.getTime()) / ms);
+    if (huecos <= 0 || huecos > MAX_RELLENO[paso]) return validos;
+
+    const res: SeriesPoint[] = [];
+    const cursor = new Date(inicio);
+    while (cursor <= fin) {
+      const clave = this.claveBucket(cursor, paso);
+      res.push({ bucket: clave, total: porBucket.get(clave) ?? 0 });
+      if (paso === 'hour') cursor.setHours(cursor.getHours() + 1);
+      else cursor.setDate(cursor.getDate() + 1);
     }
     return res;
   }
 
-  private etiquetaDia(iso: string, conAnio: boolean): string {
-    const fecha = new Date(`${iso}T00:00:00`);
-    if (Number.isNaN(fecha.getTime())) return iso;
-    return fecha.toLocaleDateString('es-CO', conAnio
+  /** El bucket viaja como instante local sin zona: se interpreta tal cual, sin UTC. */
+  private aFecha(bucket: string): Date {
+    return new Date(bucket.length === 10 ? `${bucket}T00:00:00` : bucket);
+  }
+
+  private claveBucket(d: Date, paso: AnalyticsGranularity): string {
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    const dia = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+    return paso === 'hour' ? `${dia}T${p2(d.getHours())}:00` : `${dia}T00:00`;
+  }
+
+  /** Etiqueta corta del eje X: "19 ago" por día, "19 ago 14:00" por hora. */
+  private etiquetaBucket(bucket: string, paso: AnalyticsGranularity, conAnio: boolean): string {
+    const fecha = this.aFecha(bucket);
+    if (Number.isNaN(fecha.getTime())) return bucket;
+    const dia = fecha.toLocaleDateString('es-CO', conAnio
       ? { day: '2-digit', month: 'short', year: '2-digit' }
       : { day: '2-digit', month: 'short' });
+    return paso === 'hour'
+      ? `${dia} ${String(fecha.getHours()).padStart(2, '0')}:00`
+      : dia;
   }
 
-  /** Fecha completa es-CO para la tabla de datos. */
-  fechaLarga(iso: string): string {
-    const fecha = new Date(`${iso}T00:00:00`);
-    if (Number.isNaN(fecha.getTime())) return iso;
-    return fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' });
+  /** Etiqueta completa es-CO para la tabla de datos (con hora si la granularidad la tiene). */
+  etiquetaLarga(bucket: string): string {
+    const fecha = this.aFecha(bucket);
+    if (Number.isNaN(fecha.getTime())) return bucket;
+    const dia = fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' });
+    if (this.granularidad() !== 'hour') return dia;
+    const h = String(fecha.getHours()).padStart(2, '0');
+    return `${dia}, ${h}:00 a ${h}:59`;
   }
 
+  // ── Reparto por hora del día ───────────────────────────────────────
+
+  /** Las 24 franjas tal cual las manda el backend (las vacías en 0). */
+  readonly horasDelDia = computed<HourPoint[]>(() => {
+    const horas = this.datos()?.hour_of_day ?? [];
+    return [...horas].sort((a, b) => a.hour - b.hour);
+  });
+
+  readonly opcionHoras = computed<EChartsOption | null>(() => {
+    const horas = this.horasDelDia();
+    if (horas.length === 0 || horas.every(h => h.total === 0)) return null;
+    return {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, confine: true },
+      grid: { left: 8, right: 16, top: 16, bottom: 8, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: horas.map(h => `${String(h.hour).padStart(2, '0')}:00`),
+        axisLabel: { color: '#64748b', fontSize: 11, hideOverlap: true },
+        axisLine: { lineStyle: { color: '#d8e0ea' } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+        axisLabel: { color: '#64748b', fontSize: 11 },
+        splitLine: { lineStyle: { color: '#eef2f7' } },
+      },
+      series: [{
+        name: 'Respuestas',
+        type: 'bar',
+        data: horas.map(h => h.total),
+        barMaxWidth: 22,
+        itemStyle: { color: NAVY, borderRadius: [4, 4, 0, 0] },
+      }],
+    };
+  });
+
+  /** "14:00 a 14:59": franja horaria legible para la tabla accesible. */
+  franjaHoraria(hora: number): string {
+    const h = String(hora).padStart(2, '0');
+    return `${h}:00 a ${h}:59`;
+  }
   // ── Distribución por campo ─────────────────────────────────────────
 
   readonly camposConDistribucion = computed<CampoDistribucion[]>(() => {
