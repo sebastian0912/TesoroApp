@@ -66,6 +66,7 @@ export const routes: Routes = [
   { path: 'envio-correos/cruce', loadComponent: () => import('./pages/envio-correos-cruce/envio-correos-cruce.component').then(m => m.EnvioCorreosCruceComponent) },
   // Fase 2: el envío en sí y su histórico.
   { path: 'envio-correos/enviar', loadComponent: () => import('./pages/envio-correos-envio/envio-correos-envio.component').then(m => m.EnvioCorreosEnvioComponent) },
+  { path: 'envio-correos/plantillas', loadComponent: () => import('./pages/envio-correos-plantillas/envio-correos-plantillas.component').then(m => m.EnvioCorreosPlantillasComponent) },
   { path: 'envio-correos/historico', loadComponent: () => import('./pages/envio-correos-historico/envio-correos-historico.component').then(m => m.EnvioCorreosHistoricoComponent) },
   // Alias descriptivos por si alguien guarda el bookmark con otro nombre.
   { path: 'carga-modelo-viejo', redirectTo: 'envio-correos/carga', pathMatch: 'full' },

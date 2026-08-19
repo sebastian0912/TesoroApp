@@ -184,6 +184,9 @@ export interface Plantilla {
   cuerpo_html: string;
   modo_documento: ModoDocumento;
   activo: boolean;
+  /** Sube la plantilla al principio de la lista. */
+  destacada: boolean;
+  orden: number;
   creado_por: string | null;
   creado_en: string;
 }
@@ -448,6 +451,17 @@ export class EnvioCorreosService {
     return id
       ? this.http.put<Plantilla>(`${this.nomina}/plantillas/${id}`, p)
       : this.http.post<Plantilla>(`${this.nomina}/plantillas`, p);
+  }
+
+  /** Marca/desmarca destacada. No cambia cuál se resuelve por defecto. */
+  destacarPlantilla(id: number, destacada: boolean): Observable<Plantilla> {
+    const params = new HttpParams().set('destacada', destacada);
+    return this.http.patch<Plantilla>(`${this.nomina}/plantillas/${id}/destacada`, null, { params });
+  }
+
+  activarPlantilla(id: number, activo: boolean): Observable<Plantilla> {
+    const params = new HttpParams().set('activo', activo);
+    return this.http.patch<Plantilla>(`${this.nomina}/plantillas/${id}/activo`, null, { params });
   }
 
   /**
