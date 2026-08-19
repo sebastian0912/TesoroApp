@@ -15,7 +15,12 @@
            tarjetas de AFP o Rama Judicial parecían tener contenido cuando en
            realidad estaban vacías). -->
       <div class="tarjeta-head">
-        <span class="tarjeta-titulo">{{ fld.label }}</span>
+        <span class="tarjeta-titulo">
+          {{ fld.label }}
+          @if (fld.required) {
+            <span class="req-star" matTooltip="Obligatorio: elige una opción para poder guardar">*</span>
+          }
+        </span>
         <span class="tarjeta-punto" [attr.data-estado]="estadoTarjeta(fld)"></span>
       </div>
 
@@ -75,6 +80,9 @@
                 </div>
             </ng-container>
             }
+          }
+          @if (fld.required) {
+            <mat-error>Elige una opción para poder guardar</mat-error>
           }
         </mat-form-field>
         <!-- Menú por campo (referencia local por iteración) -->

@@ -15,6 +15,7 @@
 
 import jsPDF from 'jspdf';
 import { sanitizedString, sanitizeWinAnsi } from './winansi.util';
+import { salarioContratoCO, SMMLV_VIGENTE } from './salario.util';
 
 export type Empresa = 'APOYO LABORAL SAS' | 'TU ALIANZA SAS';
 
@@ -527,7 +528,15 @@ function renderDatosBasicos(
   const xR = MARGIN_X + colW + 2;       // 2mm de gutter entre columnas
 
   const cargo = cargoDeVacante(o.vacante) || s(o.vacante?.cargo);
-  const salario = s(o.vacante?.salario ?? o.candidato?.entrevistas?.[0]?.proceso?.contrato?.salario ?? '');
+  // El salario se imprime en cifra + letras ("$ 2.500.000 DOS MILLONES ... PESOS
+  // M/C"): antes salia el valor crudo del serializer ("1750905.00"). Si la
+  // vacante no trae salario se cae al minimo legal, que es el piso de ley.
+  const salario =
+    salarioContratoCO(
+      o.vacante?.salario ??
+        o.candidato?.entrevistas?.[0]?.proceso?.vacante_salario ??
+        o.candidato?.entrevistas?.[0]?.proceso?.contrato?.salario
+    ) || salarioContratoCO(SMMLV_VIGENTE);
 
   // fecha de iniciación: viene del proceso/contrato o de la vacante
   const fechaIngresoISO =

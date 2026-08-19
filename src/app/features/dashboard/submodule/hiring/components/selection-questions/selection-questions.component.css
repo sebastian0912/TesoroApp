@@ -470,6 +470,14 @@ mat-form-field.example-full-width {
   line-height: 1.2 !important;
 }
 
+/* Asterisco de campo obligatorio: sin selección no se deja guardar. */
+.req-star {
+  color: #c62828;
+  font-weight: 700;
+  margin-left: 2px;
+  cursor: help;
+}
+
 /* Punto de estado: redundante con la franja, pero ayuda a quien no distingue
    bien los colores porque cambia también de tamaño y de borde. */
 .tarjeta-punto {
@@ -489,6 +497,16 @@ mat-form-field.example-full-width {
 }
 :host ::ng-deep .seccion > .input-container .mat-mdc-form-field-subscript-wrapper {
   display: none !important;
+}
+
+/* Excepción: cuando el campo obligatorio queda en rojo (tocado sin selección)
+   el mensaje de error SÍ se muestra; en las tarjetas válidas no reserva alto. */
+:host ::ng-deep .seccion > .input-container .mat-mdc-form-field.mat-form-field-invalid .mat-mdc-form-field-subscript-wrapper {
+  display: block !important;
+}
+:host ::ng-deep .seccion > .input-container mat-error {
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 /* ───────────── Metadatos ───────────── */

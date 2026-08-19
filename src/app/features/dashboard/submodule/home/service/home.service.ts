@@ -366,7 +366,9 @@ export class HomeService {
 
   /**
  * ✅ Descarga el Excel generado por el backend
- * Endpoint: GET /reporte/candidatos-excel/?cedulas=...&persona=...
+ * Endpoint: POST /reporte/candidatos-excel/ con body {cedulas, persona}
+ * (POST y no GET: con más de ~1300 cédulas la URL supera los 16KB y el
+ *  servidor corta la conexión — ERR_EMPTY_RESPONSE)
  *
  * Uso:
  * this.homeService.descargarCandidatosExcel(['1002683090','123'], 'SEBASTIAN')
@@ -384,20 +386,18 @@ export class HomeService {
       return throwError(() => new Error('Debes enviar al menos una cédula.'));
     }
 
-    let params = new HttpParams()
-      .set('cedulas', cedulasClean.join(','));
-
+    const body: { cedulas: string[]; persona?: string } = {
+      cedulas: cedulasClean,
+    };
     if ((personaContratacion ?? '').trim()) {
-      params = params.set('persona', personaContratacion.trim());
+      body.persona = personaContratacion.trim();
     }
 
-    // 👇 para blob, NO pongas Content-Type (eso es de request body)
     const headers = new HttpHeaders({
       Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
-    return this.http.get(`${this.apiUrl}/gestion_contratacion/reporte/candidatos-excel/`, {
-      params,
+    return this.http.post(`${this.apiUrl}/gestion_contratacion/reporte/candidatos-excel/`, body, {
       headers,
       observe: 'response',
       responseType: 'blob',

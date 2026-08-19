@@ -4,6 +4,7 @@ import { Observable, throwError, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 import { isPlatformBrowser } from '@angular/common';
+import { sinTildes, sinTildesDeep } from '../../shared/sin-tildes.helper';
 
 export interface CandidatoUpsertPayload {
   tipoDoc: string;
@@ -505,7 +506,7 @@ export class RegistroProcesoContratacion {
       });
     }
 
-    return this.http.post<CandidatoUpsertResponse>(url, payload);
+    return this.http.post<CandidatoUpsertResponse>(url, sinTildesDeep(payload, new Set(['correo'])));
   }
 
   /**
@@ -825,7 +826,8 @@ export class RegistroProcesoContratacion {
   upsertCandidatoByDocumentoFromForm(form: any, proceso?: any, override?: any): Observable<any> {
     const payload = this.buildCandidatoPayload(form, proceso);
     const upper = this.uppercaseDeepExcept(payload, new Set(['email', 'correo_electronico', 'password']));
-    return this.http.patch(this.url('candidatos/by-document-upsert'), { ...upper, ...(override || {}) }).pipe(this.handle$());
+    // El override conserva su casing (nombre del usuario) pero también va sin tildes.
+    return this.http.patch(this.url('candidatos/by-document-upsert'), { ...upper, ...sinTildesDeep(override || {}) }).pipe(this.handle$());
   }
 
   // ===================== CANDIDATOS =====================
@@ -1377,7 +1379,7 @@ export class RegistroProcesoContratacion {
 
 
   // ================== HELPERS ==================
-  /** Uppercase profundo excepto ciertas claves (case-insensitive). */
+  /** Uppercase profundo + sin tildes/ñ, excepto ciertas claves (case-insensitive). */
   private uppercaseDeepExcept<T>(data: T, skipKeys: Set<string>): T {
     const skip = new Set(Array.from(skipKeys).map(k => k.toLowerCase()));
 
@@ -1386,7 +1388,7 @@ export class RegistroProcesoContratacion {
 
       if (typeof val === 'string') {
         if (keyHint && skip.has(keyHint.toLowerCase())) return val;
-        return val.toLocaleUpperCase('es-CO');
+        return sinTildes(val).toLocaleUpperCase('es-CO');
       }
       if (Array.isArray(val)) return val.map((v) => walk(v));
       if (typeof val === 'object') {
@@ -1471,7 +1473,7 @@ export class RegistroProcesoContratacion {
       // Override "Modificar de todas formas" (pipeline): edición pura del proceso
       // existente + auditoría (quién/cuándo la sella el servidor).
       ...(override?.modificacionForzada
-        ? { modificacion_forzada: true, modificado_por: override.modificadoPor || null }
+        ? { modificacion_forzada: true, modificado_por: override.modificadoPor ? sinTildes(override.modificadoPor) : null }
         : {}),
     };
     // `modificado_por` NO debe ir a MAYÚSCULAS (es el nombre del usuario).
@@ -1522,9 +1524,12 @@ export class RegistroProcesoContratacion {
     method: 'POST' | 'PATCH' = 'POST'
   ): Observable<UpdateByDocumentResponse> {
     const url = `${this.base}/procesos/update-by-document/`;
+    // Todo lo que el pipeline guarda va sin tildes ni ñ; la contraseña
+    // asignada del contrato no se toca para no corromperla.
+    const data = sinTildesDeep(body, new Set(['contrasenia_asignada']));
     return method === 'POST'
-      ? this.http.post<UpdateByDocumentResponse>(url, body)
-      : this.http.patch<UpdateByDocumentResponse>(url, body);
+      ? this.http.post<UpdateByDocumentResponse>(url, data)
+      : this.http.patch<UpdateByDocumentResponse>(url, data);
   }
 
   /**

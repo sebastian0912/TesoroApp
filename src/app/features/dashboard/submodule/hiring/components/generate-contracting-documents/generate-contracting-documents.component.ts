@@ -30,6 +30,7 @@ import { fillMinervaPdf } from './minerva-fill';
 import { fillFichaSocialPdf } from './ficha-social-fill';
 import { fillFichaTecnicaPdf } from './ficha-tecnica-fill';
 import { buildContratoAdministrativoPdf } from './contrato-administrativo-fill';
+import { salarioContratoCO, SMMLV_VIGENTE } from './salario.util';
 import {
   buildCartaDescuentoFlorPdf,
   buildFormatoTimbrePdf,
@@ -167,6 +168,38 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
   get descripcionObraDoc(): string {
     return this._contratoObra?.descripcion_de_obra || this.vacante?.descripcion || '';
+  }
+  /**
+   * Cargo de la vacante tal como sale impreso en el contrato. Misma cadena de
+   * fallbacks que usan los contratos/certificaciones (cargo puede llegar como
+   * string u objeto según la época de la vacante).
+   */
+  get cargoDoc(): string {
+    const vac: any = this.vacante;
+    if (vac?.cargo?.nombre_cargo_empresa) return String(vac.cargo.nombre_cargo_empresa);
+    if (vac?._id_cargo?.nombre_cargo_empresa) return String(vac._id_cargo.nombre_cargo_empresa);
+    if (vac?.cargo?.nombre_cargo) return String(vac.cargo.nombre_cargo);
+    if (vac?.nombre_cargo) return String(vac.nombre_cargo);
+    if (typeof vac?.cargo === 'string') return vac.cargo;
+    return '';
+  }
+
+  /**
+   * Campo "Salario Mensual Ordinario" de la caratula de los contratos, ya
+   * convertido a letras: "$ 2.500.000 DOS MILLONES QUINIENTOS MIL PESOS M/C".
+   *
+   * Antes iba el SMMLV escrito a mano dentro del codigo, asi que TODO contrato
+   * salia con el minimo aunque la vacante pagara otra cosa. Ahora sale de la
+   * vacante; si esta no trae salario se cae al minimo legal, que es el piso que
+   * la ley garantiza de todas formas.
+   */
+  get salarioContratoDoc(): string {
+    const crudo =
+      this.vacante?.salario ??
+      this._entrevistaSel?.proceso?.vacante_salario ??
+      this.entrevistaDoc?.proceso?.vacante_salario ??
+      null;
+    return salarioContratoCO(crudo) || salarioContratoCO(SMMLV_VIGENTE);
   }
 
   /**
@@ -1050,6 +1083,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return;
     }
 
+    // El paquete genera Contrato/Ficha, que llevan firma, huella y foto:
+    // misma regla dura que la generación individual.
+    if (!await this.exigirBiometria()) return;
+
     Swal.fire({ title: 'Armando el paquete…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
       // Generar primero lo que se puede generar, para no obligar al usuario a
@@ -1794,13 +1831,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   /**
-   * Avisa antes de generar si a la persona le falta firma, huella o foto: esos
-   * documentos se imprimen y se firman, y salen incompletos sin biometría.
+   * Bloquea la generación si a la persona le falta firma, huella o foto.
    *
-   * Devuelve `true` si se puede continuar. No bloquea de forma dura porque no
-   * todos los formatos llevan las tres imágenes; deja decidir a quien genera.
+   * Antes solo avisaba y dejaba "Generar de todas formas", pero los documentos
+   * salían con los recuadros en blanco y tocaba reimprimirlos: ahora la
+   * biometría completa es requisito duro. Devuelve `true` solo si están las 3.
    */
-  private async confirmarBiometria(): Promise<boolean> {
+  private async exigirBiometria(): Promise<boolean> {
     // Sin candidato cargado no hay nada que juzgar: el aviso sería falso.
     // Se mira si el objeto trae datos (arranca en `{}`) y no un campo puntual,
     // para no depender de qué serializer responda el endpoint.
@@ -1812,33 +1849,51 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const nombre = [this.candidato?.primer_nombre, this.candidato?.primer_apellido]
       .filter(Boolean).join(' ').trim();
 
-    const res = await Swal.fire({
-      icon: 'warning',
-      title: `Falta ${falta.length === 1 ? 'biometría' : 'biometría'} de la persona`,
+    // Una tarjeta por requisito con su estado, para que se vea de una qué
+    // está cargado y qué es exactamente lo que falta.
+    const filas = [
+      { label: 'Firma', icono: '✍️' },
+      { label: 'Huella', icono: '👆' },
+      { label: 'Foto', icono: '📷' },
+    ].map(({ label, icono }) => {
+      const ok = !falta.includes(label);
+      return (
+        `<div style="display:flex;align-items:center;justify-content:space-between;` +
+        `padding:10px 14px;border-radius:10px;margin-bottom:8px;` +
+        `background:${ok ? '#f0fdf4' : '#fef2f2'};` +
+        `border:1px solid ${ok ? '#bbf7d0' : '#fecaca'};">` +
+        `<span style="font-weight:600;color:#111827;">${icono}&nbsp;&nbsp;${label}</span>` +
+        `<span style="font-size:12px;font-weight:700;letter-spacing:.4px;` +
+        `padding:3px 10px;border-radius:999px;` +
+        `color:${ok ? '#166534' : '#b91c1c'};` +
+        `background:${ok ? '#dcfce7' : '#fee2e2'};">` +
+        `${ok ? '✓ CARGADA' : '✗ FALTA'}` +
+        `</span></div>`
+      );
+    }).join('');
+
+    await Swal.fire({
+      icon: 'error',
+      title: 'No se puede generar la documentación',
       html:
-        `<p style="text-align:left;margin:0 0 10px;">` +
-        (nombre ? `<b>${nombre}</b> (${this.cedula ?? ''}) ` : 'La persona ') +
-        `no tiene cargad${falta.length === 1 ? 'a' : 'as'} en el sistema:</p>` +
-        `<ul style="text-align:left;margin:0 0 12px 18px;padding:0;font-weight:700;color:#b71c1c;">` +
-        falta.map(f => `<li>${f}</li>`).join('') +
-        `</ul>` +
-        `<p style="text-align:left;margin:0;font-size:13px;color:#666;">` +
-        `Los documentos que la usan saldrán con ese espacio en blanco. ` +
-        `Registre lo que falta antes de generar.</p>`,
-      showCancelButton: true,
-      confirmButtonText: 'Generar de todas formas',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#b45309',
-      cancelButtonColor: '#111827',
-      focusCancel: true,
-      width: 520,
+        `<p style="text-align:left;margin:0 0 12px;color:#374151;">` +
+        (nombre ? `<b>${this.escapeHtml(nombre)}</b>` : 'La persona') +
+        (this.cedula ? ` <span style="color:#6b7280;">(${this.escapeHtml(String(this.cedula))})</span>` : '') +
+        ` no tiene la biometría completa:</p>` +
+        filas +
+        `<p style="text-align:left;margin:12px 0 0;font-size:13px;color:#6b7280;">` +
+        `Los documentos se imprimen y se firman: sin firma, huella y foto salen ` +
+        `incompletos. Captura lo que falta y vuelve a generar.</p>`,
+      confirmButtonText: 'Entendido',
+      confirmButtonColor: '#111827',
+      width: 460,
     });
 
-    return res.isConfirmed;
+    return false;
   }
 
   async generarPDFVariant(documento: string, variant: 'basica' | 'completa' | 'administrativo') {
-    if (!await this.confirmarBiometria()) return;
+    if (!await this.exigirBiometria()) return;
 
     if (documento === 'Contrato') {
       this.runContratoVariant(variant);
@@ -1983,8 +2038,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   async generarPDF(documento: string): Promise<void> {
-    // Aviso de biometría faltante antes de armar cualquier documento.
-    if (!await this.confirmarBiometria()) return;
+    // Biometría completa (firma, huella, foto) es requisito para generar.
+    if (!await this.exigirBiometria()) return;
 
     // Contratos Otrosí no depende de la empresa
     if (documento === 'Contratos Otrosí') {
@@ -9497,7 +9552,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // municipio real del candidato y, si no hay, se omite.
       { titulo: 'Domicilio del Trabajador', valor: [this.candidato?.residencia?.direccion, this.candidato?.residencia?.barrio, this.candidato?.municipio].map(v => this.limpio(v)).filter(Boolean).join(' ') },
       { titulo: 'Fecha de Iniciación', valor: this.parseDateToDDMMYYYY(this._entrevistaSel?.proceso?.contrato?.fecha_ingreso) || this.limpio(this._entrevistaSel?.proceso?.contrato?.fecha_ingreso) },
-      { titulo: 'Salario Mensual Ordinario', valor: 'S.M.M.L.V $ 1.750.905 Un Millón setecientos cincuenta mil novecientos cinco pesos M/C' },
+      { titulo: 'Salario Mensual Ordinario', valor: this.salarioContratoDoc },
       { titulo: 'Periódo de Pago Salario', valor: 'Quincenal' },
       { titulo: 'Subsidio de Transporte', valor: 'SE PAGA EL LEGAL VIGENTE  O SE SUMINISTRA EL TRANSPORTE' },
       { titulo: 'Forma de Pago', valor: 'Banca Móvil,  Cuenta de Ahorro o Tarjeta Monedero' },
@@ -9884,6 +9939,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         );
         if (!datoCandidato) throw new Error('Candidato no encontrado');
 
+        // Misma regla dura que la generación individual: sin firma, huella y
+        // foto el contrato no se genera. El ítem queda en Error diciendo
+        // exactamente qué le falta a esa cédula.
+        const bio = datoCandidato?.biometria;
+        const tieneBio = (v: any) => typeof v === 'string' && v.trim() !== '';
+        const faltaBio: string[] = [];
+        if (!tieneBio(bio?.firma?.file_url)) faltaBio.push('firma');
+        if (!tieneBio(bio?.huella?.file_url)) faltaBio.push('huella');
+        if (!tieneBio(bio?.foto?.file_url)) faltaBio.push('foto');
+        if (faltaBio.length) throw new Error(`Sin biometría: falta ${faltaBio.join(', ')}`);
+
         const vacId = datoCandidato?.entrevistas?.[0]?.proceso?.publicacion;
         const vacData = vacId ? await firstValueFrom(this.vacantesService.obtenerVacante(vacId).pipe(catchError(() => of(null)))) : null;
 
@@ -10265,7 +10331,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       {
         titulo: T('Salario Mensual Ordinario'),
-        valor: V('S.M.M.L.V $ 1.750.905 UN MILLÓN SETECIENTOS CINCUENTA MIL NOVECIENTOS CINCO PESOS M/C')
+        valor: V(this.salarioContratoDoc)
       },
 
       { titulo: T('Periodo de Pago Salario'), valor: V('Quincenal') },
@@ -10781,7 +10847,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: T('Fecha de Iniciación'), valor: V(this.parseDateToDDMMYYYY(this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso) || (this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '')) },
       {
         titulo: T('Salario Mensual Ordinario'),
-        valor: V('S.M.M.L.V $ 1.750.905 UN MILLÓN SETECIENTOS CINCUENTA MIL NOVECIENTOS CINCO PESOS M/C')
+        valor: V(this.salarioContratoDoc)
       },
       { titulo: T('Periodo de Pago Salario'), valor: V('Quincenal') },
       { titulo: T('Subsidio de Transporte'), valor: V('SE PAGA EL LEGAL VIGENTE O SE SUMINISTRA EL TRANSPORTE') },
@@ -11382,6 +11448,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         personaQueFirma: this.safe(`${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim()),
         usaRuta: this.safe(rutaInfo.usaRuta),
         auxilioTransporte: this.safe(vac.auxilioTransporte),
+        // Centro de costo y cargo: MISMOS valores que imprime el contrato, para
+        // que ficha y contrato nunca salgan con datos distintos.
+        centroCosto: this.safe(this.centroCostoDoc),
+        cargo: this.safe(this.cargoDoc),
         referenciasA: this.referenciasA,
         referenciasF: this.referenciasF,
       };

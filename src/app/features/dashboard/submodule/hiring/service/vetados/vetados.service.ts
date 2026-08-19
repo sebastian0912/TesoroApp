@@ -3,6 +3,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { isPlatformBrowser } from '@angular/common';
 import { environment } from '@/environments/environment';
+import { sinTildesDeep } from '../../shared/sin-tildes.helper';
 
 @Injectable({
   providedIn: 'root'
@@ -13,10 +14,10 @@ export class VetadosService {
 
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
 
-  // Enviar reporte de candidato vetado
+  // Enviar reporte de candidato vetado (queda guardado sin tildes ni ñ)
   enviarReporte(reporte: any, sede: string): Observable<any> {
     reporte.sede = sede;
-    return this.http.post(`${this.apiUrl}/vetados/vetados/`, reporte,);
+    return this.http.post(`${this.apiUrl}/vetados/vetados/`, sinTildesDeep(reporte));
   }
 
   // Listar reportes de candidatos vetados

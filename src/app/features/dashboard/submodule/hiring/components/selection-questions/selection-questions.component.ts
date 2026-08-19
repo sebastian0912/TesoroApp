@@ -1,5 +1,5 @@
 import {  Component, effect, input, output , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
-import { FormBuilder, FormGroup } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
@@ -43,6 +43,8 @@ interface FieldDef {
   optionSource?: ListSource;
   placeholder?: string;
   control?: string;
+  /** Sin una selección en este campo no se deja guardar. */
+  required?: boolean;
 }
 
 /**
@@ -172,15 +174,15 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
   /* -------- Definición de campos (data-driven) -------- */
   readonly fields: FieldDef[] = [
-    { key: 'policivos', label: 'Policivos', type: 'estado' },
-    { key: 'procuraduria', label: 'Procuraduría', type: 'estado' },
-    { key: 'contraloria', label: 'Contraloría', type: 'estado' },
-    { key: 'ofac', label: 'OFAC', type: 'estado' },
+    { key: 'policivos', label: 'Policivos', type: 'estado', required: true },
+    { key: 'procuraduria', label: 'Procuraduría', type: 'estado', required: true },
+    { key: 'contraloria', label: 'Contraloría', type: 'estado', required: true },
+    { key: 'ofac', label: 'OFAC', type: 'estado', required: true },
     { key: 'ramaJudicial', label: 'Rama Judicial', type: 'estado' },
 
-    { key: 'eps', label: 'EPS', type: 'list', optionSource: 'epsList', placeholder: 'EPS' },
-    { key: 'sisben', label: 'Sisbén', type: 'list', optionSource: 'categoriasSisben' },
-    { key: 'afp', label: 'AFP', type: 'list', optionSource: 'afpList', placeholder: 'AFP' },
+    { key: 'eps', label: 'EPS', type: 'list', optionSource: 'epsList', placeholder: 'EPS', required: true },
+    { key: 'sisben', label: 'Sisbén', type: 'list', optionSource: 'categoriasSisben', required: true },
+    { key: 'afp', label: 'AFP', type: 'list', optionSource: 'afpList', placeholder: 'AFP', required: true },
     { key: 'medidasCorrectivas', label: 'Medidas Correctivas', type: 'list', optionSource: 'medidasCorrectivas' },
 
     { key: 'pensionSemanas', label: 'Semanas cotizadas', type: 'number', control: 'semanasCotizadas' },
@@ -245,16 +247,19 @@ export class SelectionQuestionsComponent implements OnDestroy {
     private cdr: ChangeDetectorRef,
     private ventanas: ElectronWindowService
   ) {
-    // Reactive Forms
+    // Reactive Forms. Los 7 con `required` no dejan guardar sin una selección
+    // ('Sin Buscar' / 'SIN BUSCAR' cuentan como selección: lo que no puede
+    // quedar es el campo en blanco). Rama Judicial, Medidas Correctivas y
+    // Semanas cotizadas siguen opcionales.
     this.antecedentes = this.fb.group({
-      eps: [''],
-      afp: [''],
-      policivos: [''],
-      procuraduria: [''],
-      contraloria: [''],
+      eps: ['', Validators.required],
+      afp: ['', Validators.required],
+      policivos: ['', Validators.required],
+      procuraduria: ['', Validators.required],
+      contraloria: ['', Validators.required],
       ramaJudicial: [''],
-      sisben: [''],
-      ofac: [''],
+      sisben: ['', Validators.required],
+      ofac: ['', Validators.required],
       medidasCorrectivas: [''],
       semanasCotizadas: [null],
     });
@@ -958,7 +963,19 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
     if (this.antecedentes.invalid) {
       this.antecedentes.markAllAsTouched();
-      await Swal.fire('Campos incompletos', 'Revisa los campos obligatorios.', 'warning');
+      // OnPush: sin esto los selects no se pintan en rojo hasta otro evento.
+      this.cdr.markForCheck();
+      const faltantes = this.fields
+        .filter(f => f.required && this.antecedentes.get(this.controlName(f))?.invalid)
+        .map(f => `<li><b>${f.label}</b></li>`)
+        .join('');
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Campos incompletos',
+        html: `<p>Para guardar debes elegir una opción en:</p>`
+          + `<ul style="text-align:left; margin-bottom:0;">${faltantes}</ul>`,
+        confirmButtonColor: '#111827',
+      });
       return;
     }
     const cand = this.candidatoSeleccionado?.();

@@ -1557,9 +1557,17 @@ export class HiringQuestionsComponent implements OnInit {
     // re-parchearse desde cero — sin esto el formulario conservaba forma de
     // pago, tarjeta y obra del contrato ANTERIOR y "Guardar" los escribía en
     // el proceso nuevo.
+    // También entran la PUBLICACIÓN y el SALARIO de la remisión: guardar la
+    // remisión (pestaña Selección) cambia la vacante o el salario sobre el
+    // MISMO proceso, y sin esto "Datos de obra", salario, auxilio y % ARL se
+    // quedaban con los de la vacante anterior hasta volver a buscar a la
+    // persona. Esta pestaña solo LEE esos dos campos, así que un guardado
+    // propio no dispara re-parcheo.
     // `consultaSeq` también entra: una consulta nueva del buscador re-parchea
     // (refresco explícito); las recargas internas conservan lo editado.
-    const cargaKey = `${cedActual}|${proc.id ?? 'sin-id'}#${this.consultaSeq()}`;
+    const cargaKey = `${cedActual}|${proc.id ?? 'sin-id'}`
+      + `|${proc.publicacion ?? proc.vacante ?? 'sin-vac'}`
+      + `|${proc.vacante_salario ?? ''}#${this.consultaSeq()}`;
     if (cargaKey === this.ultimaCargaKey) {
       this.llenarDocumentos().catch(console.error);
       return;
@@ -1689,6 +1697,13 @@ export class HiringQuestionsComponent implements OnInit {
       } catch (e) {
         console.error('No se pudo cargar la vacante:', e);
       }
+    } else {
+      // Proceso sin publicación (remisión quitada o aún sin remitir): el
+      // contexto de la vacante ANTERIOR no puede quedarse alimentando la
+      // sugerencia de descripción de obra ni el juego de labores.
+      this.cargoVacante = '';
+      this.temporalVacante = '';
+      this.empresaVacante = '';
     }
 
     this.llenarDocumentos().catch(console.error);
