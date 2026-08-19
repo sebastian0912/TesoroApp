@@ -15,6 +15,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/forms-list/forms-list.component').then(m => m.FormsListComponent),
   },
   {
+    // Submódulo: tablas parametrizadas + orígenes que alimentan los campos de selección.
+    path: 'origenes',
+    loadComponent: () => import('./pages/option-sources/option-sources.component').then(m => m.OptionSourcesComponent),
+  },
+  {
     path: 'builder',
     loadComponent: () => import('./pages/form-builder/form-builder.component').then(m => m.FormBuilderComponent),
   },

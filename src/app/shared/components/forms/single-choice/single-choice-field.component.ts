@@ -1,26 +1,29 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { DynamicField, FieldMode, FieldOption, FieldValue, validateFieldValue } from '../field.model';
+import { ChoiceSearchComponent } from '../choice-search/choice-search.component';
+import { ChoiceOptionsSource } from '../choice-options';
 
-/** Contador módulo-nivel para que el name del grupo de radios sea único por instancia. */
+/** Contador módulo-nivel para ids únicos por instancia. */
 let nextUid = 0;
 
 /**
- * Campo SINGLE_CHOICE — grupo de radios. Sigue el contrato uniforme de campos
+ * Campo SINGLE_CHOICE — BUSCADOR de opciones (app-choice-search) en vez de radios:
+ * se escribe y la lista se filtra en vivo por parecido, y el botón del final
+ * despliega todas las opciones configuradas. Sigue el contrato uniforme de campos
  * (ver text-short-field.component.ts). REGLA DE ORO: el valor guardado/emitido
  * es el LABEL de la opción (string), nunca el value interno.
  */
 @Component({
   selector: 'app-single-choice-field',
   standalone: true,
-  imports: [CommonModule],
+  imports: [ChoiceSearchComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="df-field" [class.df-field--error]="showErrors && error">
-      <span class="df-field__label" [id]="labelId">
+      <label class="df-field__label" [attr.for]="inputId">
         {{ field.label }}
         @if (field.required) { <span class="df-field__req" aria-hidden="true">*</span> }
-      </span>
+      </label>
       @if (field.schema.description) {
         <p class="df-field__desc">{{ field.schema.description }}</p>
       }
@@ -29,36 +32,18 @@ let nextUid = 0;
         @case ('readonly') {
           <p class="df-field__value">{{ asText || '—' }}</p>
         }
-        @case ('config') {
-          <div class="df-field__options">
-            @for (opt of options; track $index) {
-              <label class="df-field__option">
-                <input type="radio" disabled [name]="groupName" />
-                {{ opt.label }}
-              </label>
-            } @empty {
-              <p class="df-field__desc">Sin opciones configuradas</p>
-            }
-          </div>
-        }
         @default {
-          <div class="df-field__options" role="radiogroup"
-               [attr.aria-labelledby]="labelId"
-               [attr.aria-required]="field.required"
-               [attr.aria-invalid]="showErrors && !!error">
-            @for (opt of options; track $index) {
-              <label class="df-field__option" [attr.for]="optionId($index)">
-                <input type="radio"
-                       [id]="optionId($index)"
-                       [name]="groupName"
-                       [checked]="asText === opt.label"
-                       (change)="onSelect(opt)" />
-                {{ opt.label }}
-              </label>
-            } @empty {
-              <p class="df-field__desc">Sin opciones configuradas</p>
-            }
-          </div>
+          <app-choice-search
+              [options]="options"
+              [selected]="asSelection"
+              [placeholder]="field.schema.placeholder || ''"
+              [disabled]="mode === 'config'"
+              [invalid]="showErrors && !!error"
+              [required]="field.required"
+              [inputId]="inputId"
+              [optionsSource]="optionsSource"
+              [parentValue]="parentValue"
+              (selectedChange)="onPick($event)" />
         }
       }
 
@@ -74,38 +59,52 @@ export class SingleChoiceFieldComponent {
   @Input() mode: FieldMode = 'preview';
   @Input() value: FieldValue = null;
   @Input() showErrors = false;
+  /** Valores del resto de campos de la sección: de aquí sale el padre de una cascada. */
+  @Input() formValues: Record<string, FieldValue> | null = null;
   @Output() valueChange = new EventEmitter<FieldValue>();
 
-  /** Sufijo único por instancia: evita colisión de names si el mismo campo se pinta dos veces. */
+  /** Sufijo único por instancia: evita colisión de ids si el campo se pinta dos veces. */
   private readonly uid = nextUid++;
 
   get options(): FieldOption[] {
     return this.field.schema?.options ?? [];
   }
 
-  get groupName(): string {
-    return `df-sc-${this.field.name ?? this.field.label}-${this.uid}`;
+  /** Origen de datos del campo (null = opciones estáticas). */
+  get optionsSource(): ChoiceOptionsSource | null {
+    return this.field.schema?.options_source ?? null;
   }
 
-  get labelId(): string {
-    return `${this.groupName}-label`;
+  /** Valor actual del campo del que depende la cascada, si lo hay. */
+  get parentValue(): string | null {
+    const parentField = this.optionsSource?.parent_field;
+    if (!parentField || !this.formValues) return null;
+    const v = this.formValues[parentField];
+    return typeof v === 'string' && v.trim() !== '' ? v : null;
   }
 
-  optionId(index: number): string {
-    return `${this.groupName}-opt-${index}`;
+  /** Id válido en HTML: el label puede traer espacios/tildes y rompería `for`. */
+  get inputId(): string {
+    const slug = String(this.field.name ?? this.field.label).replace(/[^a-zA-Z0-9_-]/g, '-');
+    return `df-sc-${slug}-${this.uid}`;
   }
 
   get asText(): string {
     return typeof this.value === 'string' ? this.value : '';
   }
 
+  /** El buscador habla en listas de labels; en simple es 0 o 1 elemento. */
+  get asSelection(): string[] {
+    return this.asText ? [this.asText] : [];
+  }
+
   get error(): string | null {
     return validateFieldValue(this.field, this.value);
   }
 
-  onSelect(opt: FieldOption): void {
+  onPick(labels: string[]): void {
     // Se emite el LABEL de la opción: el detalle pinta el valor tal cual, sin re-mapear.
-    this.value = opt.label;
+    this.value = labels.length ? labels[0] : null;
     this.valueChange.emit(this.value);
   }
 }

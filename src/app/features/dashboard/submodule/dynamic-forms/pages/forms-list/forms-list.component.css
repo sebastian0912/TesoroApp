@@ -414,3 +414,9 @@ mat-paginator {
     display: none;
   }
 }
+
+/* Acceso al submódulo de orígenes de opciones desde la cabecera del listado. */
+.btn-origenes {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}

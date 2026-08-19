@@ -1,9 +1,13 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject, signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   DynamicField, FieldOption, FieldSchema, FieldType, FieldTypeInfo, FieldValidation, RatingConfig,
 } from '../../models/dynamic-forms.models';
+import { OptionSource } from '../../models/option-source.models';
+import { OptionSourceService } from '../../services/option-source.service';
 
 /**
  * Crea un DynamicField nuevo a partir de un tipo del catálogo, clonando su
@@ -248,8 +252,47 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
             }
           }
 
-          <!-- Choices: editor de opciones -->
+          <!-- Choices: de dónde salen las opciones -->
           @if (esChoice) {
+            <div class="fc-fila">
+              <label [attr.for]="uid + '-origen'">Origen de las opciones</label>
+              <select [id]="uid + '-origen'"
+                      [ngModel]="origenActual"
+                      (ngModelChange)="cambiarOrigen($event)">
+                <option value="">Lista escrita aquí</option>
+                @for (o of origenes(); track o.code) {
+                  <option [value]="o.code">{{ o.name }} · tabla {{ o.catalog_code }}</option>
+                }
+              </select>
+            </div>
+          }
+
+          @if (esChoice && origenActual) {
+            <div class="fc-origen">
+              <p class="fc-hint">
+                Las opciones salen de la tabla parametrizada y se filtran con las reglas del
+                origen para cada usuario. La lista de abajo deja de usarse.
+              </p>
+              <label [attr.for]="uid + '-padre'">Depende del campo</label>
+              <select [id]="uid + '-padre'"
+                      [ngModel]="padreActual"
+                      (ngModelChange)="cambiarPadre($event)">
+                <option value="">— Ninguno —</option>
+                @for (h of siblings; track h.name) {
+                  <option [value]="h.name">{{ h.label }}</option>
+                }
+              </select>
+              @if (!siblings.length) {
+                <p class="fc-hint">
+                  Para encadenar (p. ej. Departamento → Municipio) necesitas otro campo de
+                  selección simple en esta sección, ya guardado al menos una vez.
+                </p>
+              }
+            </div>
+          }
+
+          <!-- Choices: editor de opciones -->
+          @if (esChoice && !origenActual) {
             <div class="fc-opciones">
               <span class="fc-sub">Opciones</span>
               @for (opt of opciones; track opt.value; let i = $index) {
@@ -278,7 +321,8 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
                 <span class="material-symbols-outlined">add</span> Agregar opción
               </button>
             </div>
-            @if (field.type === 'MULTIPLE_CHOICE') {
+          }
+          @if (esChoice && field.type === 'MULTIPLE_CHOICE') {
               <div class="fc-fila fc-fila--doble">
                 <div>
                   <label [attr.for]="uid + '-mins'">Mínimo seleccionadas</label>
@@ -293,7 +337,6 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
                          (ngModelChange)="cambiarValidacionNum('max_selected', $event)" />
                 </div>
               </div>
-            }
           }
 
           <!-- Media: archivos permitidos -->
@@ -515,6 +558,8 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
     }
     .fc-req-mark { color: #c0392b; }
     .fc-opciones { display: flex; flex-direction: column; gap: 6px; }
+    .fc-origen { display: flex; flex-direction: column; gap: 6px; }
+    .fc-hint { margin: 0; font-size: 0.78rem; color: var(--slate-500, #64748b); }
     .fc-opcion {
       display: flex;
       align-items: center;
@@ -628,6 +673,8 @@ export class FieldConfigCardComponent {
   @Input() nested = false;
   @Input() canUp = false;
   @Input() canDown = false;
+  /** Campos de la sección que pueden ser el padre de una cascada de opciones. */
+  @Input() siblings: Array<{ name: string; label: string }> = [];
 
   /** Emite el campo COMPLETO reconstruido (inmutable) en cada edición. */
   @Output() fieldChange = new EventEmitter<DynamicField>();
@@ -644,8 +691,24 @@ export class FieldConfigCardComponent {
   /** Estado de expansión local (se pierde al recrear la tarjeta; es cosmético). */
   expandido = signal(false);
 
+  /**
+   * Orígenes de opciones disponibles. Se piden una sola vez por tarjeta abierta; el
+   * servicio ya cachea, así que un formulario con muchos campos no dispara N llamadas.
+   */
+  readonly origenes = signal<OptionSource[]>([]);
+  private readonly optionSources = inject(OptionSourceService);
+
   /** Tipo por defecto del selector "agregar campo" de una SECTION. */
   tipoNuevoHijo: FieldType = 'TEXT_SHORT';
+
+  constructor() {
+    // Fallo silencioso a propósito: sin orígenes el selector se queda en "Lista escrita
+    // aquí" y el constructor sigue siendo usable como siempre.
+    this.optionSources.list().subscribe({
+      next: list => this.origenes.set(list ?? []),
+      error: () => this.origenes.set([]),
+    });
+  }
 
   private static seq = 0;
   /** Prefijo único para los id/for de los controles internos (a11y). */
@@ -707,6 +770,43 @@ export class FieldConfigCardComponent {
 
   cambiar(p: Partial<DynamicField>): void {
     this.fieldChange.emit({ ...this.field, ...p });
+  }
+
+  /** Código del origen configurado en el campo ('' = opciones escritas a mano). */
+  get origenActual(): string {
+    return this.field.schema?.options_source?.source ?? '';
+  }
+
+  get padreActual(): string {
+    return this.field.schema?.options_source?.parent_field ?? '';
+  }
+
+  /**
+   * Cambiar el origen NO borra las opciones escritas: si el usuario vuelve a "Lista
+   * escrita aquí" las recupera tal cual. El backend ignora `options` cuando hay origen.
+   */
+  cambiarOrigen(code: string): void {
+    if (!code) {
+      const schema: FieldSchema = { ...this.field.schema };
+      delete schema.options_source;
+      // Sin origen vuelve a mandar la lista fija: si quedó vacía, se siembra una opción
+      // para no dejar el campo en un estado que el backend rechaza al publicar.
+      if (!schema.options?.length) schema.options = [{ value: 'opt_1', label: 'Opción 1' }];
+      this.cambiar({ schema });
+      return;
+    }
+    const parent = this.padreActual;
+    this.cambiarSchema({
+      options_source: { source: code, parent_field: parent || null },
+    });
+  }
+
+  cambiarPadre(parentField: string): void {
+    const source = this.origenActual;
+    if (!source) return;
+    this.cambiarSchema({
+      options_source: { source, parent_field: parentField || null },
+    });
   }
 
   cambiarSchema(p: Partial<FieldSchema>): void {

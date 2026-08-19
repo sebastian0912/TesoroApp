@@ -71,15 +71,15 @@ import { CommentFieldComponent } from '../comment/comment-field.component';
                           [showErrors]="showErrors" (valueChange)="valueChange.emit($event)" />
       }
       @case ('SINGLE_CHOICE') {
-        <app-single-choice-field [field]="field" [mode]="mode" [value]="value"
+        <app-single-choice-field [field]="field" [mode]="mode" [value]="value" [formValues]="formValues"
                                  [showErrors]="showErrors" (valueChange)="valueChange.emit($event)" />
       }
       @case ('DROPDOWN') {
-        <app-dropdown-field [field]="field" [mode]="mode" [value]="value"
+        <app-dropdown-field [field]="field" [mode]="mode" [value]="value" [formValues]="formValues"
                             [showErrors]="showErrors" (valueChange)="valueChange.emit($event)" />
       }
       @case ('MULTIPLE_CHOICE') {
-        <app-multiple-choice-field [field]="field" [mode]="mode" [value]="value"
+        <app-multiple-choice-field [field]="field" [mode]="mode" [value]="value" [formValues]="formValues"
                                    [showErrors]="showErrors" (valueChange)="valueChange.emit($event)" />
       }
       @case ('PHOTO') {
@@ -118,6 +118,7 @@ import { CommentFieldComponent } from '../comment/comment-field.component';
                   [class.df-span-2]="isFullWidth(child)"
                   [field]="child" [mode]="mode"
                   [value]="childValue(child)" [showErrors]="showErrors"
+                  [formValues]="sectionValues ?? formValues"
                   [uploadFn]="uploadFn" [downloadUrlFn]="downloadUrlFn"
                   (valueChange)="childChange.emit({ field: child, value: $event })" />
             }
@@ -169,6 +170,11 @@ export class FieldRendererComponent {
   @Input() showErrors = false;
   /** Valores de los hijos cuando field es SECTION ({ [childName]: valor }). */
   @Input() sectionValues: Record<string, FieldValue> | null = null;
+  /**
+   * Valores del resto de campos de la sección. Los campos de selección con ORIGEN en
+   * cascada lo necesitan para saber qué eligió el usuario en el campo del que dependen.
+   */
+  @Input() formValues: Record<string, FieldValue> | null = null;
   @Input() uploadFn: ((file: File) => Observable<DocumentRef>) | null = null;
   @Input() downloadUrlFn: ((ref: DocumentRef) => string) | null = null;
 

@@ -35,11 +35,58 @@ export interface VersionInfo {
   submissions_count?: number;
 }
 
+/**
+ * Tema de diseño de un formulario (df_form.ui_json → theme). Todos los campos son
+ * opcionales: lo que falte lo pone el tema por defecto de la plataforma.
+ * Los colores son hex (#rrggbb) porque terminan como custom properties de CSS.
+ */
+export interface FormTheme {
+  /** Identificador del preset elegido en el constructor (solo informativo). */
+  preset?: string;
+  /** Color de acción (botones) y el texto que va ENCIMA de él. */
+  primary?: string;
+  on_primary?: string;
+  accent?: string;
+  /** Fondo de las tarjetas y fondo de la página. */
+  surface?: string;
+  bg?: string;
+  text?: string;
+  /** Degradado de la cabecera. */
+  header_from?: string;
+  header_to?: string;
+  header_style?: 'gradient' | 'solid' | 'image';
+  /** Material Symbol (snake_case) del icono de la cabecera. */
+  icon?: string;
+  /** Radio de esquina en px (0–32). */
+  radius?: number;
+  density?: 'comoda' | 'compacta';
+  /** Portada: URL absoluta/relativa, o documento de ms-documents (se baja como blob). */
+  cover_url?: string;
+  cover_document_id?: number;
+  cover_alt?: string;
+}
+
+/** Cómo se recorre el formulario al llenarlo. */
+export interface FormNavigation {
+  /** 'wizard' = una sección por paso; 'single' = todo de corrido. */
+  mode?: 'wizard' | 'single';
+  /** Mostrar la barra de progreso del asistente. */
+  progress?: boolean;
+}
+
+/** Bloque `ui` que viaja en el detalle y en la estructura del formulario. */
+export interface FormUi {
+  theme?: FormTheme;
+  navigation?: FormNavigation;
+}
+
 export interface FormStructure {
   form_id: number;
   form_code: string;
   form_name: string;
   form_description?: string | null;
+  /** Tema + navegación (V10 de ms-forms). Ausente ⇒ look y recorrido por defecto. */
+  ui?: FormUi | null;
   version: VersionInfo;
   sections: FormSection[];
 }
@@ -76,6 +123,8 @@ export interface FormSummary {
 }
 
 export interface FormDetail extends FormSummary {
+  /** Tema + navegación; el constructor lo edita y lo reenvía. */
+  ui?: FormUi | null;
   client_id?: string | null;
   created_by?: string | null;
   /** ok | partial | failed | skipped — resultado del aprovisionamiento de módulos. */
@@ -171,6 +220,8 @@ export interface BuilderRequest {
   client_id?: string | null;
   menu_parent_module_id?: string | null;
   fill_role_ids?: string[];
+  /** Tema + navegación; viaja con el guardado del constructor. */
+  ui?: FormUi | null;
   sections: FormSection[];
 }
 

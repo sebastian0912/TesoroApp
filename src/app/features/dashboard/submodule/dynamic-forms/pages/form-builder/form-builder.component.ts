@@ -19,7 +19,10 @@ import { RolesService, RolResumen } from '../../services/roles.service';
 import { PlacementService } from '../../services/placement.service';
 import {
   ApiProblem, BuilderRequest, DynamicField, FieldTypeInfo, FormDetail, FormSection,
+  FormTheme, FormUi,
 } from '../../models/dynamic-forms.models';
+import { PRESETS_TEMA, PresetTema, temaEfectivo } from '../../models/form-theme';
+import { FormDesignService, SugerenciaDiseno } from '../../services/form-design.service';
 import { ModuleNode, Placement, PlacementRequest } from '../../models/placement.models';
 import { FieldPaletteComponent } from '../../components/field-palette/field-palette.component';
 import {
@@ -43,6 +46,9 @@ function derivarSlug(texto: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+/** Paneles plegables de la columna central del constructor. */
+type PanelKey = 'datos' | 'diseno' | 'permisos' | 'ubicacion';
 
 /**
  * Constructor de Formularios Dinámicos — 3 columnas:
@@ -75,6 +81,7 @@ export class FormBuilderComponent {
   private tiposSvc = inject(FieldTypeService);
   private rolesSvc = inject(RolesService);
   private placementSvc = inject(PlacementService);
+  private designSvc = inject(FormDesignService);
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -92,6 +99,194 @@ export class FormBuilderComponent {
   // ── Estructura ────────────────────────────────────────────────────
   sections = signal<FormSection[]>([{ order_no: 1, title: 'Sección 1', fields: [] }]);
   seccionActiva = signal(0);
+
+  // ── Diseño (tema + recorrido) ─────────────────────────────────────
+  /**
+   * Tema en edición. Arranca en el preset institucional para que un formulario nuevo
+   * no nazca sin identidad; el usuario cambia preset o toquetea colores sueltos.
+   */
+  readonly presets: PresetTema[] = PRESETS_TEMA;
+  tema = signal<FormTheme>({ ...PRESETS_TEMA[0].theme });
+  /** Recorrido: paso a paso (default con 2+ secciones) o todo de corrido. */
+  pasoAPaso = signal(true);
+  mostrarProgreso = signal(true);
+
+  /** Portada: objectURL para verla aquí; en el tema solo viaja la referencia. */
+  portadaUrl = signal<string | null>(null);
+  private portadaObjectUrl: string | null = null;
+
+  sugiriendo = signal(false);
+  generandoPortada = signal(false);
+  sugerencia = signal<SugerenciaDiseno | null>(null);
+
+  /** Bloque `ui` que se envía al backend. */
+  readonly uiActual = computed<FormUi>(() => ({
+    theme: this.tema(),
+    navigation: { mode: this.pasoAPaso() ? 'wizard' : 'single', progress: this.mostrarProgreso() },
+  }));
+
+  /** Tema con los defaults rellenos: lo que leen los selectores de color. */
+  readonly temaVista = computed(() => temaEfectivo(this.tema()));
+
+  /** Etiquetas de los campos: es lo que la IA usa para entender de qué habla el formulario. */
+  private etiquetasDeCampos(): string[] {
+    const out: string[] = [];
+    for (const sec of this.sections()) {
+      if (sec.title?.trim()) out.push(sec.title.trim());
+      for (const f of sec.fields) {
+        if (f.label?.trim()) out.push(f.label.trim());
+        for (const c of f.children ?? []) if (c.label?.trim()) out.push(c.label.trim());
+      }
+    }
+    return out.slice(0, 40);
+  }
+
+  aplicarPreset(preset: PresetTema): void {
+    // El preset reemplaza los colores pero RESPETA la portada ya elegida.
+    const actual = this.tema();
+    this.tema.set({
+      ...preset.theme,
+      ...(actual.cover_url ? { cover_url: actual.cover_url } : {}),
+      ...(actual.cover_document_id ? { cover_document_id: actual.cover_document_id } : {}),
+      ...(actual.cover_alt ? { cover_alt: actual.cover_alt } : {}),
+    });
+  }
+
+  cambiarTema<K extends keyof FormTheme>(clave: K, valor: FormTheme[K]): void {
+    this.tema.update(t => ({ ...t, [clave]: valor, preset: 'personalizado' }));
+  }
+
+  /** Pide a la IA una identidad visual acorde al tema del formulario. */
+  sugerirDiseno(): void {
+    const nombre = this.nombre().trim();
+    if (!nombre) {
+      this.abrirPanel('datos');
+      this.snack.open('Ponle nombre al formulario para que la IA sepa de qué se trata.', 'Entendido', { duration: 5000 });
+      return;
+    }
+    this.sugiriendo.set(true);
+    this.designSvc.sugerir({
+      nombre,
+      descripcion: this.descripcion().trim(),
+      campos: this.etiquetasDeCampos(),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: sug => {
+          this.sugiriendo.set(false);
+          this.sugerencia.set(sug);
+          this.tema.update(t => ({ ...t, ...sug.theme, preset: 'ia' }));
+          this.snack.open('Diseño sugerido aplicado. Puedes ajustarlo a mano.', 'OK', { duration: 4000 });
+        },
+        error: (err: unknown) => {
+          this.sugiriendo.set(false);
+          this.snack.open(this.mensajeIa(err, 'No se pudo obtener la sugerencia de diseño.'), 'Cerrar', { duration: 6000 });
+        },
+      });
+  }
+
+  /** Genera la portada con IA y la deja subida en ms-documents. */
+  generarPortada(): void {
+    const prompt = (this.sugerencia()?.cover_prompt || '').trim()
+      || `Cover for an internal business form about: ${this.nombre().trim()}`;
+    this.generandoPortada.set(true);
+    this.designSvc.generarPortada(prompt, this.formId() ?? 0)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ref => {
+          this.generandoPortada.set(false);
+          this.fijarPortada(ref.document_id);
+          this.snack.open('Portada generada y guardada.', 'OK', { duration: 4000 });
+        },
+        error: (err: unknown) => {
+          this.generandoPortada.set(false);
+          this.snack.open(this.mensajeIa(err, 'No se pudo generar la imagen.'), 'Cerrar', { duration: 6000 });
+        },
+      });
+  }
+
+  /** Portada subida a mano (por si prefieren su propia imagen a la generada). */
+  subirPortada(ev: Event): void {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      this.snack.open('La portada debe ser una imagen.', 'Cerrar', { duration: 4000 });
+      return;
+    }
+    this.generandoPortada.set(true);
+    this.designSvc.subirPortada(file, this.formId() ?? 0)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ref => {
+          this.generandoPortada.set(false);
+          this.fijarPortada(ref.document_id);
+        },
+        error: () => {
+          this.generandoPortada.set(false);
+          this.snack.open('No se pudo subir la portada.', 'Cerrar', { duration: 5000 });
+        },
+      });
+  }
+
+  quitarPortada(): void {
+    this.revocarPortada();
+    this.portadaUrl.set(null);
+    this.tema.update(t => {
+      const { cover_document_id, cover_url, cover_alt, ...resto } = t;
+      return resto;
+    });
+  }
+
+  /**
+   * Aplica SOLO el diseño al formulario ya publicado. Es un cambio cosmético: el
+   * backend lo guarda en el formulario, no en la versión, así que no publica v n+1.
+   */
+  aplicarDisenoAhora(): void {
+    const id = this.formId();
+    if (id == null) return;
+    this.guardando.set(true);
+    this.formsSvc.updateUi(id, this.uiActual())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.guardando.set(false);
+          this.snack.open('Diseño aplicado (sin publicar versión nueva).', 'OK', { duration: 4000 });
+        },
+        error: (err: unknown) => { this.guardando.set(false); this.mostrarErrorApi(err); },
+      });
+  }
+
+  private fijarPortada(documentId: number): void {
+    this.tema.update(t => ({ ...t, cover_document_id: documentId, header_style: 'image' }));
+    this.cargarPortada(documentId);
+  }
+
+  private cargarPortada(documentId: number): void {
+    this.designSvc.portadaBlobUrl(documentId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: url => { this.revocarPortada(); this.portadaObjectUrl = url; this.portadaUrl.set(url); },
+        error: () => this.portadaUrl.set(null),
+      });
+  }
+
+  private revocarPortada(): void {
+    if (this.portadaObjectUrl) {
+      URL.revokeObjectURL(this.portadaObjectUrl);
+      this.portadaObjectUrl = null;
+    }
+  }
+
+  private mensajeIa(err: unknown, porDefecto: string): string {
+    if (err instanceof HttpErrorResponse) {
+      const detalle = (err.error as { error?: string } | null)?.error;
+      if (detalle) return detalle;
+      if (err.status === 429) return 'Demasiadas peticiones a la IA; espera unos segundos.';
+    }
+    return porDefecto;
+  }
 
   // ── Catálogos y permisos ──────────────────────────────────────────
   tipos = signal<FieldTypeInfo[]>([]);
@@ -119,6 +314,63 @@ export class FormBuilderComponent {
     const etiqueta = this.ubicLabel().trim() || this.nombre().trim();
     const slug = derivarSlug(etiqueta) || '…';
     return `/dashboard/${rp ? rp + '/' : ''}${slug}`;
+  });
+
+  // ── Paneles plegables de la columna central ───────────────────────
+  /**
+   * Los paneles de configuración (datos, permisos, ubicación) ocupaban toda la primera
+   * pantalla y empujaban los campos —lo que de verdad se está armando— fuera de la vista.
+   * Ahora se pliegan: solo "Datos" arranca abierto (trae el nombre, que es obligatorio) y
+   * cada cabecera lleva un RESUMEN de lo configurado para que plegado no signifique
+   * olvidado.
+   */
+  readonly paneles = signal<Record<PanelKey, boolean>>({
+    datos: true,
+    diseno: false,
+    permisos: false,
+    ubicacion: false,
+  });
+
+  panelAbierto(key: PanelKey): boolean {
+    return this.paneles()[key];
+  }
+
+  alternarPanel(key: PanelKey): void {
+    this.paneles.update(p => ({ ...p, [key]: !p[key] }));
+  }
+
+  abrirPanel(key: PanelKey): void {
+    this.paneles.update(p => (p[key] ? p : { ...p, [key]: true }));
+  }
+
+  /** Resúmenes de cabecera: lo esencial de cada panel cuando está plegado. */
+  readonly resumenDatos = computed(() => {
+    const n = this.nombre().trim();
+    const cat = this.categoria().trim();
+    if (!n) return 'Sin nombre';
+    return cat ? `${n} · ${cat}` : n;
+  });
+
+  readonly resumenDiseno = computed(() => {
+    const t = this.tema();
+    const preset = this.presets.find(p => p.id === t.preset)?.nombre
+      ?? (t.preset === 'ia' ? 'Sugerido por IA' : 'Personalizado');
+    const recorrido = this.pasoAPaso() ? 'paso a paso' : 'de corrido';
+    return `${preset} · ${recorrido}${t.cover_document_id || t.cover_url ? ' · con portada' : ''}`;
+  });
+
+  readonly resumenPermisos = computed(() => {
+    const n = this.rolesSel().length;
+    if (n === 0) return 'Sin roles (se asignan después)';
+    return n === 1 ? '1 rol' : `${n} roles`;
+  });
+
+  readonly resumenUbicacion = computed(() => {
+    if (this.noPublicar()) return 'Sin publicar por ahora';
+    const nodo = this.ubicPadreNodo();
+    if (!nodo) return 'Falta elegir el módulo padre';
+    const etiqueta = this.ubicLabel().trim() || this.nombre().trim() || 'Formulario';
+    return `${nodo.label} › ${etiqueta}`;
   });
 
   // ── Modo / progreso ───────────────────────────────────────────────
@@ -178,6 +430,7 @@ export class FormBuilderComponent {
           this.descripcion.set(detalle.description ?? '');
           this.categoria.set(detalle.category ?? '');
           this.esPublico.set(detalle.is_public);
+          this.aplicarUiCargada(detalle.ui ?? estructura.ui ?? null);
           this.versionActual.set(estructura.version.version);
           // Clon profundo: el estado del builder es nuestro, no el objeto del HTTP cache.
           this.sections.set(structuredClone(estructura.sections));
@@ -194,6 +447,17 @@ export class FormBuilderComponent {
           }).then(() => this.irAlListado());
         },
       });
+  }
+
+  /** Vuelca en el editor el tema guardado; sin tema, se queda el preset por defecto. */
+  private aplicarUiCargada(ui: FormUi | null): void {
+    if (ui?.theme) this.tema.set({ ...ui.theme });
+    // Sin `mode` guardado se asume paso a paso: es el default del runtime.
+    this.pasoAPaso.set(ui?.navigation?.mode !== 'single');
+    this.mostrarProgreso.set(ui?.navigation?.progress !== false);
+    const docId = ui?.theme?.cover_document_id;
+    if (docId) this.cargarPortada(docId);
+    else if (ui?.theme?.cover_url) this.portadaUrl.set(ui.theme.cover_url);
   }
 
   // ── Secciones ─────────────────────────────────────────────────────
@@ -253,6 +517,21 @@ export class FormBuilderComponent {
     this.seccionActiva.set(destino);
   }
 
+  /**
+   * Campos de la misma sección que pueden hacer de PADRE en una cascada de opciones:
+   * los de selección simple que ya tienen `name` (el nombre lo genera el backend al
+   * guardar, así que un campo recién arrastrado todavía no sirve de padre).
+   */
+  camposEncadenables(si: number, fi: number): Array<{ name: string; label: string }> {
+    const secs = this.sections();
+    const sec = secs[si];
+    if (!sec) return [];
+    return sec.fields
+      .filter((f, i) => i !== fi && !!f.name
+        && (f.type === 'SINGLE_CHOICE' || f.type === 'DROPDOWN'))
+      .map(f => ({ name: f.name as string, label: f.label || (f.name as string) }));
+  }
+
   actualizarCampo(si: number, fi: number, actualizado: DynamicField): void {
     const secs = this.clonarSecciones();
     secs[si].fields[fi] = actualizado;
@@ -296,6 +575,9 @@ export class FormBuilderComponent {
   async guardar(): Promise<void> {
     const problema = this.validar();
     if (problema) {
+      // El campo que falta suele vivir en "Datos": si estaba plegado, se abre para que el
+      // mensaje no señale a un panel invisible.
+      this.abrirPanel('datos');
       this.snack.open(problema, 'Entendido', { duration: 5000 });
       return;
     }
@@ -495,6 +777,7 @@ export class FormBuilderComponent {
       description: this.descripcion().trim() || null,
       category: this.categoria().trim() || null,
       is_public: this.esPublico(),
+      ui: this.uiActual(),
       sections: this.sections().map((s, si) => ({
         ...(s.code ? { code: s.code } : {}),
         title: s.title?.trim() || null,

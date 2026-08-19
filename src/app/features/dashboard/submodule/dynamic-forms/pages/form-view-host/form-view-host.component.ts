@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, inject, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal,
 } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
@@ -35,6 +35,10 @@ type EstadoHost = 'cargando' | 'listo' | 'error';
   selector: 'app-form-view-host',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Solo la vista de LLENADO gobierna su propio alto (cabecera y botones fijos, scroll
+  // únicamente en los campos). Respuestas/Soportes/Analítica siguen scrolleando con el
+  // wrapper del dashboard, que es como están hechas.
+  host: { '[class.fvh-lleno]': 'esLlenado()' },
   imports: [
     FormRuntimeComponent, FormResponsesComponent, FormAnalyticsComponent, FormSupportsComponent,
   ],
@@ -63,6 +67,18 @@ type EstadoHost = 'cargando' | 'listo' | 'error';
     }
   `,
   styles: [`
+    :host { display: block; }
+
+    /* La vista de llenado llena EXACTAMENTE el wrapper: así el wrapper no scrollea y
+       la única barra de la pantalla es la de los campos (antes convivían las dos). */
+    :host(.fvh-lleno) {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
     .fvh-estado {
       display: flex;
       flex-direction: column;
@@ -98,6 +114,13 @@ export class FormViewHostComponent {
   readonly errorMsg = signal<string>('');
   readonly vista = signal<FormView | null>(null);
   readonly fid = signal<number>(0);
+
+  /** true cuando lo montado es el runtime de llenado (vista por defecto del switch). */
+  readonly esLlenado = computed(() => {
+    if (this.estado() !== 'listo') return false;
+    const v = this.vista();
+    return v === null || v === 'fill';
+  });
 
   /** Última ruta ya resuelta: evita re-resolver el mismo NavigationEnd. */
   private rutaResuelta = '';

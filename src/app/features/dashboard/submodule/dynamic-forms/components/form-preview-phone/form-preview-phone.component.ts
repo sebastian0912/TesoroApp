@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FieldRendererComponent } from '@/app/shared/components/forms/field-renderer/field-renderer.component';
-import { DynamicField, FieldValue, FormSection } from '../../models/dynamic-forms.models';
+import { DynamicField, FieldValue, FormSection, FormTheme } from '../../models/dynamic-forms.models';
+import { variablesTema } from '../../models/form-theme';
 
 /** Sección lista para pintar: todos los campos con `name` garantizado. */
 interface SeccionPreview {
@@ -34,6 +35,15 @@ interface SeccionPreview {
           }
         </div>
 
+        @if (wizard() && vista().length > 1) {
+          <div class="phone__pasos" aria-hidden="true">
+            @for (sec of vista(); track $index) {
+              <span class="phone__paso" [class.phone__paso--actual]="$index === 0">{{ $index + 1 }}</span>
+            }
+            <span class="phone__pasos-txt">Paso 1 de {{ vista().length }}</span>
+          </div>
+        }
+
         @if (totalCampos() === 0) {
           <div class="phone__empty">
             <span class="material-symbols-outlined" aria-hidden="true">smartphone</span>
@@ -52,6 +62,7 @@ interface SeccionPreview {
                         mode="preview"
                         [value]="valor(f)"
                         [sectionValues]="valores()"
+                        [formValues]="valores()"
                         (valueChange)="poner(f, $event)"
                         (childChange)="poner($event.field, $event.value)" />
                   }
@@ -96,17 +107,43 @@ interface SeccionPreview {
       background: #000;
       border-radius: 0 0 12px 12px;
     }
+    .phone__pasos {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 0;
+    }
+    .phone__paso {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--slate-200, #e8edf3);
+      color: var(--slate-700, #334155);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .phone__paso--actual {
+      background: var(--df-primary, #8cd50a);
+      color: var(--df-on-primary, #21263c);
+    }
+    .phone__pasos-txt {
+      font-size: 11px;
+      color: var(--muted, #64748b);
+    }
     .phone__screen {
       height: 600px;
       overflow-y: auto;
-      background: var(--slate-50, #f8fafc);
+      background: var(--df-bg, var(--slate-50, #f8fafc));
       display: flex;
       flex-direction: column;
       gap: 12px;
       padding: 0 12px 20px;
     }
     .phone__header {
-      background: var(--navy, #21263c);
+      background: var(--df-header-bg, var(--navy, #21263c));
       color: #fff;
       margin: 0 -12px;
       padding: 14px 16px 16px;
@@ -189,6 +226,22 @@ export class FormPreviewPhoneComponent {
   formDescription = input<string>('');
   /** ÚNICA fuente de la estructura: las secciones del builder tal cual. */
   sections = input<FormSection[]>([]);
+  /** Tema en edición: la vista previa muestra los colores reales, no los de la marca. */
+  theme = input<FormTheme | null>(null);
+  /** true = el formulario se llenará paso a paso; se dibujan los pasos en la maqueta. */
+  wizard = input<boolean>(false);
+
+  private host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  constructor() {
+    // Mismas custom properties que el runtime, aplicadas por API del DOM (el binding
+    // [style] de Angular no fija propiedades personalizadas).
+    effect(() => {
+      const vars = variablesTema(this.theme());
+      const el = this.host.nativeElement;
+      for (const [nombre, valor] of Object.entries(vars)) el.style.setProperty(nombre, valor);
+    });
+  }
 
   /** Valores efímeros de prueba, por name (real o sintetizado). */
   private valoresMap = signal<Record<string, FieldValue>>({});

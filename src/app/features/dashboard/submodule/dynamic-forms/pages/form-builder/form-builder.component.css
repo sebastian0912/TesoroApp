@@ -184,6 +184,58 @@
 
 .fb-panel__titulo .material-symbols-outlined { font-size: 20px; }
 
+/* Cabecera plegable: el panel ocupa una línea cuando está cerrado, y el resumen
+   deja ver lo configurado sin abrirlo. Así los campos del formulario —que es lo
+   que se está armando— ganan la parte de arriba de la pantalla. */
+.fb-panel__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--navy, #21263c);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fb-panel__toggle:focus-visible {
+  outline: 2px solid var(--lime, #8cd50a);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.fb-panel__toggle > .material-symbols-outlined { font-size: 20px; flex: 0 0 auto; }
+
+.fb-panel__nombre { flex: 0 0 auto; }
+
+.fb-panel__resumen {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--slate-500, #64748b);
+}
+
+.fb-panel__chevron {
+  flex: 0 0 auto;
+  color: var(--slate-500, #64748b);
+  transition: transform 0.15s ease;
+}
+
+.fb-panel__chevron--abierto { transform: rotate(180deg); }
+
+/* Abierto: el cuerpo respira; cerrado, el panel es solo la cabecera. */
+.fb-panel__toggle[aria-expanded="true"] { margin-bottom: 12px; }
+
 .fb-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -525,3 +577,192 @@
 }
 
 .fb-agregar-seccion .material-symbols-outlined { font-size: 20px; }
+
+/* ── Panel de Diseño (tema + recorrido) ─────────────────────────────── */
+
+.fb-diseno {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 16px;
+}
+
+.fb-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.fb-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 78px;
+  padding: 8px 4px;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  cursor: pointer;
+  font: inherit;
+}
+
+.fb-preset--activo {
+  border-color: var(--navy, #21263c);
+  box-shadow: 0 0 0 2px rgba(33, 38, 60, 0.12);
+}
+
+.fb-preset__muestra {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.fb-preset__punto {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+
+.fb-preset__nombre {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--slate-700, #334155);
+  text-align: center;
+}
+
+.fb-colores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px 14px;
+}
+
+.fb-color {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--slate-700, #334155);
+}
+
+.fb-color input[type='color'] {
+  width: 44px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+
+/* Portada */
+
+.fb-portada {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.fb-portada__vista {
+  width: 190px;
+  height: 96px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px dashed var(--slate-300, #d8e0ea);
+  border-radius: 12px;
+  background: var(--slate-50, #f8fafc);
+}
+
+.fb-portada__vista img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fb-portada__vacia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted, #64748b);
+  font-size: 0.78rem;
+}
+
+.fb-portada__acciones,
+.fb-ia {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.fb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--slate-300, #d8e0ea);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: var(--navy, #21263c);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fb-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fb-btn--ia {
+  background: var(--lime, #8cd50a);
+  border-color: var(--lime, #8cd50a);
+  color: var(--navy, #21263c);
+}
+
+.fb-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.fb-ia {
+  flex-direction: column;
+}
+
+.fb-ia__resultado {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 12px;
+  background: var(--slate-50, #f8fafc);
+}
+
+.fb-ia__resumen {
+  margin: 0 0 6px;
+  font-size: 0.84rem;
+  color: var(--slate-700, #334155);
+}
+
+.fb-ia__tips {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  color: var(--muted, #64748b);
+}
+
+.fb-diseno__aplicar {
+  align-self: flex-start;
+}

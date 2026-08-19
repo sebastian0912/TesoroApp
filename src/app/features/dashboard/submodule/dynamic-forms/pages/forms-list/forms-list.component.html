@@ -17,6 +17,12 @@
               matTooltip="Actualizar" aria-label="Actualizar listado de formularios">
         <mat-icon>refresh</mat-icon>
       </button>
+      <button mat-stroked-button class="btn-origenes"
+              [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos/origenes']"
+              matTooltip="Tablas parametrizadas que alimentan las preguntas de selección">
+        <mat-icon>table_chart</mat-icon>
+        <span>Orígenes de opciones</span>
+      </button>
       <button mat-flat-button class="btn-managerial"
               [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos/builder']">
         <mat-icon>add</mat-icon>

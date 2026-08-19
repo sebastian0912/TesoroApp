@@ -1,19 +1,22 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { DynamicField, FieldMode, FieldOption, FieldValue, validateFieldValue } from '../field.model';
+import { ChoiceSearchComponent } from '../choice-search/choice-search.component';
+import { ChoiceOptionsSource } from '../choice-options';
 
 /** Contador módulo-nivel para ids únicos por instancia. */
 let nextUid = 0;
 
 /**
- * Campo DROPDOWN — lista desplegable nativa. Sigue el contrato uniforme de campos
+ * Campo DROPDOWN — BUSCADOR de opciones (app-choice-search) en vez del `<select>`
+ * nativo: se escribe y la lista se filtra en vivo por parecido, y el botón del final
+ * despliega todas las opciones configuradas. Sigue el contrato uniforme de campos
  * (ver text-short-field.component.ts). REGLA DE ORO: el valor guardado/emitido
  * es el LABEL de la opción (string), nunca el value interno.
  */
 @Component({
   selector: 'app-dropdown-field',
   standalone: true,
-  imports: [CommonModule],
+  imports: [ChoiceSearchComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="df-field" [class.df-field--error]="showErrors && error">
@@ -29,22 +32,18 @@ let nextUid = 0;
         @case ('readonly') {
           <p class="df-field__value">{{ asText || '—' }}</p>
         }
-        @case ('config') {
-          <select class="df-field__select" disabled>
-            <option>{{ field.schema.placeholder || 'Selecciona…' }}</option>
-          </select>
-        }
         @default {
-          <select class="df-field__select"
-                  [id]="inputId"
-                  [attr.aria-required]="field.required"
-                  [attr.aria-invalid]="showErrors && !!error"
-                  (change)="onSelect($event)">
-            <option value="" [selected]="asText === ''">Selecciona…</option>
-            @for (opt of options; track $index) {
-              <option [value]="opt.label" [selected]="asText === opt.label">{{ opt.label }}</option>
-            }
-          </select>
+          <app-choice-search
+              [options]="options"
+              [selected]="asSelection"
+              [placeholder]="field.schema.placeholder || ''"
+              [disabled]="mode === 'config'"
+              [invalid]="showErrors && !!error"
+              [required]="field.required"
+              [inputId]="inputId"
+              [optionsSource]="optionsSource"
+              [parentValue]="parentValue"
+              (selectedChange)="onPick($event)" />
         }
       }
 
@@ -60,30 +59,51 @@ export class DropdownFieldComponent {
   @Input() mode: FieldMode = 'preview';
   @Input() value: FieldValue = null;
   @Input() showErrors = false;
+  /** Valores del resto de campos de la sección: de aquí sale el padre de una cascada. */
+  @Input() formValues: Record<string, FieldValue> | null = null;
   @Output() valueChange = new EventEmitter<FieldValue>();
 
   private readonly uid = nextUid++;
 
+  /** Id válido en HTML: el label puede traer espacios/tildes y rompería `for`. */
   get inputId(): string {
-    return `df-dd-${this.field.name ?? this.field.label}-${this.uid}`;
+    const slug = String(this.field.name ?? this.field.label).replace(/[^a-zA-Z0-9_-]/g, '-');
+    return `df-dd-${slug}-${this.uid}`;
   }
 
   get options(): FieldOption[] {
     return this.field.schema?.options ?? [];
   }
 
+  /** Origen de datos del campo (null = opciones estáticas). */
+  get optionsSource(): ChoiceOptionsSource | null {
+    return this.field.schema?.options_source ?? null;
+  }
+
+  /** Valor actual del campo del que depende la cascada, si lo hay. */
+  get parentValue(): string | null {
+    const parentField = this.optionsSource?.parent_field;
+    if (!parentField || !this.formValues) return null;
+    const v = this.formValues[parentField];
+    return typeof v === 'string' && v.trim() !== '' ? v : null;
+  }
+
   get asText(): string {
     return typeof this.value === 'string' ? this.value : '';
+  }
+
+  /** El buscador habla en listas de labels; aquí es 0 o 1 elemento. */
+  get asSelection(): string[] {
+    return this.asText ? [this.asText] : [];
   }
 
   get error(): string | null {
     return validateFieldValue(this.field, this.value);
   }
 
-  onSelect(event: Event): void {
-    // El value de cada <option> ya ES el label: se emite tal cual, sin re-mapear.
-    const label = (event.target as HTMLSelectElement).value;
-    this.value = label === '' ? null : label;
+  onPick(labels: string[]): void {
+    // Se emite el LABEL de la opción, sin re-mapear al value interno.
+    this.value = labels.length ? labels[0] : null;
     this.valueChange.emit(this.value);
   }
 }

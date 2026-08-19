@@ -1,27 +1,30 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { DynamicField, FieldMode, FieldOption, FieldValue, validateFieldValue } from '../field.model';
+import { ChoiceSearchComponent } from '../choice-search/choice-search.component';
+import { ChoiceOptionsSource } from '../choice-options';
 
 /** Contador módulo-nivel para ids únicos por instancia. */
 let nextUid = 0;
 
 /**
- * Campo MULTIPLE_CHOICE — grupo de checkboxes. Sigue el contrato uniforme de campos
- * (ver text-short-field.component.ts). REGLA DE ORO: el valor guardado/emitido es
- * string[] de LABELS de las opciones, nunca los values internos. Si ya se alcanzó
- * max_selected, los checkboxes NO marcados se deshabilitan.
+ * Campo MULTIPLE_CHOICE — BUSCADOR de opciones (app-choice-search) en vez de
+ * checkboxes: se escribe y la lista se filtra en vivo por parecido, lo elegido queda
+ * en chips y el botón del final despliega todas las opciones. Sigue el contrato
+ * uniforme de campos (ver text-short-field.component.ts). REGLA DE ORO: el valor
+ * guardado/emitido es string[] de LABELS, nunca los values internos. Si ya se alcanzó
+ * max_selected, las opciones NO marcadas quedan bloqueadas.
  */
 @Component({
   selector: 'app-multiple-choice-field',
   standalone: true,
-  imports: [CommonModule],
+  imports: [ChoiceSearchComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="df-field" [class.df-field--error]="showErrors && error">
-      <span class="df-field__label" [id]="labelId">
+      <label class="df-field__label" [attr.for]="inputId">
         {{ field.label }}
         @if (field.required) { <span class="df-field__req" aria-hidden="true">*</span> }
-      </span>
+      </label>
       @if (field.schema.description) {
         <p class="df-field__desc">{{ field.schema.description }}</p>
       }
@@ -30,36 +33,20 @@ let nextUid = 0;
         @case ('readonly') {
           <p class="df-field__value">{{ asLabels.length ? asLabels.join(', ') : '—' }}</p>
         }
-        @case ('config') {
-          <div class="df-field__options">
-            @for (opt of options; track $index) {
-              <label class="df-field__option">
-                <input type="checkbox" disabled />
-                {{ opt.label }}
-              </label>
-            } @empty {
-              <p class="df-field__desc">Sin opciones configuradas</p>
-            }
-          </div>
-        }
         @default {
-          <div class="df-field__options" role="group"
-               [attr.aria-labelledby]="labelId"
-               [attr.aria-required]="field.required"
-               [attr.aria-invalid]="showErrors && !!error">
-            @for (opt of options; track $index) {
-              <label class="df-field__option" [attr.for]="optionId($index)">
-                <input type="checkbox"
-                       [id]="optionId($index)"
-                       [checked]="isChecked(opt.label)"
-                       [disabled]="maxReached && !isChecked(opt.label)"
-                       (change)="onToggle(opt, $event)" />
-                {{ opt.label }}
-              </label>
-            } @empty {
-              <p class="df-field__desc">Sin opciones configuradas</p>
-            }
-          </div>
+          <app-choice-search
+              [options]="options"
+              [selected]="asLabels"
+              [multiple]="true"
+              [placeholder]="field.schema.placeholder || ''"
+              [disabled]="mode === 'config'"
+              [invalid]="showErrors && !!error"
+              [required]="field.required"
+              [maxSelected]="maxSelected"
+              [inputId]="inputId"
+              [optionsSource]="optionsSource"
+              [parentValue]="parentValue"
+              (selectedChange)="onPick($event)" />
           @if (maxSelected != null) {
             <p class="df-field__desc">Máximo {{ maxSelected }} opciones</p>
           }
@@ -78,6 +65,8 @@ export class MultipleChoiceFieldComponent {
   @Input() mode: FieldMode = 'preview';
   @Input() value: FieldValue = null;
   @Input() showErrors = false;
+  /** Valores del resto de campos de la sección: de aquí sale el padre de una cascada. */
+  @Input() formValues: Record<string, FieldValue> | null = null;
   @Output() valueChange = new EventEmitter<FieldValue>();
 
   private readonly uid = nextUid++;
@@ -86,12 +75,23 @@ export class MultipleChoiceFieldComponent {
     return this.field.schema?.options ?? [];
   }
 
-  get labelId(): string {
-    return `df-mc-${this.field.name ?? this.field.label}-${this.uid}-label`;
+  /** Origen de datos del campo (null = opciones estáticas). */
+  get optionsSource(): ChoiceOptionsSource | null {
+    return this.field.schema?.options_source ?? null;
   }
 
-  optionId(index: number): string {
-    return `df-mc-${this.field.name ?? this.field.label}-${this.uid}-opt-${index}`;
+  /** Valor actual del campo del que depende la cascada, si lo hay. */
+  get parentValue(): string | null {
+    const parentField = this.optionsSource?.parent_field;
+    if (!parentField || !this.formValues) return null;
+    const v = this.formValues[parentField];
+    return typeof v === 'string' && v.trim() !== '' ? v : null;
+  }
+
+  /** Id válido en HTML: el label puede traer espacios/tildes y rompería `for`. */
+  get inputId(): string {
+    const slug = String(this.field.name ?? this.field.label).replace(/[^a-zA-Z0-9_-]/g, '-');
+    return `df-mc-${slug}-${this.uid}`;
   }
 
   /** Valor normalizado: solo strings (labels) del array actual. */
@@ -105,25 +105,13 @@ export class MultipleChoiceFieldComponent {
     return this.field.schema?.validation?.max_selected ?? null;
   }
 
-  get maxReached(): boolean {
-    return this.maxSelected != null && this.asLabels.length >= this.maxSelected;
-  }
-
   get error(): string | null {
     return validateFieldValue(this.field, this.value);
   }
 
-  isChecked(label: string): boolean {
-    return this.asLabels.includes(label);
-  }
-
-  onToggle(opt: FieldOption, event: Event): void {
-    const checked = (event.target as HTMLInputElement).checked;
-    // El array guarda LABELS en el orden de las opciones, sin re-mapear values internos.
-    const next = checked
-      ? this.options.map(o => o.label).filter(l => l === opt.label || this.asLabels.includes(l))
-      : this.asLabels.filter(l => l !== opt.label);
-    this.value = next.length ? next : null;
+  onPick(labels: string[]): void {
+    // El buscador ya devuelve los LABELS en el orden de las opciones.
+    this.value = labels.length ? labels : null;
     this.valueChange.emit(this.value);
   }
 }

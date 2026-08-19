@@ -45,6 +45,12 @@ export interface FieldSchema {
   /** Solo COMMENT: texto fijo a mostrar. */
   text?: string;
   options?: FieldOption[];
+  /**
+   * Campos de selección: las opciones salen de una TABLA PARAMETRIZADA en vez de
+   * `options`. La lista y sus reglas (empresa, sede, rol, permisos) las resuelve el
+   * servidor al llenar, así que en cliente NO se juzga si el valor pertenece a ella.
+   */
+  options_source?: { source: string; parent_field?: string | null };
   rating_config?: RatingConfig;
   ui?: { variant?: string; full_width?: boolean };
   validation?: FieldValidation;
@@ -179,13 +185,17 @@ export function validateFieldValue(field: DynamicField, value: FieldValue): stri
     }
     case 'SINGLE_CHOICE':
     case 'DROPDOWN': {
+      // Con origen dinámico la lista válida vive en el servidor (y depende de quién
+      // llena): comprobarla contra `options` marcaría como inválido lo que sí lo es.
+      if (field.schema?.options_source?.source) return null;
       const labels = (field.schema?.options ?? []).map(o => o.label);
       return labels.includes(String(value)) ? null : 'Opción inválida';
     }
     case 'MULTIPLE_CHOICE': {
       if (!Array.isArray(value)) return 'Selección inválida';
+      const dynamic = !!field.schema?.options_source?.source;
       const labels = new Set((field.schema?.options ?? []).map(o => o.label));
-      if ((value as string[]).some(v => !labels.has(v))) return 'Opción inválida';
+      if (!dynamic && (value as string[]).some(v => !labels.has(v))) return 'Opción inválida';
       if (val.min_selected != null && value.length < val.min_selected) return `Selecciona al menos ${val.min_selected}`;
       if (val.max_selected != null && value.length > val.max_selected) return `Máximo ${val.max_selected} opciones`;
       return null;

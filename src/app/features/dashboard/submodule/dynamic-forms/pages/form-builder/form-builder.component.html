@@ -57,11 +57,21 @@
       <main class="fb-col fb-col--canvas">
 
         <section class="fb-panel">
-          <h2 class="fb-panel__titulo">
+          <button type="button" class="fb-panel__toggle"
+                  [attr.aria-expanded]="panelAbierto('datos')"
+                  aria-controls="fb-panel-datos"
+                  (click)="alternarPanel('datos')">
             <span class="material-symbols-outlined" aria-hidden="true">description</span>
-            Datos del formulario
-          </h2>
-          <div class="fb-meta">
+            <span class="fb-panel__nombre">Datos del formulario</span>
+            @if (!panelAbierto('datos')) {
+              <span class="fb-panel__resumen">{{ resumenDatos() }}</span>
+            }
+            <span class="material-symbols-outlined fb-panel__chevron"
+                  [class.fb-panel__chevron--abierto]="panelAbierto('datos')"
+                  aria-hidden="true">expand_more</span>
+          </button>
+          @if (panelAbierto('datos')) {
+          <div class="fb-meta" id="fb-panel-datos">
             <div class="fb-campo">
               <label for="fb-nombre">Nombre <span class="fb-req" aria-hidden="true">*</span></label>
               <input id="fb-nombre" type="text" maxlength="150" required
@@ -87,15 +97,185 @@
               <span>Visible para otros usuarios</span>
             </label>
           </div>
+          }
+        </section>
+
+        <!-- Diseño: tema visual + cómo se recorre el formulario al llenarlo -->
+        <section class="fb-panel">
+          <button type="button" class="fb-panel__toggle"
+                  [attr.aria-expanded]="panelAbierto('diseno')"
+                  aria-controls="fb-panel-diseno"
+                  (click)="alternarPanel('diseno')">
+            <span class="material-symbols-outlined" aria-hidden="true">palette</span>
+            <span class="fb-panel__nombre">Diseño y recorrido</span>
+            @if (!panelAbierto('diseno')) {
+              <span class="fb-panel__resumen">{{ resumenDiseno() }}</span>
+            }
+            <span class="material-symbols-outlined fb-panel__chevron"
+                  [class.fb-panel__chevron--abierto]="panelAbierto('diseno')"
+                  aria-hidden="true">expand_more</span>
+          </button>
+          @if (panelAbierto('diseno')) {
+          <div class="fb-diseno" id="fb-panel-diseno">
+
+            <!-- Presets -->
+            <p class="fb-ayuda">Elige un punto de partida y ajústalo; la vista previa de la derecha muestra el resultado real.</p>
+            <div class="fb-presets">
+              @for (p of presets; track p.id) {
+                <button type="button" class="fb-preset"
+                        [class.fb-preset--activo]="tema().preset === p.id"
+                        [title]="p.nombre"
+                        (click)="aplicarPreset(p)">
+                  <span class="fb-preset__muestra"
+                        [style.background]="'linear-gradient(135deg,' + p.theme.header_from + ',' + p.theme.header_to + ')'">
+                    <span class="fb-preset__punto" [style.background]="p.theme.primary || '#8cd50a'"></span>
+                  </span>
+                  <span class="fb-preset__nombre">{{ p.nombre }}</span>
+                </button>
+              }
+            </div>
+
+            <!-- Colores sueltos -->
+            <div class="fb-colores">
+              <label class="fb-color">
+                <span>Acción</span>
+                <input type="color" [value]="temaVista().primary"
+                       (change)="cambiarTema('primary', $any($event.target).value)" />
+              </label>
+              <label class="fb-color">
+                <span>Texto sobre acción</span>
+                <input type="color" [value]="temaVista().on_primary"
+                       (change)="cambiarTema('on_primary', $any($event.target).value)" />
+              </label>
+              <label class="fb-color">
+                <span>Cabecera (desde)</span>
+                <input type="color" [value]="temaVista().header_from"
+                       (change)="cambiarTema('header_from', $any($event.target).value)" />
+              </label>
+              <label class="fb-color">
+                <span>Cabecera (hasta)</span>
+                <input type="color" [value]="temaVista().header_to"
+                       (change)="cambiarTema('header_to', $any($event.target).value)" />
+              </label>
+              <label class="fb-color">
+                <span>Fondo</span>
+                <input type="color" [value]="temaVista().bg"
+                       (change)="cambiarTema('bg', $any($event.target).value)" />
+              </label>
+              <div class="fb-campo">
+                <label for="fb-icono">Icono (Material Symbols)</label>
+                <input id="fb-icono" type="text" maxlength="40"
+                       [value]="temaVista().icon"
+                       (change)="cambiarTema('icon', $any($event.target).value)"
+                       placeholder="edit_note" />
+              </div>
+              <div class="fb-campo">
+                <label for="fb-densidad">Densidad</label>
+                <select id="fb-densidad" [value]="temaVista().density"
+                        (change)="cambiarTema('density', $any($event.target).value)">
+                  <option value="comoda">Cómoda</option>
+                  <option value="compacta">Compacta</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Portada -->
+            <div class="fb-portada">
+              <div class="fb-portada__vista">
+                @if (portadaUrl(); as url) {
+                  <img [src]="url" alt="Portada del formulario" />
+                } @else {
+                  <span class="fb-portada__vacia">
+                    <span class="material-symbols-outlined" aria-hidden="true">image</span>
+                    Sin portada
+                  </span>
+                }
+              </div>
+              <div class="fb-portada__acciones">
+                <button type="button" class="fb-btn fb-btn--ia"
+                        (click)="generarPortada()" [disabled]="generandoPortada()">
+                  <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
+                  {{ generandoPortada() ? 'Generando…' : 'Generar con IA' }}
+                </button>
+                <label class="fb-btn fb-btn--claro">
+                  <span class="material-symbols-outlined" aria-hidden="true">upload</span>
+                  Subir imagen
+                  <input type="file" accept="image/*" hidden (change)="subirPortada($event)" />
+                </label>
+                @if (portadaUrl()) {
+                  <button type="button" class="fb-btn fb-btn--claro" (click)="quitarPortada()">
+                    <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                    Quitar
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- Sugerencia de la IA -->
+            <div class="fb-ia">
+              <button type="button" class="fb-btn fb-btn--ia"
+                      (click)="sugerirDiseno()" [disabled]="sugiriendo()">
+                <span class="material-symbols-outlined" aria-hidden="true">tips_and_updates</span>
+                {{ sugiriendo() ? 'Pensando…' : 'Sugerir diseño con IA' }}
+              </button>
+              @if (sugerencia(); as sug) {
+                <div class="fb-ia__resultado">
+                  @if (sug.resumen) { <p class="fb-ia__resumen">{{ sug.resumen }}</p> }
+                  @if (sug.tips.length) {
+                    <ul class="fb-ia__tips">
+                      @for (t of sug.tips; track $index) { <li>{{ t }}</li> }
+                    </ul>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Recorrido -->
+            <label class="fb-switch fb-campo--full">
+              <input type="checkbox"
+                     [ngModel]="pasoAPaso()" (ngModelChange)="pasoAPaso.set($event)" />
+              <span class="fb-switch__pista" aria-hidden="true"></span>
+              <span>Llenar paso a paso (una sección por pantalla)</span>
+            </label>
+            @if (pasoAPaso()) {
+              <label class="fb-switch fb-campo--full">
+                <input type="checkbox"
+                       [ngModel]="mostrarProgreso()" (ngModelChange)="mostrarProgreso.set($event)" />
+                <span class="fb-switch__pista" aria-hidden="true"></span>
+                <span>Mostrar barra de progreso</span>
+              </label>
+              <p class="fb-ayuda">
+                Con una sola sección el asistente no se activa: el formulario se llena de corrido.
+              </p>
+            }
+
+            @if (esEdicion()) {
+              <button type="button" class="fb-btn fb-btn--claro fb-diseno__aplicar"
+                      (click)="aplicarDisenoAhora()" [disabled]="guardando()">
+                <span class="material-symbols-outlined" aria-hidden="true">brush</span>
+                Aplicar solo el diseño (sin publicar versión)
+              </button>
+            }
+          </div>
+          }
         </section>
 
         <!-- Permisos de llenado: SOLO en creación (en edición se gestionan aparte) -->
         @if (!esEdicion()) {
           <section class="fb-panel">
-            <h2 class="fb-panel__titulo">
+            <button type="button" class="fb-panel__toggle"
+                    [attr.aria-expanded]="panelAbierto('permisos')"
+                    aria-controls="fb-panel-permisos"
+                    (click)="alternarPanel('permisos')">
               <span class="material-symbols-outlined" aria-hidden="true">group</span>
-              Permisos de llenado
-            </h2>
+              <span class="fb-panel__nombre">Permisos de llenado</span>
+              <span class="fb-panel__resumen">{{ resumenPermisos() }}</span>
+              <span class="material-symbols-outlined fb-panel__chevron"
+                    [class.fb-panel__chevron--abierto]="panelAbierto('permisos')"
+                    aria-hidden="true">expand_more</span>
+            </button>
+            @if (panelAbierto('permisos')) {
+            <div id="fb-panel-permisos">
             <p class="fb-ayuda">Los roles seleccionados verán el formulario en su menú y podrán llenarlo.</p>
             @if (cargandoRoles()) {
               <p class="fb-ayuda" role="status">Cargando roles…</p>
@@ -114,16 +294,27 @@
                 }
               }
             </div>
+            </div>
+            }
           </section>
         }
 
         <!-- Ubicación en el menú: editable SOLO en creación (en edición se gestiona desde el listado) -->
         @if (!esEdicion()) {
           <section class="fb-panel">
-            <h2 class="fb-panel__titulo">
+            <button type="button" class="fb-panel__toggle"
+                    [attr.aria-expanded]="panelAbierto('ubicacion')"
+                    aria-controls="fb-panel-ubicacion"
+                    (click)="alternarPanel('ubicacion')">
               <span class="material-symbols-outlined" aria-hidden="true">account_tree</span>
-              Ubicación en el menú
-            </h2>
+              <span class="fb-panel__nombre">Ubicación en el menú</span>
+              <span class="fb-panel__resumen">{{ resumenUbicacion() }}</span>
+              <span class="material-symbols-outlined fb-panel__chevron"
+                    [class.fb-panel__chevron--abierto]="panelAbierto('ubicacion')"
+                    aria-hidden="true">expand_more</span>
+            </button>
+            @if (panelAbierto('ubicacion')) {
+            <div id="fb-panel-ubicacion">
             <p class="fb-ayuda">
               Elige dónde aparecerá el formulario en el menú lateral. Puedes dejarlo sin publicar
               y ubicarlo más tarde desde el listado.
@@ -206,17 +397,28 @@
                 }
               </div>
             }
+            </div>
+            }
           </section>
         } @else {
           <section class="fb-panel">
-            <h2 class="fb-panel__titulo">
+            <button type="button" class="fb-panel__toggle"
+                    [attr.aria-expanded]="panelAbierto('ubicacion')"
+                    aria-controls="fb-panel-ubicacion-edicion"
+                    (click)="alternarPanel('ubicacion')">
               <span class="material-symbols-outlined" aria-hidden="true">account_tree</span>
-              Ubicación en el menú
-            </h2>
-            <p class="fb-ayuda">
-              La ubicación en el menú (Publicar / Mover / Desvincular) se gestiona desde el listado.
-              Editar la estructura no la modifica.
-            </p>
+              <span class="fb-panel__nombre">Ubicación en el menú</span>
+              <span class="fb-panel__resumen">Se gestiona desde el listado</span>
+              <span class="material-symbols-outlined fb-panel__chevron"
+                    [class.fb-panel__chevron--abierto]="panelAbierto('ubicacion')"
+                    aria-hidden="true">expand_more</span>
+            </button>
+            @if (panelAbierto('ubicacion')) {
+              <p class="fb-ayuda" id="fb-panel-ubicacion-edicion">
+                La ubicación en el menú (Publicar / Mover / Desvincular) se gestiona desde el listado.
+                Editar la estructura no la modifica.
+              </p>
+            }
           </section>
         }
 
@@ -262,6 +464,7 @@
                   <app-field-config-card class="fb-carta__card"
                       [field]="campo"
                       [types]="tipos()"
+                      [siblings]="camposEncadenables(si, fi)"
                       (fieldChange)="actualizarCampo(si, fi, $event)"
                       (duplicateField)="duplicarCampo(si, fi)"
                       (removeField)="quitarCampo(si, fi)"
@@ -285,7 +488,9 @@
         <app-form-preview-phone
             [formName]="nombre()"
             [formDescription]="descripcion()"
-            [sections]="sections()" />
+            [sections]="sections()"
+            [theme]="tema()"
+            [wizard]="pasoAPaso()" />
       </aside>
     </div>
   }

@@ -213,6 +213,20 @@ body {
   overflow-x: clip;
 }
 
+/* Guard del scroll VERTICAL del documento mientras el dashboard está montado.
+   El shell ya mide exactamente 100vh y decide su scroll por dentro
+   (.dashboard-page-wrapper, o la página si pone `overflow:hidden` en su :host), así que
+   cualquier barra vertical del documento es basura: unos pocos píxeles de más de un
+   elemento fijo o de un margen que se escapa, y el resultado son DOS barras a la derecha
+   (la del documento y la del contenido). `clip` la elimina sin crear contenedor de
+   scroll, así el `position: sticky` de las cabeceras de tabla sigue funcionando.
+   Acotado con :has() al shell: las pantallas fuera del dashboard (login, páginas
+   públicas) conservan su scroll normal. */
+html:has(.dashboard-container),
+body:has(.dashboard-container) {
+  overflow-y: clip;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);
@@ -1334,6 +1348,12 @@ button {
   table.mat-mdc-table:not([data-no-vcard]) {
     display: block !important;
     width: 100%;
+    /* Material pone `min-width:100%` y algunas páginas fijan min-width en px
+       (p.ej. .gestion-mat-table: 1100px) para que la tabla ancha no se comprima.
+       En card ese ancho mínimo solo produce scroll horizontal. */
+    min-width: 0 !important;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   /* ── 2. Ocultar cabecera (los data-label toman su lugar) ── */
@@ -1348,6 +1368,13 @@ button {
   /* ── 3. Cada fila se convierte en una card ── */
   table.mat-mdc-table:not([data-no-vcard]) tbody tr {
     display: block !important;
+    /* Angular Material fija `.mat-mdc-row { height: var(--mat-table-row-item-container-height, 52px) }`.
+       En modo card la fila deja de ser un <tr> de 1 línea y pasa a apilar N celdas
+       (~28px cada una): con la altura clavada en 52px el contenido desborda la caja
+       y la card siguiente arranca encimada sobre la anterior. Debe crecer con su
+       contenido. */
+    height: auto !important;
+    min-height: 0 !important;
     margin-bottom: 12px;
     border-radius: 14px;
     border: 1px solid #e2e8f0;
@@ -1361,9 +1388,18 @@ button {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.09);
   }
 
-  /* Fila de estado vacío: ocupa todo el ancho */
+  /* Fila de estado vacío: ocupa todo el ancho.
+     TableCardService salta estas filas, así que el <td> no tiene data-label; sin
+     esta regla el ::before igual reserva sus 88px y descuadra el texto. */
   table.mat-mdc-table:not([data-no-vcard]) tbody tr td[colspan] {
     border-bottom: none !important;
+    justify-content: center;
+    text-align: center;
+    color: #94a3b8;
+  }
+
+  table.mat-mdc-table:not([data-no-vcard]) tbody tr td[colspan]::before {
+    display: none !important;
   }
 
   /* ── 4. Cada celda es una fila etiqueta + valor ── */
@@ -1374,9 +1410,18 @@ button {
     padding: 5px 0 !important;
     border-bottom: 1px solid #f1f5f9 !important;
     font-size: 13px;
+    /* La celda también trae altura de <td> de tabla: en card debe crecer. */
+    height: auto !important;
     min-height: 28px;
     line-height: 1.4;
     text-align: left;
+    /* Material aplica `overflow:hidden; text-overflow:ellipsis` a .mdc-data-table__cell,
+       pensado para una tabla de una línea por fila. En card el valor dispone de todo
+       el ancho: que envuelva en vez de recortarse. */
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
   }
 
   table.mat-mdc-table:not([data-no-vcard]) tbody tr td:last-child {

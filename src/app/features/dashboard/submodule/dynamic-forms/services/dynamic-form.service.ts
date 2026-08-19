@@ -8,6 +8,7 @@ import {
   FormPatchRequest,
   FormStructure,
   FormSummary,
+  FormUi,
   PageResult,
   ProvisioningResult,
   VersionInfo,
@@ -58,6 +59,15 @@ export class DynamicFormService {
   /** Editar estructura = crea versión nueva PUBLISHED y deprecia la anterior. */
   editBuilder(id: number, req: BuilderRequest): Observable<FormDetail> {
     return this.http.put<FormDetail>(`${this.base}/forms/${id}/builder`, req);
+  }
+
+  /**
+   * Tema de diseño / modo de navegación. Cambio COSMÉTICO: el backend lo guarda en el
+   * formulario, no en la versión, así que no publica una versión nueva ni invalida las
+   * respuestas ya recibidas.
+   */
+  updateUi(id: number, ui: FormUi | null): Observable<FormDetail> {
+    return this.http.put<FormDetail>(`${this.base}/forms/${id}/ui`, { ui });
   }
 
   patch(id: number, req: FormPatchRequest): Observable<FormDetail> {

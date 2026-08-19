@@ -1,4 +1,7 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, Input, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Input, OnDestroy, OnInit,
+  ViewChild, computed, effect, inject, signal,
+} from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
@@ -19,7 +22,9 @@ import {
   SubmissionPayload,
   validateFieldValue,
 } from '../../models/dynamic-forms.models';
+import { modoNavegacion, navegacionEfectiva, temaEfectivo, variablesTema } from '../../models/form-theme';
 import { DynamicFormService } from '../../services/dynamic-form.service';
+import { FormDesignService } from '../../services/form-design.service';
 import { SubmissionService } from '../../services/submission.service';
 import { MediaOffloadService } from '../../services/media-offload.service';
 import { PlacementService } from '../../services/placement.service';
@@ -47,7 +52,7 @@ type EstadoCarga = 'cargando' | 'listo' | 'error';
   templateUrl: './form-runtime.component.html',
   styleUrls: ['./form-runtime.component.css'],
 })
-export class FormRuntimeComponent implements OnInit {
+export class FormRuntimeComponent implements OnInit, OnDestroy {
   /**
    * Id inyectado por el DISPATCHER (form-view-host): cuando llega, el runtime
    * arranca directo con ese id y NO resuelve la ruta ni toca el título (de eso se
@@ -69,6 +74,8 @@ export class FormRuntimeComponent implements OnInit {
   private forms = inject(DynamicFormService);
   private submissions = inject(SubmissionService);
   private media = inject(MediaOffloadService);
+  private design = inject(FormDesignService);
+  private host = inject<ElementRef<HTMLElement>>(ElementRef);
   private placement = inject(PlacementService);
   private titleService = inject(Title);
   private snack = inject(MatSnackBar);
@@ -89,6 +96,53 @@ export class FormRuntimeComponent implements OnInit {
   /** Subidas de media EN VUELO (bloquean envío y borrador para no perder referencias). */
   readonly subiendo = signal(0);
 
+  // ── Asistente por secciones ─────────────────────────────────────────
+  /** Índice de la sección visible cuando el formulario se llena paso a paso. */
+  readonly paso = signal(0);
+
+  /**
+   * Paso a paso SÍ o NO. Regla del producto: con 2+ secciones el formulario se llena
+   * por pasos, salvo que su tema pida explícitamente `single`. Con una sola sección el
+   * asistente no aporta nada.
+   */
+  readonly esWizard = computed(() => {
+    const st = this.structure();
+    return !!st && modoNavegacion(st.ui, st.sections.length) === 'wizard';
+  });
+
+  readonly mostrarProgreso = computed(() =>
+    navegacionEfectiva(this.structure()?.ui?.navigation).progress);
+
+  readonly esUltimoPaso = computed(() => {
+    const st = this.structure();
+    return !st || !this.esWizard() || this.paso() >= st.sections.length - 1;
+  });
+
+  /** Lo que se pinta: la sección del paso actual, o todas si el modo es de corrido. */
+  readonly seccionesVisibles = computed<FormSection[]>(() => {
+    const st = this.structure();
+    if (!st) return [];
+    if (!this.esWizard()) return st.sections;
+    const actual = st.sections[this.paso()];
+    return actual ? [actual] : [];
+  });
+
+  readonly progresoPct = computed(() => {
+    const st = this.structure();
+    if (!st || st.sections.length === 0) return 0;
+    return Math.round(((this.paso() + 1) / st.sections.length) * 100);
+  });
+
+  // ── Tema de diseño ──────────────────────────────────────────────────
+  readonly iconoHeader = computed(() => temaEfectivo(this.structure()?.ui?.theme).icon ?? 'edit_note');
+  readonly portadaUrl = signal<string | null>(null);
+  readonly portadaAlt = computed(() => this.structure()?.ui?.theme?.cover_alt ?? '');
+  /** objectURL de la portada bajada de ms-documents; hay que revocarlo al destruir. */
+  private portadaObjectUrl: string | null = null;
+
+  /** Zona con el ÚNICO scroll de la página (los campos). */
+  @ViewChild('zonaScroll') private zonaScroll?: ElementRef<HTMLElement>;
+
   private formId = 0;
 
   /** Sube a ms-documents y lleva la cuenta de subidas en vuelo (fail-closed en submit). */
@@ -103,6 +157,48 @@ export class FormRuntimeComponent implements OnInit {
 
   /** Etiqueta del menú (para el título de página); la trae el placement/resolve. */
   private menuLabel: string | null = null;
+
+  constructor() {
+    // El tema se aplica como custom properties en el HOST: así cascadean a los campos
+    // (app-field-renderer y sus hijos), no solo a la página. Se hace por API del DOM
+    // porque el binding [style] de Angular no fija propiedades personalizadas.
+    effect(() => {
+      const vars = variablesTema(this.structure()?.ui?.theme);
+      const el = this.host.nativeElement;
+      for (const [nombre, valor] of Object.entries(vars)) el.style.setProperty(nombre, valor);
+    });
+
+    // Portada: URL directa si el tema la trae, o blob autenticado de ms-documents
+    // (un <img> no manda el JWT, igual que en el campo FOTO).
+    effect(() => {
+      const theme = this.structure()?.ui?.theme;
+      this.revocarPortada();
+      if (theme?.cover_url) {
+        this.portadaUrl.set(theme.cover_url);
+        return;
+      }
+      this.portadaUrl.set(null);
+      const docId = theme?.cover_document_id;
+      if (!docId) return;
+      this.design.portadaBlobUrl(docId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: url => { this.portadaObjectUrl = url; this.portadaUrl.set(url); },
+          error: () => this.portadaUrl.set(null),
+        });
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.revocarPortada();
+  }
+
+  private revocarPortada(): void {
+    if (this.portadaObjectUrl) {
+      URL.revokeObjectURL(this.portadaObjectUrl);
+      this.portadaObjectUrl = null;
+    }
+  }
 
   ngOnInit(): void {
     // Cuando el DISPATCHER ya inyectó el id, el setter arrancó la carga: no se
@@ -219,6 +315,51 @@ export class FormRuntimeComponent implements OnInit {
     return sec.code ?? `seccion_${index + 1}`;
   }
 
+  /**
+   * Índice REAL de la sección que se está pintando. En modo asistente el @for solo
+   * recorre una sección, así que su $index siempre es 0 pero la clave del payload debe
+   * seguir siendo la de su posición verdadera.
+   */
+  indiceReal(indiceVisible: number): number {
+    return this.esWizard() ? this.paso() : indiceVisible;
+  }
+
+  // ── Navegación del asistente ────────────────────────────────────────
+
+  /**
+   * Avanza al siguiente paso, pero NO deja pasar con la sección actual incompleta:
+   * es el momento natural de corregir, no al final de un formulario de 40 campos.
+   */
+  siguiente(): void {
+    const st = this.structure();
+    if (!st || this.esUltimoPaso()) return;
+    const invalidos = this.camposInvalidos(st, this.paso());
+    if (invalidos.length > 0) {
+      this.showErrors.set(true);
+      this.snack.open('Completa los campos marcados para continuar', 'Cerrar', { duration: 4000 });
+      this.irAlPrimerInvalido(invalidos);
+      return;
+    }
+    this.showErrors.set(false);
+    this.paso.update(p => p + 1);
+    this.scrollArriba();
+  }
+
+  anterior(): void {
+    if (this.paso() === 0) return;
+    this.showErrors.set(false);
+    this.paso.update(p => p - 1);
+    this.scrollArriba();
+  }
+
+  /** Solo hacia atrás (o al paso actual): adelante se va validando con "Siguiente". */
+  irAPaso(indice: number): void {
+    if (indice > this.paso() || indice === this.paso()) return;
+    this.showErrors.set(false);
+    this.paso.set(indice);
+    this.scrollArriba();
+  }
+
   /** Clave del campo en el payload — misma regla que el id `df-<name>` de los inputs. */
   fieldKey(f: DynamicField): string {
     return f.name ?? f.label;
@@ -304,7 +445,15 @@ export class FormRuntimeComponent implements OnInit {
     if (invalidos.length > 0) {
       this.showErrors.set(true);
       this.snack.open('Revisa los campos marcados', 'Cerrar', { duration: 4000 });
-      this.irAlPrimerInvalido(invalidos);
+      // En modo asistente el campo malo puede estar en un paso que no está en pantalla:
+      // primero se salta a ese paso y solo después se hace scroll hasta él.
+      const paso = this.primerPasoInvalido(st);
+      if (paso != null && paso !== this.paso()) {
+        this.paso.set(paso);
+        setTimeout(() => this.irAlPrimerInvalido(invalidos));
+      } else {
+        this.irAlPrimerInvalido(invalidos);
+      }
       return;
     }
 
@@ -320,7 +469,7 @@ export class FormRuntimeComponent implements OnInit {
         this.enviando.set(false);
         this.draftId.set(null);
         this.enviado.set(true);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        this.scrollArriba();
       },
       error: (err: HttpErrorResponse) => {
         this.enviando.set(false);
@@ -332,7 +481,15 @@ export class FormRuntimeComponent implements OnInit {
   /** Pantalla de gracias → limpiar todo y permitir otra respuesta del mismo formulario. */
   enviarOtra(): void {
     this.reiniciar();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    this.scrollArriba();
+  }
+
+  /**
+   * Sube la ZONA DE CAMPOS, que es el único contenedor con scroll de la página.
+   * `window.scrollTo` no hacía nada aquí: el documento no se desplaza.
+   */
+  private scrollArriba(): void {
+    this.zonaScroll?.nativeElement.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   volver(): void {
@@ -343,6 +500,7 @@ export class FormRuntimeComponent implements OnInit {
 
   private reiniciar(): void {
     this.values.set({});
+    this.paso.set(0);
     this.showErrors.set(false);
     this.enviado.set(false);
     this.enviando.set(false);
@@ -355,10 +513,12 @@ export class FormRuntimeComponent implements OnInit {
    * Nombres (en orden de pantalla) de los campos cuyo valor no pasa
    * validateFieldValue. COMMENT/SECTION no llevan valor y se saltan;
    * los hijos de SECTION se validan aplanados contra la misma sección.
+   * Con `soloSeccion` valida un único paso del asistente.
    */
-  private camposInvalidos(st: FormStructure): string[] {
+  private camposInvalidos(st: FormStructure, soloSeccion?: number): string[] {
     const nombres: string[] = [];
     st.sections.forEach((sec, i) => {
+      if (soloSeccion != null && i !== soloSeccion) return;
       const actuales = this.values()[this.sectionKey(sec, i)] ?? {};
       const revisar = (f: DynamicField): void => {
         if (f.type === 'COMMENT' || f.type === 'SECTION') return;
@@ -377,6 +537,21 @@ export class FormRuntimeComponent implements OnInit {
    * Payload = SOLO valores no-null, agrupados por sección; los hijos de SECTION
    * van PLANOS dentro de su sección y los COMMENT no aparecen jamás.
    */
+  /** Índice de la primera sección con algún campo inválido (null si están todas bien). */
+  private primerPasoInvalido(st: FormStructure): number | null {
+    for (let i = 0; i < st.sections.length; i++) {
+      if (this.camposInvalidos(st, i).length > 0) return i;
+    }
+    return null;
+  }
+
+  /** Salta al paso que contiene la sección señalada por el backend en un error de campo. */
+  private irASeccion(st: FormStructure, seccion: string): void {
+    if (!this.esWizard()) return;
+    const i = st.sections.findIndex((sec, idx) => this.sectionKey(sec, idx) === seccion);
+    if (i >= 0 && i !== this.paso()) this.paso.set(i);
+  }
+
   private construirPayload(st: FormStructure): SubmissionPayload {
     const payload: SubmissionPayload = {};
     st.sections.forEach((sec, i) => {
@@ -433,6 +608,7 @@ export class FormRuntimeComponent implements OnInit {
     if (problema.errors?.length && st) {
       // El servidor marcó campos: mostramos también los errores en línea.
       this.showErrors.set(true);
+      this.irASeccion(st, problema.errors[0].section);
       const items = problema.errors
         .map(
           e =>
