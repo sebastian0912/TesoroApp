@@ -114,6 +114,13 @@
       }
     </header>
 
+    @if (errorSoporte()) {
+      <div class="det-aviso det-aviso-error" role="alert">
+        <mat-icon>error_outline</mat-icon>
+        <span>{{ errorSoporte() }}</span>
+      </div>
+    }
+
     @if (docHistorico()) {
       <div class="det-doc-historico">
         <a
@@ -169,18 +176,32 @@
             </div>
 
             @if (soporte.url) {
-              <a
+              <button
+                type="button"
+                mat-icon-button
+                matTooltip="Ver el archivo aqui mismo"
+                [disabled]="descargandoSoporteTipo() === soporte.tipo"
+                (click)="verSoporte(soporte)"
+                [attr.aria-label]="'Ver ' + soporte.etiqueta"
+              >
+                <mat-icon>visibility</mat-icon>
+              </button>
+              <button
+                type="button"
                 mat-stroked-button
                 class="det-soporte-btn"
-                [href]="soporte.url"
-                target="_blank"
-                rel="noopener"
+                [disabled]="descargandoSoporteTipo() === soporte.tipo"
+                (click)="descargarSoporte(soporte)"
                 [attr.aria-label]="'Descargar ' + soporte.etiqueta"
-                matTooltip="Abrir o descargar el archivo"
+                matTooltip="Descargar el archivo"
               >
-                <mat-icon>download</mat-icon>
+                @if (descargandoSoporteTipo() === soporte.tipo) {
+                  <mat-spinner diameter="16"></mat-spinner>
+                } @else {
+                  <mat-icon>download</mat-icon>
+                }
                 <span>Descargar</span>
-              </a>
+              </button>
             } @else {
               <span class="det-soporte-sin-archivo">
                 <mat-icon>block</mat-icon>
@@ -414,6 +435,32 @@
             <mat-spinner diameter="22"></mat-spinner>
           }
         </div>
+      }
+    </section>
+  }
+
+  <!-- ════════ Visor embebido (soportes y PDFs de radicacion) ════════ -->
+  @if (preview(); as visor) {
+    <section class="det-bloque det-visor" id="det-visor-documento">
+      <header class="det-bloque-cabecera">
+        <mat-icon class="det-bloque-icono">preview</mat-icon>
+        <h3 class="det-bloque-titulo det-visor-titulo">{{ visor.titulo }}</h3>
+        <button
+          type="button"
+          mat-icon-button
+          class="det-visor-cerrar"
+          (click)="cerrarPreview()"
+          matTooltip="Cerrar la vista previa"
+          aria-label="Cerrar la vista previa"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+
+      @if (visor.esImagen) {
+        <img class="det-visor-imagen" [src]="visor.crudo" [alt]="visor.titulo" />
+      } @else {
+        <iframe class="det-visor-marco" [src]="visor.url" [title]="visor.titulo"></iframe>
       }
     </section>
   }

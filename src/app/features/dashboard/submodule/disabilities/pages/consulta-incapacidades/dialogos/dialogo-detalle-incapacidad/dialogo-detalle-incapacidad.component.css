@@ -639,3 +639,43 @@
 .det-doc-historico {
   margin-bottom: 10px;
 }
+
+/* ── Visor embebido de documentos ──────────────────────────────────── */
+/* Un solo visor para soportes y PDFs de radicacion: el navegador pinta
+   el blob (con JWT ya resuelto por HttpClient), sin salir del dialogo. */
+
+.det-visor-titulo {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.det-visor-cerrar {
+  flex-shrink: 0;
+}
+
+.det-visor-marco {
+  width: 100%;
+  height: min(70vh, 720px);
+  border: 1px solid var(--disab-border, rgba(15, 43, 90, 0.14));
+  border-radius: 12px;
+  background: #fff;
+}
+
+.det-visor-imagen {
+  display: block;
+  max-width: 100%;
+  max-height: min(70vh, 720px);
+  margin: 0 auto;
+  border: 1px solid var(--disab-border, rgba(15, 43, 90, 0.14));
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* En pantallas chicas el iframe del PDF es poco util: se acorta y el
+   flujo natural es el boton Descargar. */
+@media (max-width: 700px) {
+  .det-visor-marco {
+    height: 46vh;
+  }
+}

@@ -20,6 +20,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { HttpErrorResponse } from '@angular/common/http';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Observable, Subscription } from 'rxjs';
 import { saveAs } from 'file-saver';
 
@@ -90,6 +91,16 @@ export interface SoporteVista {
   subidoEn: string;
 }
 
+/** Documento abierto en el visor embebido del dialogo. */
+export interface PreviewDocumento {
+  titulo: string;
+  esImagen: boolean;
+  /** blob: URL cruda — para `<img>` y para revocarla al cerrar. */
+  crudo: string;
+  /** La misma URL bendecida para el `<iframe>` del PDF. */
+  url: SafeResourceUrl;
+}
+
 const VACIO = '—';
 
 /** Canales de radicacion si el catalogo del backend aun no los envia. */
@@ -127,6 +138,7 @@ const DONDES_RESPALDO: { codigo: DondeRadicado; etiqueta: string }[] = [
 export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
   private readonly srv = inject(IncapacidadV2Service);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sanitizador = inject(DomSanitizer);
   private readonly subs = new Subscription();
 
   readonly datos = inject<DatosDialogoDetalle>(MAT_DIALOG_DATA);
@@ -397,6 +409,77 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
     this.soportes().some((s) => s.obligatorio && !s.cargado),
   );
 
+  // ── Descarga y visor de soportes ──────────────────────────────────────
+  //
+  // Los archivos viven tras el gateway (`/api/v1/documents/**`), que exige JWT:
+  // un `<a href>` plano navegaba sin Authorization y terminaba en 401. Por eso
+  // aqui TODO se baja por HttpClient (que si lleva el token) y el resultado se
+  // entrega como blob: descarga con `saveAs` o vista previa embebida.
+
+  /** Tipo de soporte que se esta descargando (deshabilita sus botones). */
+  readonly descargandoSoporteTipo = signal<string | null>(null);
+  readonly errorSoporte = signal('');
+  /** Documento abierto en el visor embebido (soporte o PDF de radicacion). */
+  readonly preview = signal<PreviewDocumento | null>(null);
+
+  verSoporte(soporte: SoporteVista): void {
+    this.traerSoporte(soporte, true);
+  }
+
+  descargarSoporte(soporte: SoporteVista): void {
+    this.traerSoporte(soporte, false);
+  }
+
+  private traerSoporte(soporte: SoporteVista, abrir: boolean): void {
+    this.descargandoSoporteTipo.set(soporte.tipo);
+    this.errorSoporte.set('');
+    this.subs.add(
+      this.srv.descargarDocumento(soporte.url).subscribe({
+        next: (blob) => {
+          this.descargandoSoporteTipo.set(null);
+          const nombre = soporte.nombreArchivo || `${soporte.etiqueta}.pdf`;
+          if (abrir) this.mostrarPreview(blob, nombre);
+          else saveAs(blob, nombre);
+        },
+        error: (err: unknown) => {
+          this.descargandoSoporteTipo.set(null);
+          this.errorSoporte.set(
+            motivoHttp(err) || `No se pudo descargar ${soporte.etiqueta}.`,
+          );
+        },
+      }),
+    );
+  }
+
+  /** Abre el visor embebido con el blob (iframe para PDF, `<img>` para imagen). */
+  private mostrarPreview(blob: Blob, titulo: string): void {
+    this.cerrarPreview();
+    const esImagen = blob.type.startsWith('image/');
+    // El visor del navegador necesita el MIME correcto; si el backend no lo dio, PDF.
+    const conTipo = blob.type ? blob : new Blob([blob], { type: 'application/pdf' });
+    const crudo = URL.createObjectURL(conTipo);
+    this.preview.set({
+      titulo,
+      esImagen,
+      crudo,
+      url: this.sanitizador.bypassSecurityTrustResourceUrl(crudo),
+    });
+    // El visor queda al final del dialogo: llevar la vista hasta el.
+    if (typeof document !== 'undefined') {
+      setTimeout(() =>
+        document
+          .getElementById('det-visor-documento')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+      );
+    }
+  }
+
+  cerrarPreview(): void {
+    const abierto = this.preview();
+    if (abierto) URL.revokeObjectURL(abierto.crudo);
+    this.preview.set(null);
+  }
+
   // ── Alertas ───────────────────────────────────────────────────────────
 
   readonly alertas = computed<AlertaValidacion[]>(() => this.detalle()?.validacion?.alertas ?? []);
@@ -528,7 +611,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
     );
   }
 
-  /** Descarga (o abre en otra pestana) un PDF de radicacion con su nombre EXACTO. */
+  /** Descarga (o abre en el visor embebido) un PDF de radicacion con su nombre EXACTO. */
   descargarArchivoRadicacion(archivo: ArchivoRadicacion, abrir = false): void {
     this.descargandoArchivoId.set(archivo.id);
     this.subs.add(
@@ -537,10 +620,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
           this.descargandoArchivoId.set(null);
           const pdf = new Blob([blob], { type: 'application/pdf' });
           if (abrir) {
-            const url = URL.createObjectURL(pdf);
-            window.open(url, '_blank', 'noopener');
-            // Margen amplio para que la pestana alcance a leer el blob.
-            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+            this.mostrarPreview(pdf, archivo.nombreArchivo);
           } else {
             saveAs(pdf, archivo.nombreArchivo);
           }
@@ -624,6 +704,8 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subs.unsubscribe();
+    // Libera la blob: URL del visor si el dialogo se cierra con el abierto.
+    this.cerrarPreview();
   }
 
   // ── Acciones ──────────────────────────────────────────────────────────

@@ -602,4 +602,17 @@ export class IncapacidadV2Service {
     const ruta = rutaRelativa.startsWith('/') ? rutaRelativa : `/${rutaRelativa}`;
     return base + ruta;
   }
+
+  /**
+   * Baja un documento de la gestion documental como Blob AUTENTICADO. El gateway
+   * exige JWT en `/api/v1/documents/**`, asi que un `<a href>` plano (navegacion
+   * del navegador, sin header Authorization) responde 401: toda descarga o vista
+   * previa de soportes debe pasar por aqui.
+   */
+  descargarDocumento(fileUrl: string): Observable<Blob> {
+    return this.http.get(this.urlAbsolutaDocumento(fileUrl), {
+      headers: this.cabeceras(),
+      responseType: 'blob',
+    });
+  }
 }
