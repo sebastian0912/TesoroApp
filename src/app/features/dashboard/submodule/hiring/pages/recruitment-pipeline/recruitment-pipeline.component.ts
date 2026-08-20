@@ -442,7 +442,36 @@ export class RecruitmentPipelineComponent {
    * `procesoDelContrato()` (casos CC 1097727446 y CC 1128324722).
    */
   readonly faltantesPagoTransporte = computed<string[]>(() =>
-    faltantesDePagoTransporte(this._procesoContrato()?.contrato)
+    faltantesDePagoTransporte(this.procesoContratacion()?.contrato)
+  );
+
+  /**
+   * Proceso sobre el que trabaja la pestaña CONTRATACIÓN (pago y transporte,
+   * datos de obra, generar código). Es también el `proceso_id` que se le manda
+   * al backend, para que leer y guardar no puedan caer en procesos distintos.
+   *
+   * La regla la marca el override "Modificar de todas formas":
+   *
+   *  - Con override → se está EDITANDO un contrato vigente. Una persona con
+   *    contrato activo tiene los tabs bloqueados, así que la ÚNICA forma de
+   *    llegar aquí es habiendo pulsado "Modificar de todas formas". Se opera
+   *    sobre el proceso que tiene el contrato. Es lo que el backend ya dice
+   *    hacer en este modo ("edición pura sobre el proceso EXISTENTE").
+   *
+   *  - Sin override → no hay contrato activo bloqueando, así que es una
+   *    contratación NUEVA sobre el turno abierto. El contrato anterior, si
+   *    existe, queda intacto como histórico.
+   *
+   * Antes la pestaña LEÍA de `_procesoContrato()` (que prefiere el contrato
+   * real y activo, o sea el viejo) y GUARDABA donde el backend resolviera por
+   * su cuenta (la última entrevista, o sea el turno nuevo). Escribía en uno y
+   * leía del otro: llenabas forma de pago, decía "guardado", y al volver los
+   * campos seguían faltando.
+   */
+  readonly procesoContratacion = computed<any>(() =>
+    this.modificacionForzada()
+      ? (this._procesoContrato() ?? this._proceso())
+      : (this._proceso() ?? this._procesoContrato())
   );
 
   // ───────── Prueba técnica (pill del header) ─────────

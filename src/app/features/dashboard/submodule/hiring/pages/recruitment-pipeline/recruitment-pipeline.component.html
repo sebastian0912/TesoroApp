@@ -607,6 +607,7 @@
                 [modificacionForzada]="modificacionForzada()"
                 [modificadoPor]="usuarioActual()"
                 [consultaSeq]="consultaSeq()"
+                [procesoId]="procesoContratacion()?.id ?? null"
                 (guardado)="recargarCandidato()">
               </app-hiring-questions>
             </div>

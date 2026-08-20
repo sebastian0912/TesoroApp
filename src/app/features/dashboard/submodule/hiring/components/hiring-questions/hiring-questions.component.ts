@@ -76,9 +76,26 @@ export class HiringQuestionsComponent implements OnInit {
   modificadoPor = input<string>('');
 
   /** Inyecta las banderas de override en cualquier payload de update-by-document. */
-  private withOverride(payload: ProcesoUpdateByDocumentRequest): ProcesoUpdateByDocumentRequest {
-    if (!this.modificacionForzada()) return payload;
-    return { ...payload, modificacion_forzada: true, modificado_por: this.modificadoPor() || null };
+  /**
+   * Proceso EXACTO sobre el que trabaja esta pestaña, resuelto por el pipeline
+   * (`procesoContratacion`). Sin esto el backend resolvía "la última
+   * entrevista" por su cuenta: se guardaba en un proceso y la pantalla leía de
+   * otro, así que forma de pago decía "guardado" y volvía vacía.
+   */
+  procesoId = input<number | string | null>(null);
+
+  /**
+   * Sella el destino (`proceso_id`) y, si aplica, el override de edición
+   * forzada. Todos los guardados de esta pestaña pasan por aquí para que
+   * ninguno pueda quedarse sin destino explícito.
+   */
+  private conDestino(payload: ProcesoUpdateByDocumentRequest): ProcesoUpdateByDocumentRequest {
+    const id = this.procesoId();
+    const out: ProcesoUpdateByDocumentRequest = id == null
+      ? payload
+      : { ...payload, proceso_id: Number(id) };
+    if (!this.modificacionForzada()) return out;
+    return { ...out, modificacion_forzada: true, modificado_por: this.modificadoPor() || null };
   }
 
   // ───────── UI ─────────
@@ -578,7 +595,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     try {
       const resp = await firstValueFrom(
-        this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
+        this.procesosService.updateProcesoByDocumento(this.conDestino(payload), 'PATCH'),
       );
       const proc0 = (resp as any)?.proceso;
       const codigoFinal = String(proc0?.contrato_codigo ?? codigoContrato ?? '').trim();
@@ -1115,7 +1132,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     this.loading('Guardando datos de obra…');
     try {
-      await firstValueFrom(this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
+      await firstValueFrom(this.procesosService.updateProcesoByDocumento(this.conDestino(payload), 'PATCH'));
       this.guardado.emit();
       Swal.close();
       this.alert('success', 'Guardado', 'Los datos de obra se guardaron en el contrato.');
@@ -1217,7 +1234,7 @@ export class HiringQuestionsComponent implements OnInit {
       }
 
       await firstValueFrom(
-        this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
+        this.procesosService.updateProcesoByDocumento(this.conDestino(payload), 'PATCH'),
       );
 
       this.guardado.emit();

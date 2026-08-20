@@ -16,6 +16,7 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import type { AntecedentesPayload } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { RobotsService } from '../../service/robots/robots.service';
 import type { ResultadosAntecedentes } from '../../service/robots/robots.service';
+import { procesoDeAntecedentes } from '../../pages/recruitment-pipeline/contrato.rules';
 
 /* ===================== Tipos ===================== */
 type UploadedFileInfo = {
@@ -136,6 +137,9 @@ export class SelectionQuestionsComponent implements OnDestroy {
   /** Nº de consulta del buscador: re-consultar re-pide los resultados del robot. */
   consultaSeq = input<number>(0);
   modificadoPor = input<string>('');
+
+  /** Proceso que se está mostrando/guardando (ver procesoDeAntecedentes). */
+  private procesoId: number | string | null = null;
 
   /* -------- Form -------- */
   antecedentes: FormGroup;
@@ -267,8 +271,14 @@ export class SelectionQuestionsComponent implements OnDestroy {
     // Reacciona al candidato seleccionado
     effect(() => {
       const candidato = this.candidatoSeleccionado();
-      // Fix: proceso (no "processo")
-      const proc = candidato?.entrevistas?.[0]?.proceso;
+      // NO es `entrevistas[0].proceso`: con dos turnos abiertos el mismo día la
+      // posición 0 puede ser el turno nuevo (sin proceso o sin antecedentes) y
+      // el form se pintaba vacío después de guardar. Ver procesoDeAntecedentes.
+      const proc = procesoDeAntecedentes(candidato);
+      // Se guarda SOBRE este mismo proceso (`proceso_id`): sin él el backend
+      // resuelve "la última entrevista" por su cuenta y podía escribir en uno
+      // distinto del que se está mostrando.
+      this.procesoId = proc?.id ?? null;
       const cedulaAnterior = this.cedula;
       const tipoAnterior = this.tipoDocumento;
       this.cedula = (candidato?.numero_documento ?? candidato?.numeroDocumento ?? null) as string | null;
@@ -1020,7 +1030,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
     };
 
     try {
-      await firstValueFrom(this.rpc.upsertSeleccionByDocumento(numero, payload, undefined, {
+      await firstValueFrom(this.rpc.upsertSeleccionByDocumento(numero, payload, this.procesoId ?? undefined, {
         modificacionForzada: this.modificacionForzada(),
         modificadoPor: this.modificadoPor(),
       }));

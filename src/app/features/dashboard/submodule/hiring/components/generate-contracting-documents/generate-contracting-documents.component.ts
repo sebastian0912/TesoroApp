@@ -655,9 +655,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
               console.log('existingDocs cargados:', this.existingDocs);
             }
 
-            this.firma = datoCandidato?.biometria?.firma?.file_url ?? '';
-            this.huella = datoCandidato?.biometria?.huella?.file_url ?? '';
-            this.foto = datoCandidato?.biometria?.foto?.file_url ?? '';
+            this.firma = this.bioUrl(datoCandidato?.biometria?.firma);
+            this.huella = this.bioUrl(datoCandidato?.biometria?.huella);
+            this.foto = this.bioUrl(datoCandidato?.biometria?.foto);
             // El giro manual es de la foto de ESTE candidato: al cambiar de
             // persona se vuelve a empezar desde el enderezado automático.
             this.rotacionFoto.set(0);
@@ -1831,6 +1831,77 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   /**
+   * URL utilizable de un documento biométrico, venga como venga.
+   *
+   * `DocumentacionBiometricaSerializer` expone cada pieza con
+   * `DocumentSerializer`, cuyo `file_url` sale de la versión marcada
+   * `is_current`. Si un expediente se quedó sin versión vigente, `file_url`
+   * llega `null` aunque el archivo exista, así que se aceptan también las
+   * otras formas en que el backend ha expuesto el archivo.
+   */
+  private bioUrl(doc: any): string {
+    const v =
+      doc?.file_url
+      ?? doc?.file
+      ?? doc?.current_file?.url
+      ?? doc?.current_version?.file_url
+      ?? '';
+    return typeof v === 'string' ? v.trim() : '';
+  }
+
+  /**
+   * Biometría consultada por PERSONA, no por fila de Candidato.
+   *
+   * `candidatos/by-document` resuelve entre TODAS las variantes de la cédula
+   * (`<ced>`, `X<ced>`) y devuelve la fila más "viva"; en cambio la subida de
+   * biometría usa `Candidato.resolve_by_documento`, que sólo mira el número
+   * exacto. Con cédula duplicada las dos rutas pueden caer en filas distintas
+   * y la firma/huella queda colgando de la que este componente NO cargó: el
+   * operador la ve capturada y aquí salía "FALTA".
+   *
+   * `GET /biometria/<cedula>` usa el mismo resolutor que la subida, así que
+   * es la fuente que sí ve lo que el operador acaba de capturar.
+   */
+  private async getBiometriaPersona(cedula: string | number): Promise<any> {
+    const doc = String(cedula ?? '').trim();
+    if (!doc) return null;
+    return firstValueFrom(
+      this.registroProcesoContratacion
+        .getBiometriaPorCedula(doc)
+        .pipe(take(1), catchError(() => of(null)))
+    );
+  }
+
+  /**
+   * Rellena los huecos de `firma`/`huella`/`foto` releyendo del servidor.
+   *
+   * Se llama justo antes de bloquear la generación por dos motivos:
+   *  1) el componente carga la biometría una sola vez en `ngOnInit`, así que
+   *     lo capturado después (otra pestaña, otro operador) no se veía;
+   *  2) resuelve el caso de la cédula duplicada descrito en
+   *     `getBiometriaPersona`.
+   *
+   * Sólo rellena lo que está vacío: nunca pisa una URL que ya sirve.
+   */
+  private async completarBiometriaDesdeServidor(): Promise<void> {
+    if (!this.biometriaFaltante().length) return;
+
+    const bio = await this.getBiometriaPersona(this.cedula);
+    if (!bio) return;
+
+    const antesFoto = this.foto;
+    if (!this.firma) this.firma = this.bioUrl(bio?.firma);
+    if (!this.huella) this.huella = this.bioUrl(bio?.huella);
+    if (!this.foto) this.foto = this.bioUrl(bio?.foto);
+
+    if (this.foto && this.foto !== antesFoto) {
+      this.rotacionFoto.set(0);
+      await this.refrescarPreviewFoto();
+    }
+    this.cdr.markForCheck();
+  }
+
+  /**
    * Bloquea la generación si a la persona le falta firma, huella o foto.
    *
    * Antes solo avisaba y dejaba "Generar de todas formas", pero los documentos
@@ -1842,6 +1913,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Se mira si el objeto trae datos (arranca en `{}`) y no un campo puntual,
     // para no depender de qué serializer responda el endpoint.
     if (!this.candidato || Object.keys(this.candidato).length === 0) return true;
+
+    // Antes de bloquear, releer del servidor: lo que se capturó después de
+    // abrir esta pantalla —o lo que quedó en la otra fila de una cédula
+    // duplicada— no estaba en el snapshot de `ngOnInit`.
+    await this.completarBiometriaDesdeServidor();
 
     const falta = this.biometriaFaltante();
     if (!falta.length) return true;
@@ -9942,12 +10018,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         // Misma regla dura que la generación individual: sin firma, huella y
         // foto el contrato no se genera. El ítem queda en Error diciendo
         // exactamente qué le falta a esa cédula.
+        // Se consulta también `/biometria/<cedula>`, que resuelve por PERSONA
+        // (`Candidato.resolve_by_documento`) y no por la fila que devolvió
+        // `by-document`: con cédula duplicada (CC / C.C / X<ced>) la biometría
+        // cuelga de la otra fila y aquí salía "sin biometría" teniéndola.
+        const bioPersona = await this.getBiometriaPersona(item.cedula);
         const bio = datoCandidato?.biometria;
-        const tieneBio = (v: any) => typeof v === 'string' && v.trim() !== '';
+        const firmaUrl = this.bioUrl(bio?.firma) || this.bioUrl(bioPersona?.firma);
+        const huellaUrl = this.bioUrl(bio?.huella) || this.bioUrl(bioPersona?.huella);
+        const fotoUrl = this.bioUrl(bio?.foto) || this.bioUrl(bioPersona?.foto);
         const faltaBio: string[] = [];
-        if (!tieneBio(bio?.firma?.file_url)) faltaBio.push('firma');
-        if (!tieneBio(bio?.huella?.file_url)) faltaBio.push('huella');
-        if (!tieneBio(bio?.foto?.file_url)) faltaBio.push('foto');
+        if (!firmaUrl) faltaBio.push('firma');
+        if (!huellaUrl) faltaBio.push('huella');
+        if (!fotoUrl) faltaBio.push('foto');
         if (faltaBio.length) throw new Error(`Sin biometría: falta ${faltaBio.join(', ')}`);
 
         const vacId = datoCandidato?.entrevistas?.[0]?.proceso?.publicacion;
@@ -9957,7 +10040,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         this.candidato = datoCandidato;
         this.vacante = vacData || {};
         this.empresa = this.vacante?.temporal || '';
-        this.firma = datoCandidato?.biometria?.firma?.file_url ?? '';
+        this.firma = firmaUrl;
+        this.huella = huellaUrl;
+        this.foto = fotoUrl;
         // Misma regla de selección de entrevista que la carga individual: la
         // que tiene publicación, si no la que tiene código de contrato, si no
         // la más reciente. De acá salen obra/empresa/fecha del contrato.

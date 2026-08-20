@@ -2,6 +2,9 @@ import {
   esContratoReal,
   esContratoRealMini,
   estadoContratoPill,
+  procesoDeAntecedentes,
+  procesoDelContrato,
+  procesoVigente,
   tieneContratoActivoReal,
 } from './contrato.rules';
 
@@ -50,13 +53,92 @@ describe('contrato.rules', () => {
     expect(estadoContratoPill(p)).toBe('retirado');
   });
 
-  it('sin fila de contrato no hay pill ni bloqueo', () => {
+  it('sin fila de contrato ni contratado no hay pill ni bloqueo', () => {
     const p = proceso({}, null);
     expect(esContratoReal(p)).toBeFalse();
     expect(tieneContratoActivoReal(p)).toBeFalse();
     expect(estadoContratoPill(p)).toBe('sin_fila');
     expect(estadoContratoPill(null)).toBe('sin_fila');
     expect(estadoContratoPill(undefined)).toBe('sin_fila');
+  });
+
+  // Caso real (CC 1006913166): el historial laboral decía CONTRATADO y el
+  // header no pintaba pill, así que no había forma de dar de baja.
+  it('contratado=true SIN fila de contrato sigue siendo contrato activo', () => {
+    const p = proceso({ contratado: true }, null);
+    expect(esContratoReal(p)).toBeTrue();
+    expect(tieneContratoActivoReal(p)).toBeTrue();
+    expect(estadoContratoPill(p)).toBe('activo');
+  });
+
+  // contrato_activo es nullable en el modelo: NULL no es una baja. Exigir
+  // `=== true` dejaba estas filas en "en trámite", sin botón de baja, mientras
+  // el historial las mostraba CONTRATADO.
+  it('contratado=true con contrato_activo NULL sigue activo (NULL no es baja)', () => {
+    const p = proceso({ contratado: true }, { contrato_activo: null });
+    expect(tieneContratoActivoReal(p)).toBeTrue();
+    expect(estadoContratoPill(p)).toBe('activo');
+  });
+
+  it('sin contratar y con contrato_activo NULL sigue siendo solo trámite', () => {
+    const p = proceso({ contratado: false }, { contrato_activo: null });
+    expect(tieneContratoActivoReal(p)).toBeFalse();
+    expect(estadoContratoPill(p)).toBe('en_tramite');
+  });
+
+  describe('procesoVigente / procesoDeAntecedentes', () => {
+    const cand = (procesos: any[], extra: Record<string, any> = {}) => ({
+      ...extra,
+      entrevistas: procesos.map(proc => (proc === null ? {} : { proceso: proc })),
+    });
+
+    it('obedece el proceso_vigente_id que resolvió el servidor', () => {
+      const abierto = { id: 9 };
+      const c = cand([{ id: 4, contratado: true }, abierto], { proceso_vigente_id: 9 });
+      expect(procesoVigente(c)).toBe(abierto);
+      expect(procesoDeAntecedentes(c)).toBe(abierto);
+    });
+
+    it('sin proceso_vigente_id (backend viejo) cae al primero que exista', () => {
+      const primero = { id: 4 };
+      expect(procesoVigente(cand([primero, { id: 9 }]))).toBe(primero);
+    });
+
+    it('un id que no está en la lista no rompe: cae a la heurística', () => {
+      const primero = { id: 4 };
+      expect(procesoVigente(cand([primero], { proceso_vigente_id: 999 }))).toBe(primero);
+    });
+
+    it('salta la entrevista sin proceso (turno nuevo recién abierto)', () => {
+      const proc = { id: 7 };
+      expect(procesoVigente(cand([null, proc]))).toBe(proc);
+    });
+
+    it('sin entrevistas / sin procesos devuelve null', () => {
+      expect(procesoVigente(null)).toBeNull();
+      expect(procesoVigente({ entrevistas: [] })).toBeNull();
+      expect(procesoVigente(cand([null]))).toBeNull();
+    });
+  });
+
+  describe('procesoDelContrato', () => {
+    const cand = (procesos: any[], extra: Record<string, any> = {}) => ({
+      ...extra,
+      entrevistas: procesos.map(proc => ({ proceso: proc })),
+    });
+
+    it('obedece el proceso_contrato_id del servidor aunque no sea el vigente', () => {
+      const conContrato = { id: 4, contratado: true };
+      const c = cand([{ id: 9 }, conContrato], { proceso_contrato_id: 4 });
+      expect(procesoDelContrato(c)).toBe(conContrato);
+    });
+
+    // Caso CC 1006913166: el contrato vive en el turno anterior, ya terminal,
+    // mientras el vigente es el turno nuevo sin contrato.
+    it('sin ids del servidor encuentra el contrato en un turno anterior', () => {
+      const conContrato = { id: 4, contratado: true, contrato: { contrato_activo: true } };
+      expect(procesoDelContrato(cand([{ id: 9 }, conContrato]))).toBe(conContrato);
+    });
   });
 
   describe('esContratoRealMini (filas planas de by-document-min)', () => {
