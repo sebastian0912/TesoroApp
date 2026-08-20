@@ -580,7 +580,13 @@ export class RegistroProcesoContratacion {
   /**
    * POST /gestion_contratacion/candidatos/encolar/
    * Encola la cédula en la sede del operador autenticado para la cola FIFO
-   * del día. Idempotente por día y sede. Requiere JWT con sede asignada.
+   * del día. Idempotente por día Y sede. Requiere JWT con sede asignada.
+   *
+   * `accion` dice qué hizo el backend:
+   *   sin_cambio             -> ya estaba en la cola de HOY en esta sede.
+   *   encolada               -> entró por primera vez hoy.
+   *   reencolada_otra_sede   -> estaba en la cola de otra sede (`oficina_anterior`).
+   *   reencolada_tras_atender-> ya la habían atendido hoy y volvió al desk.
    */
   encolarCandidato(payload: { tipo_doc?: string | null; numero_documento?: string | null; candidato_id?: number }): Observable<{
     ok: boolean;
@@ -590,6 +596,8 @@ export class RegistroProcesoContratacion {
     en_turno_at: string | null;
     en_turno_oficina: string | null;
     ya_estaba_en_cola: boolean;
+    accion?: 'sin_cambio' | 'encolada' | 'reencolada_otra_sede' | 'reencolada_tras_atender';
+    oficina_anterior?: string | null;
   }> {
     return this.http.post<any>(this.url('candidatos/encolar'), payload).pipe(this.handle$());
   }

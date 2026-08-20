@@ -462,13 +462,45 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
         .encolarCandidato({ tipo_doc: tipoDoc, numero_documento: cedula })
         .pipe(take(1), takeUntilDestroyed(this.destroyRef))
         .subscribe({
-          next: () => this.refrescarRecientes(),
+          next: (res: any) => {
+            this.refrescarRecientes();
+            // Venía de la cola de otra sede: avisamos de dónde salió, si no
+            // parece que la tabla se reordenó sola.
+            if (res?.accion === 'reencolada_otra_sede' && res?.oficina_anterior) {
+              this.toast('info', `Estaba en la cola de ${res.oficina_anterior}. La traje a tu sede.`);
+            }
+          },
           error: (err: any) => {
             console.warn('[encolar] no se pudo agregar a cola', err?.status, err?.error);
-            // No bloqueamos el flujo: la consulta del candidato igual procede.
+            // No bloqueamos el flujo (la consulta del candidato igual procede),
+            // pero el operador TIENE que enterarse: antes fallaba en silencio y
+            // la persona simplemente no aparecia en la tabla.
+            this.toast('error', this.mensajeErrorEncolar(err));
           },
         });
     }
+  }
+
+  /** Motivo legible del fallo al encolar. */
+  private mensajeErrorEncolar(err: any): string {
+    const detail = err?.error?.detail;
+    if (typeof detail === 'string' && detail.trim()) return detail;
+    if (err?.status === 404) return 'No se pudo poner en cola: el candidato no existe en la base.';
+    if (err?.status === 0) return 'No se pudo poner en cola: sin conexion con el servidor.';
+    return 'No se pudo poner en cola. Revisa con soporte.';
+  }
+
+  /** Aviso corto que no interrumpe el flujo de atencion. */
+  private toast(icon: 'info' | 'error', title: string): void {
+    void Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon,
+      title,
+      showConfirmButton: false,
+      timer: icon === 'error' ? 6000 : 4000,
+      timerProgressBar: true,
+    });
   }
 
   /** Consulta vetados y avisa. Tolerante a fallos: no frena la búsqueda. */
