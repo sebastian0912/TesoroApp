@@ -90,6 +90,10 @@
         description="Re-consulta ADRES para refrescar datos SIN cambiar el documento vigente (las consultas siguen mostrando la versión anterior)"
         (click)="triggerFileInputSoloActualizar()">
       </app-info-card>
+      <app-info-card matIcon="autorenew" title="Cargar solicitudes robots — solo actualizar antecedentes"
+        description="Re-consulta Policivos, Procuraduria, Contraloria y OFAC SIN cambiar el documento vigente (las consultas siguen mostrando la version anterior)"
+        (click)="triggerFileInputSoloActualizarAntecedentes()">
+      </app-info-card>
       <app-info-card matIcon="download" title="Descargar ADRES por rango de fechas"
         description="Genera un Excel con los registros ADRES procesados en un rango"
         (click)="descargarAdressPorRango()">
@@ -101,6 +105,14 @@
       <app-info-card matIcon="picture_as_pdf" title="Descargar ADRES (modo actualizar) por lista de cedulas"
         description="Igual que el anterior, pero el PDF es la última versión generada en modo solo actualizar"
         (click)="triggerFileInputAdresCedulasActualizar()">
+      </app-info-card>
+      <app-info-card matIcon="upload_file" title="Descargar antecedentes por lista de cedulas"
+        description="Sube un Excel con cedulas y descarga Policivos, Procuraduria, Contraloria y OFAC (incluye PDF de cada fuente)"
+        (click)="triggerFileInputAntecedentesCedulas()">
+      </app-info-card>
+      <app-info-card matIcon="picture_as_pdf" title="Descargar antecedentes (modo actualizar) por lista de cedulas"
+        description="Igual que el anterior, pero los PDF son la ultima version generada en modo solo actualizar"
+        (click)="triggerFileInputAntecedentesCedulasActualizar()">
       </app-info-card>
     }
 
@@ -149,6 +161,9 @@
 <input #fileInputCarnets type="file" (change)="cargarExcelCarnets($event)" accept=".xlsx, .xls" class="hidden-input" />
 <input #fileInputLimpiarExcel type="file" (change)="procesarYLimpiarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
 <input #fileInputAdresCedulas type="file" (change)="descargarAdressPorCedulasDesdeExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputSoloActualizarAntecedentes type="file" (change)="cargarExcelSoloActualizarAntecedentes($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputAntecedentesCedulas type="file" (change)="descargarAntecedentesPorCedulasDesdeExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputAntecedentesCedulasActualizar type="file" (change)="descargarAntecedentesPorCedulasActualizarDesdeExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
     <!-- Merchandising (solo si comercializadora) -->
     @if (comercializadora) {
       <div class="merchandising-section">

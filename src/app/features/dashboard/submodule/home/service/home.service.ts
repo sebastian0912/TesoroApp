@@ -280,6 +280,42 @@ export class HomeService {
   }
 
 
+  /**
+   * Descarga Excel de ANTECEDENTES (policivos + procuraduría + contraloría +
+   * OFAC) filtrado por una lista de cédulas. Una columna de PDF por fuente.
+   * Backend: POST /Robots/excel-antecedentes-por-cedulas/
+   */
+  descargarAntecedentesPorCedulas(cedulas: string[]): Observable<HttpResponse<Blob>> {
+    return this.http
+      .post(`${this.apiUrl}/Robots/excel-antecedentes-por-cedulas/`,
+        { cedulas },
+        {
+          responseType: 'blob',
+          observe: 'response',
+        },
+      )
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  /**
+   * Igual que descargarAntecedentesPorCedulas pero en "modo actualizar": las
+   * columnas PDF apuntan a la ÚLTIMA versión (la que el robot guardó como NO
+   * vigente bajo solo_actualizar).
+   * Backend: POST /Robots/excel-antecedentes-por-cedulas-actualizar/
+   */
+  descargarAntecedentesPorCedulasActualizar(cedulas: string[]): Observable<HttpResponse<Blob>> {
+    return this.http
+      .post(`${this.apiUrl}/Robots/excel-antecedentes-por-cedulas-actualizar/`,
+        { cedulas },
+        {
+          responseType: 'blob',
+          observe: 'response',
+        },
+      )
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+
   // ---------------------------------------------------------------------------
   // Home cards / conteos / inventario / etc (tal cual lo tenías)
   // ---------------------------------------------------------------------------
@@ -309,7 +345,7 @@ export class HomeService {
     return this.http.get(url).pipe(catchError((e) => this.handleError(e)));
   }
 
-  enviarEstadosRobots(payload: { candidatos_scope: 'nuevos' | 'todos' | 'ninguno'; datos: any[]; solo_actualizar?: boolean }): Observable<any> {
+  enviarEstadosRobots(payload: { candidatos_scope: 'nuevos' | 'todos' | 'ninguno'; datos: any[]; solo_actualizar?: boolean; solo_fuentes?: string[] }): Observable<any> {
     const url = `${this.apiUrl}/EstadosRobots/cargar-excel/`;
     return this.http.post(url, payload).pipe(catchError((e) => this.handleError(e)));
   }

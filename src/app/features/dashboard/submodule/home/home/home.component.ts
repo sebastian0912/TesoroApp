@@ -120,6 +120,26 @@ export class HomeComponent implements OnInit {
   @ViewChild('fileInputLimpiarExcel') fileInputLimpiarExcelRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputAdresCedulas') fileInputAdresCedulasRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputAdresCedulasActualizar') fileInputAdresCedulasActualizarRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputSoloActualizarAntecedentes') fileInputSoloActualizarAntecedentesRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputAntecedentesCedulas') fileInputAntecedentesCedulasRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputAntecedentesCedulasActualizar') fileInputAntecedentesCedulasActualizarRef!: ElementRef<HTMLInputElement>;
+
+  // Las 4 fuentes de antecedentes que se re-consultan juntas. El backend las
+  // mapea a estado_policivo/estado_procuraduria/estado_contraloria/estado_ofac
+  // y deja las otras 4 fuentes en FINALIZADO (los robots no las pickean).
+  private readonly FUENTES_ANTECEDENTES = ['policivo', 'procuraduria', 'contraloria', 'ofac'];
+
+  // El backend responde los estado_* que forzó; esto es solo para el resumen.
+  private readonly ETIQUETA_FUENTE: Record<string, string> = {
+    estado_adress: 'ADRES',
+    estado_policivo: 'Policivos',
+    estado_procuraduria: 'Procuraduria',
+    estado_contraloria: 'Contraloria',
+    estado_ofac: 'OFAC',
+    estado_sisben: 'Sisben',
+    estado_fondo_pension: 'Fondo de pension',
+    estado_medidas_correctivas: 'Medidas correctivas',
+  };
 
   // Progreso
   isLoadingProgresoAll = false;
@@ -266,15 +286,45 @@ export class HomeComponent implements OnInit {
     el.click();
   }
 
+  // Antecedentes (policivos + procuraduría + contraloría + OFAC): mismo flujo
+  // que ADRES, un Excel con las 4 fuentes y una columna de PDF por fuente.
+  triggerFileInputAntecedentesCedulas(): void {
+    const el = this.fileInputAntecedentesCedulasRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
+  triggerFileInputAntecedentesCedulasActualizar(): void {
+    const el = this.fileInputAntecedentesCedulasActualizarRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
   descargarAdressPorCedulasDesdeExcel(evt: any): Promise<void> {
-    return this._descargarAdressPorCedulas(evt, false);
+    return this._descargarPorCedulas(evt, false, 'adres');
   }
 
   descargarAdressPorCedulasActualizarDesdeExcel(evt: any): Promise<void> {
-    return this._descargarAdressPorCedulas(evt, true);
+    return this._descargarPorCedulas(evt, true, 'adres');
   }
 
-  private async _descargarAdressPorCedulas(evt: any, modoActualizar: boolean): Promise<void> {
+  descargarAntecedentesPorCedulasDesdeExcel(evt: any): Promise<void> {
+    return this._descargarPorCedulas(evt, false, 'antecedentes');
+  }
+
+  descargarAntecedentesPorCedulasActualizarDesdeExcel(evt: any): Promise<void> {
+    return this._descargarPorCedulas(evt, true, 'antecedentes');
+  }
+
+  private async _descargarPorCedulas(
+    evt: any,
+    modoActualizar: boolean,
+    fuente: 'adres' | 'antecedentes',
+  ): Promise<void> {
+    const esAdres = fuente === 'adres';
+    const etiqueta = esAdres ? 'ADRES' : 'ANTECEDENTES';
     const input = evt?.target as HTMLInputElement;
     const file: File | undefined = input?.files?.[0];
 
@@ -304,16 +354,20 @@ export class HomeComponent implements OnInit {
       }
 
       Swal.update({
-        title: 'Generando Excel ADRES...',
+        title: `Generando Excel ${etiqueta}...`,
         text: `Consultando ${cedulas.length} cedulas en el servidor.`,
       });
       Swal.showLoading();
 
-      const res = await firstValueFrom(
-        modoActualizar
-          ? this.homeService.descargarAdressPorCedulasActualizar(cedulas)
-          : this.homeService.descargarAdressPorCedulas(cedulas),
-      );
+      const req = esAdres
+        ? (modoActualizar
+            ? this.homeService.descargarAdressPorCedulasActualizar(cedulas)
+            : this.homeService.descargarAdressPorCedulas(cedulas))
+        : (modoActualizar
+            ? this.homeService.descargarAntecedentesPorCedulasActualizar(cedulas)
+            : this.homeService.descargarAntecedentesPorCedulas(cedulas));
+
+      const res = await firstValueFrom(req);
       const total = res.headers.get('X-Total-Rows');
 
       if (!res.body || res.body.size === 0) {
@@ -321,14 +375,16 @@ export class HomeComponent implements OnInit {
         await Swal.fire({
           icon: 'info',
           title: 'Sin coincidencias',
-          text: 'Ninguna de las cedulas tiene registro en ADRES en la BD.',
+          text: `Ninguna de las cedulas tiene registro de ${etiqueta} en la BD.`,
         });
         return;
       }
 
+      const prefijo = esAdres
+        ? (modoActualizar ? 'adres_actualizar_por_cedulas' : 'adres_por_cedulas')
+        : (modoActualizar ? 'antecedentes_actualizar_por_cedulas' : 'antecedentes_por_cedulas');
       const filename =
-        this.getFilenameFromResponse(res) ||
-        `${modoActualizar ? 'adres_actualizar_por_cedulas' : 'adres_por_cedulas'}_${cedulas.length}.xlsx`;
+        this.getFilenameFromResponse(res) || `${prefijo}_${cedulas.length}.xlsx`;
       await this.saveToDownloads(res.body, filename);
 
       Swal.close();
@@ -488,6 +544,15 @@ export class HomeComponent implements OnInit {
     el.click();
   }
 
+  // Botón "solo actualizar antecedentes": igual que el de ADRES pero acotado a
+  // policivos + procuraduría + contraloría + OFAC.
+  triggerFileInputSoloActualizarAntecedentes(): void {
+    const el = this.fileInputSoloActualizarAntecedentesRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
   cargarExcel(evt: any): void {
     this._procesarExcelEstados(evt, false);
   }
@@ -496,7 +561,11 @@ export class HomeComponent implements OnInit {
     this._procesarExcelEstados(evt, true);
   }
 
-  private _procesarExcelEstados(evt: any, soloActualizar: boolean): void {
+  cargarExcelSoloActualizarAntecedentes(evt: any): void {
+    this._procesarExcelEstados(evt, true, this.FUENTES_ANTECEDENTES);
+  }
+
+  private _procesarExcelEstados(evt: any, soloActualizar: boolean, soloFuentes?: string[]): void {
     const file: File | undefined = evt?.target?.files?.[0];
     if (!file) {
       void Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
@@ -558,19 +627,26 @@ export class HomeComponent implements OnInit {
           candidatos_scope: 'nuevos' | 'todos' | 'ninguno';
           datos: any[];
           solo_actualizar?: boolean;
+          solo_fuentes?: string[];
         } = {
           candidatos_scope: 'nuevos',
           datos,
         };
         if (soloActualizar) payload.solo_actualizar = true;
+        // Sin solo_fuentes el backend mantiene el histórico: ADRES-only.
+        if (soloFuentes?.length) payload.solo_fuentes = soloFuentes;
 
         this.homeService.enviarEstadosRobots(payload).subscribe({
           next: async (r: any) => {
             const ok = r?.message === 'success';
 
             const lines: string[] = [];
-            if (soloActualizar)
-              lines.push(`🔁 Modo: <b>solo actualizar ADRES</b> (no cambia el documento vigente)`);
+            if (soloActualizar) {
+              const fuentes = Array.isArray(r?.solo_fuentes) && r.solo_fuentes.length
+                ? r.solo_fuentes.map((f: string) => this.ETIQUETA_FUENTE[f] ?? f).join(', ')
+                : 'ADRES';
+              lines.push(`🔁 Modo: <b>solo actualizar ${fuentes}</b> (no cambia el documento vigente)`);
+            }
             if (r?.recibidos != null)
               lines.push(`📋 Filas recibidas: <b>${r.recibidos}</b>`);
             if (r?.tasks_unicos != null)
