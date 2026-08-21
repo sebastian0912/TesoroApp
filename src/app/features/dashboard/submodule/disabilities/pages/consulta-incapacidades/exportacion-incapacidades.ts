@@ -42,6 +42,11 @@ export interface ColumnaExportable {
   etiqueta: string;
   /** `true` si por defecto se muestra en la tabla (opcion "las visibles"). */
   enTabla: boolean;
+  /**
+   * `true` si la columna pertenece al CONSOLIDADO oficial de 42 columnas que dicto la
+   * funcional (reunion 2026-08-20). Esas son las marcadas por defecto al abrir el dialogo.
+   */
+  enConsolidado?: boolean;
   /** Extrae el valor ya formateado para el archivo. */
   obtener: (fila: IncapacidadResumenExtendido, etiquetas: EtiquetasExportacion) => string | number;
 }
@@ -104,107 +109,327 @@ export function soportesCompletos(fila: IncapacidadResumenExtendido): boolean | 
   return cargados >= exigidos;
 }
 
+/** Si/No para el archivo; vacio cuando el dato no existe (nunca "undefined"). */
+function siNo(valor: boolean | null | undefined): string {
+  return valor === true ? 'Si' : valor === false ? 'No' : '';
+}
+
 /**
  * Catalogo completo de columnas exportables.
  * El orden de este array es el orden de las columnas del archivo.
+ *
+ * Las 42 primeras (marcadas `enConsolidado`) son EXACTAMENTE el consolidado oficial que
+ * dicto la funcional en la reunion del 2026-08-20, en su orden. El Excel consolidado del
+ * SERVIDOR (ExportJobService de ms-hr) usa estas mismas cabeceras: si se toca aqui, tocar
+ * tambien alla.
  */
 export const COLUMNAS_EXPORTABLES: readonly ColumnaExportable[] = [
+  {
+    clave: 'semanaRadicacion',
+    etiqueta: 'Semana',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => numero(f.semanaRadicacion),
+  },
+  {
+    clave: 'oficina',
+    etiqueta: 'Lugar radicado',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.oficina),
+  },
   {
     clave: 'consecutivoSistema',
     etiqueta: 'Codigo unico',
     enTabla: true,
-    obtener: (f) => texto(f.consecutivoSistema),
+    enConsolidado: true,
+    // V47: manda el codigo visible de cartera (TASB018); historicas caen al tecnico.
+    obtener: (f) => texto(f.codigoConsecutivo ?? f.consecutivoSistema ?? f.codigoUnico),
   },
-  { clave: 'cedula', etiqueta: 'Cedula', enTabla: true, obtener: (f) => texto(f.cedula) },
+  {
+    clave: 'codigoSede',
+    etiqueta: 'Codigo sede',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.codigoSede),
+  },
+  {
+    clave: 'numeroContrato',
+    etiqueta: 'Numero contrato',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.numeroContrato),
+  },
+  {
+    clave: 'entidadGrupo',
+    etiqueta: 'Empleador',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => texto(f.entidadGrupoEtiqueta ?? f.entidadGrupo),
+  },
+  {
+    clave: 'creadoEn',
+    etiqueta: 'Fecha registro',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => fechaHoraLegible(f.creadoEn),
+  },
+  {
+    clave: 'tipoDocumento',
+    etiqueta: 'Tipo documento',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.tipoDocumento),
+  },
+  {
+    clave: 'cedula',
+    etiqueta: 'Cedula',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => texto(f.cedula),
+  },
   {
     clave: 'nombreCompleto',
-    etiqueta: 'Nombre del trabajador',
+    etiqueta: 'Nombre completo',
     enTabla: true,
+    enConsolidado: true,
     obtener: (f) => texto(f.nombreCompleto),
   },
-  { clave: 'empresa', etiqueta: 'Empresa', enTabla: true, obtener: (f) => texto(f.empresa) },
   {
-    clave: 'centroCosto',
-    etiqueta: 'Centro de costo',
+    clave: 'empresa',
+    etiqueta: 'Empresa / Finca',
     enTabla: true,
-    obtener: (f) => texto(f.centroCosto),
+    enConsolidado: true,
+    obtener: (f) => texto(f.empresa),
   },
-  { clave: 'temporal', etiqueta: 'Temporal', enTabla: false, obtener: (f) => texto(f.temporal) },
-  { clave: 'oficina', etiqueta: 'Oficina', enTabla: false, obtener: (f) => texto(f.oficina) },
   {
     clave: 'tipoIncapacidad',
     etiqueta: 'Tipo de incapacidad',
     enTabla: true,
+    enConsolidado: true,
     obtener: (f, e) => e.tipoIncapacidad(f.tipoIncapacidad),
   },
   {
     clave: 'codigoDiagnostico',
-    etiqueta: 'Diagnostico (CIE-10)',
+    etiqueta: 'Codigo diagnostico',
     enTabla: false,
+    enConsolidado: true,
     obtener: (f) => texto(f.codigoDiagnostico),
   },
   {
+    clave: 'descripcionDiagnostico',
+    etiqueta: 'Descripcion diagnostico',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.descripcionDiagnostico),
+  },
+  {
     clave: 'fechaInicio',
-    etiqueta: 'Fecha de inicio',
+    etiqueta: 'Fecha inicio',
     enTabla: true,
+    enConsolidado: true,
     obtener: (f) => fechaLegible(f.fechaInicio),
   },
   {
     clave: 'fechaFin',
-    etiqueta: 'Fecha de fin',
+    etiqueta: 'Fecha fin',
     enTabla: true,
+    enConsolidado: true,
     obtener: (f) => fechaLegible(f.fechaFin),
   },
-  { clave: 'dias', etiqueta: 'Dias', enTabla: true, obtener: (f) => numero(f.dias) },
+  {
+    clave: 'dias',
+    etiqueta: 'Dias',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => numero(f.dias),
+  },
+  {
+    clave: 'edad',
+    etiqueta: 'Edad',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => numero(f.edad),
+  },
+  {
+    clave: 'sexo',
+    etiqueta: 'Genero',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.sexo),
+  },
+  {
+    clave: 'fechaIngreso',
+    etiqueta: 'Fecha de ingreso',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => fechaLegible(f.fechaIngreso),
+  },
+  {
+    clave: 'celular',
+    etiqueta: 'Telefono',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.celular),
+  },
+  {
+    clave: 'correo',
+    etiqueta: 'Correo electronico',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.correo),
+  },
+  {
+    clave: 'eps',
+    etiqueta: 'EPS',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => texto(f.eps),
+  },
+  {
+    clave: 'estadoDocumento',
+    etiqueta: 'Estado documento',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f, e) => e.estadoDocumento(f.estadoDocumento),
+  },
+  {
+    clave: 'esProrroga',
+    etiqueta: 'Prorroga',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => siNo(f.esProrroga),
+  },
+  {
+    clave: 'transcrita',
+    etiqueta: 'Transcrita',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => siNo(f.transcrita),
+  },
+  {
+    clave: 'numeroIncapacidad',
+    etiqueta: 'Numero incapacidad',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.numeroIncapacidad),
+  },
+  {
+    clave: 'ipsNombre',
+    etiqueta: 'Nombre IPS',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.ipsNombre),
+  },
+  {
+    clave: 'recibidoPor',
+    etiqueta: 'Usuario que radica',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.recibidoPor ?? f.creadoPor),
+  },
+  {
+    clave: 'centroCosto',
+    etiqueta: 'Centro de costo',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => texto(f.centroCosto),
+  },
+  {
+    clave: 'afp',
+    etiqueta: 'AFP',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => texto(f.afp),
+  },
+  {
+    clave: 'estado',
+    etiqueta: 'Estado',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f, e) => e.estado(f.estado),
+  },
+  {
+    clave: 'responsablePago',
+    etiqueta: 'Responsable de pago',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f, e) => e.responsablePago(f.responsablePago),
+  },
   {
     clave: 'diasEmpresa',
     etiqueta: 'Dias empresa',
     enTabla: true,
+    enConsolidado: true,
     obtener: (f) => numero(f.diasEmpresa),
   },
   {
     clave: 'diasEntidad',
     etiqueta: 'Dias entidad',
     enTabla: true,
+    enConsolidado: true,
     obtener: (f) => numero(f.diasEntidad),
   },
-  { clave: 'eps', etiqueta: 'EPS', enTabla: true, obtener: (f) => texto(f.eps) },
-  { clave: 'afp', etiqueta: 'Fondo de pension (AFP)', enTabla: false, obtener: (f) => texto(f.afp) },
   {
-    clave: 'responsablePago',
-    etiqueta: 'Responsable de pago',
-    enTabla: true,
-    obtener: (f, e) => e.responsablePago(f.responsablePago),
+    clave: 'tieneTraslape',
+    etiqueta: 'Traslape',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => siNo(f.tieneTraslape),
   },
   {
-    clave: 'estado',
-    etiqueta: 'Estado',
-    enTabla: true,
-    obtener: (f, e) => e.estado(f.estado),
+    clave: 'estaPrescrita',
+    etiqueta: 'Prescrita',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) => siNo(f.estaPrescrita),
   },
   {
-    clave: 'estadoDocumento',
-    etiqueta: 'Estado del documento',
-    enTabla: true,
-    obtener: (f, e) => e.estadoDocumento(f.estadoDocumento),
+    clave: 'tieneSoportes',
+    etiqueta: 'Tiene soportes',
+    enTabla: false,
+    enConsolidado: true,
+    obtener: (f) =>
+      siNo(
+        f.tieneSoportes ??
+          (typeof f.soportesAdjuntos === 'number' ? f.soportesAdjuntos > 0 : null),
+      ),
   },
+  {
+    clave: 'fechaRadicado',
+    etiqueta: 'Fecha radicado',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => fechaLegible(f.fechaRadicado),
+  },
+  {
+    clave: 'numeroRadicado',
+    etiqueta: 'Numero radicado',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => texto(f.numeroRadicado),
+  },
+  {
+    clave: 'dondeRadicado',
+    etiqueta: 'Donde se radico',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => texto(f.dondeRadicadoEtiqueta ?? f.dondeRadicado),
+  },
+  {
+    clave: 'radicadoPor',
+    etiqueta: 'Radicado por',
+    enTabla: true,
+    enConsolidado: true,
+    obtener: (f) => texto(f.radicadoPor),
+  },
+  // ── Extras fuera del consolidado oficial (se marcan a mano si se quieren) ──
+  { clave: 'temporal', etiqueta: 'Temporal', enTabla: false, obtener: (f) => texto(f.temporal) },
   {
     clave: 'soportes',
-    etiqueta: 'Soportes',
+    etiqueta: 'Soportes (n/m)',
     enTabla: true,
     obtener: (f) => indicadorSoportes(f),
-  },
-  {
-    clave: 'esProrroga',
-    etiqueta: 'Es prorroga',
-    enTabla: false,
-    obtener: (f) => (f.esProrroga === true ? 'Si' : f.esProrroga === false ? 'No' : ''),
-  },
-  {
-    clave: 'numeroContrato',
-    etiqueta: 'Numero de contrato',
-    enTabla: false,
-    obtener: (f) => texto(f.numeroContrato),
   },
   {
     clave: 'creadoPor',
@@ -213,60 +438,20 @@ export const COLUMNAS_EXPORTABLES: readonly ColumnaExportable[] = [
     obtener: (f) => texto(f.creadoPor),
   },
   {
-    clave: 'creadoEn',
-    etiqueta: 'Fecha de registro',
-    enTabla: true,
-    obtener: (f) => fechaHoraLegible(f.creadoEn),
-  },
-  {
     clave: 'actualizadoEn',
     etiqueta: 'Ultima modificacion',
     enTabla: false,
     obtener: (f) => fechaHoraLegible(f.actualizadoEn),
   },
-  // ── Radicacion (V44) ────────────────────────────────────────────────
-  {
-    clave: 'numeroRadicado',
-    etiqueta: 'Numero de radicado',
-    enTabla: true,
-    obtener: (f) => texto(f.numeroRadicado),
-  },
-  {
-    clave: 'fechaRadicado',
-    etiqueta: 'Fecha de radicado',
-    enTabla: true,
-    obtener: (f) => fechaLegible(f.fechaRadicado),
-  },
-  {
-    clave: 'semanaRadicacion',
-    etiqueta: 'Semana de radicacion',
-    enTabla: true,
-    obtener: (f) => numero(f.semanaRadicacion),
-  },
-  {
-    clave: 'entidadGrupo',
-    etiqueta: 'Entidad (carpeta)',
-    enTabla: true,
-    obtener: (f) => texto(f.entidadGrupoEtiqueta ?? f.entidadGrupo),
-  },
-  {
-    clave: 'dondeRadicado',
-    etiqueta: 'Donde se radico',
-    enTabla: true,
-    obtener: (f) => texto(f.dondeRadicadoEtiqueta ?? f.dondeRadicado),
-  },
-  {
-    clave: 'radicadoPor',
-    etiqueta: 'Radicado por',
-    enTabla: true,
-    obtener: (f) => texto(f.radicadoPor),
-  },
   { clave: 'id', etiqueta: 'Id interno', enTabla: false, obtener: (f) => numero(f.id) },
 ];
 
-/** Claves marcadas por defecto al abrir el dialogo (las que se ven en la tabla). */
+/**
+ * Claves marcadas por defecto al abrir el dialogo: el consolidado oficial COMPLETO
+ * (reunion 2026-08-20), no solo lo visible en la tabla.
+ */
 export const CLAVES_EXPORTACION_POR_DEFECTO: readonly string[] = COLUMNAS_EXPORTABLES.filter(
-  (c) => c.enTabla,
+  (c) => c.enConsolidado,
 ).map((c) => c.clave);
 
 /** Busca una columna por su clave. */

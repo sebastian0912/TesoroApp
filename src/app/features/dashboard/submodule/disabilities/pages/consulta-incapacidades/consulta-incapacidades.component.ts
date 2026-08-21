@@ -1221,9 +1221,9 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
 
     return {
       id: r.id,
-      // El backend v2 serializa `codigoUnico`; `consecutivoSistema` era el nombre
-      // especulativo del contrato viejo y se conserva como respaldo.
-      consecutivoSistema: textoOVacio(r.consecutivoSistema ?? r.codigoUnico),
+      // V47: el codigo visible de cartera ({AP|TA}{SEDE}{n}, ej. TASB018) manda; las
+      // historicas sin codigo caen al codigoUnico tecnico (cedula_fecha).
+      consecutivoSistema: textoOVacio(r.codigoConsecutivo ?? r.consecutivoSistema ?? r.codigoUnico),
       cedula: textoOVacio(r.cedula),
       nombreCompleto: textoOVacio(r.nombreCompleto),
       empresa: textoOVacio(r.empresa),

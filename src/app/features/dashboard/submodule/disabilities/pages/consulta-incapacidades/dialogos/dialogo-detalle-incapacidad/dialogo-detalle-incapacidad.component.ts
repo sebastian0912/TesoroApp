@@ -159,7 +159,14 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
 
   readonly consecutivo = computed(() => {
     const d = this.detalle();
-    return d?.codigoUnico || this.datos.resumen?.consecutivoSistema || `#${this.datos.id}`;
+    // V47: manda el codigo visible de cartera (TASB018); lo demas es respaldo.
+    return (
+      d?.codigoConsecutivo ||
+      this.datos.resumen?.codigoConsecutivo ||
+      d?.codigoUnico ||
+      this.datos.resumen?.consecutivoSistema ||
+      `#${this.datos.id}`
+    );
   });
 
   readonly nombreTrabajador = computed(() => {

@@ -173,6 +173,7 @@ export const ICONO_SOPORTE: Readonly<Record<TipoSoporte, string>> = {
   REGISTRO_NACIDO_VIVO: 'child_care',
   FURAT: 'engineering',
   FURIPS: 'directions_car',
+  SOAT: 'car_crash',
   FORMULARIO_SALUD_TOTAL: 'assignment',
 };
 

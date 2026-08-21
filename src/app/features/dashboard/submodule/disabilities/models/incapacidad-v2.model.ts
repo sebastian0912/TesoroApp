@@ -85,8 +85,8 @@ export type ResponsablePago =
 
 /**
  * Espeja `domain/TipoSoporte.java`.
- * OJO: `SOAT` existe en `DocumentTypeCodes` (legacy Django) pero NO es un
- * `TipoSoporte` de la v2, por eso no aparece aqui.
+ * Reunion 2026-08-20: `SOAT` entro a la v2 como soporte propio del accidente de
+ * transito (incapacidad + historia clinica + SOAT + FURIPS).
  */
 export type TipoSoporte =
   | 'INCAPACIDAD_MEDICA'
@@ -95,6 +95,7 @@ export type TipoSoporte =
   | 'REGISTRO_NACIDO_VIVO'
   | 'FURAT'
   | 'FURIPS'
+  | 'SOAT'
   | 'FORMULARIO_SALUD_TOTAL';
 
 /**
@@ -297,6 +298,8 @@ export interface CrearIncapacidadV2Request {
 
   // ── Gestion documental ──────────────────────────────────────────────
   estadoDocumento: EstadoDocumento;
+  /** Reunion 2026-08-20: si el soporte ya viene transcrito por la IPS. null = sin marcar. */
+  transcrita?: boolean | null;
   soportesCargados?: TipoSoporte[];
   observaciones?: string;
 
@@ -372,6 +375,10 @@ export interface IncapacidadV2 {
   id: number;
   /** Clave de negocio: cedula + '_' + fechaInicio(yyyyMMdd). El backend NO devuelve `consecutivoSistema`. */
   codigoUnico?: string;
+  /** Codigo VISIBLE de cartera (V47): {AP|TA}{SEDE}{n}, ej. TASB018. Null en historicas. */
+  codigoConsecutivo?: string | null;
+  /** Sigla de la sede (MD, RS, FAP, TC, SB...). */
+  codigoSede?: string | null;
 
   // ── Trabajador ──────────────────────────────────────────────────────
   cedula?: string;
@@ -433,6 +440,8 @@ export interface IncapacidadV2 {
   estadoEtiqueta?: string;
   estadoDocumento?: EstadoDocumento;
   estadoDocumentoEtiqueta?: string;
+  /** Reunion 2026-08-20: si el soporte ya viene transcrito por la IPS. null = sin marcar. */
+  transcrita?: boolean | null;
   observaciones?: string;
   /**
    * SOLO LECTURA: desde la v2 de soportes esta lista la manda el SERVIDOR, que
@@ -465,10 +474,21 @@ export interface IncapacidadResumen {
   id: number;
   /** Lo que el backend v2 REALMENTE serializa como identificador de negocio. */
   codigoUnico?: string;
+  /** Codigo VISIBLE de cartera (V47): {AP|TA}{SEDE}{n}, ej. TASB018. Null en historicas. */
+  codigoConsecutivo?: string | null;
+  /** Sigla de la sede (MD, RS, FAP, TC, SB...). */
+  codigoSede?: string | null;
   /** Nombre del contrato viejo; el backend v2 no lo envia (se cae a codigoUnico). */
   consecutivoSistema?: string;
   cedula: string;
+  tipoDocumento?: string | null;
+  /** APELLIDOS primero (reunion 2026-08-20). */
   nombreCompleto: string;
+  edad?: number | null;
+  sexo?: string | null;
+  fechaIngreso?: string | null;
+  celular?: string | null;
+  correo?: string | null;
   tipoIncapacidad: TipoIncapacidad;
   /** `yyyy-MM-dd`. */
   fechaInicio: string;
@@ -477,13 +497,22 @@ export interface IncapacidadResumen {
   dias: number;
   estado: EstadoIncapacidad;
   estadoDocumento: EstadoDocumento;
+  /** Reunion 2026-08-20: marcada por el usuario; null = sin marcar. */
+  transcrita?: boolean | null;
   responsablePago: ResponsablePago;
   eps: string;
   empresa?: string;
   centroCosto?: string;
   oficina?: string;
   codigoDiagnostico?: string;
+  descripcionDiagnostico?: string | null;
+  numeroIncapacidad?: string | null;
+  ipsNombre?: string | null;
+  recibidoPor?: string | null;
   esProrroga?: boolean;
+  tieneTraslape?: boolean;
+  estaPrescrita?: boolean;
+  tieneSoportes?: boolean;
   /** Para pintar el punto rojo/amarillo en la fila. */
   nivelAlertaMaximo?: NivelAlerta | null;
   creadoEn?: string;

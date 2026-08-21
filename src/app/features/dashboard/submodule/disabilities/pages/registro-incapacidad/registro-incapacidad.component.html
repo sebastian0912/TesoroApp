@@ -897,6 +897,18 @@
                   }
                 </mat-form-field>
 
+                <!-- 13b. Transcrita (reunion 2026-08-20): la marca quien recibe el soporte -->
+                <mat-form-field appearance="outline" class="reg-campo">
+                  <mat-label>¿Incapacidad transcrita?</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">history_edu</mat-icon>
+                  <mat-select formControlName="transcrita">
+                    <mat-option [value]="null">Sin marcar</mat-option>
+                    <mat-option [value]="true">Si, ya viene transcrita</mat-option>
+                    <mat-option [value]="false">No esta transcrita</mat-option>
+                  </mat-select>
+                  <mat-hint>Se ve directamente en el soporte al recibirlo</mat-hint>
+                </mat-form-field>
+
                 <!-- 14. A quien corresponde el pago: CALCULADO -->
                 <div class="reg-calculado reg-calculado--linea">
                   <div class="reg-calculado-cabecera">
@@ -984,6 +996,39 @@
                           {{ sop.obligatorio ? 'Obligatorio' : 'Opcional' }}
                         </span>
                       </header>
+
+                      @if (esFormularioSaludTotal(sop.tipo)) {
+                        <!-- Reunion 2026-08-20: nadie en las oficinas sabia CUAL era el
+                             formulario de Salud Total. Aqui esta el formato oficial, con
+                             diligenciamiento guiado que lo deja adjunto automaticamente. -->
+                        <div class="reg-salud-total">
+                          <p class="reg-salud-total-texto">
+                            Es el <strong>Formato para descarte de evento laboral</strong>
+                            (M-GINT-F103) que exige Salud Total. Diligencialo aqui mismo y
+                            queda adjunto, o descargalo, llenalo y subelo como archivo.
+                          </p>
+                          <div class="reg-salud-total-acciones">
+                            <button
+                              mat-flat-button
+                              color="primary"
+                              type="button"
+                              (click)="abrirFormularioSaludTotal()"
+                            >
+                              <mat-icon aria-hidden="true">edit_document</mat-icon>
+                              Diligenciar en linea
+                            </button>
+                            <a
+                              mat-stroked-button
+                              [href]="urlFormatoSaludTotal"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <mat-icon aria-hidden="true">open_in_new</mat-icon>
+                              Ver formato oficial
+                            </a>
+                          </div>
+                        </div>
+                      }
 
                       @if (sop.archivo; as arch) {
                         <div class="reg-archivo">
@@ -1390,6 +1435,33 @@
   </mat-dialog-content>
   <mat-dialog-actions align="end">
     <button mat-flat-button mat-dialog-close>Entendido</button>
+  </mat-dialog-actions>
+</ng-template>
+
+<!-- ── Dialogo: aviso prominente cuando el motor dice NO PAGAR ─────────
+     Reunion 2026-08-20: "no creo que se pongan a leer el panel de arriba;
+     toca que la alerta salga al momento de guardar". ─────────────────── -->
+<ng-template #plantillaNoPagar>
+  <h2 mat-dialog-title class="reg-dialogo-titulo reg-dialogo-titulo--critico">
+    <mat-icon aria-hidden="true">report</mat-icon>
+    Esta incapacidad NO se paga
+  </h2>
+  <mat-dialog-content>
+    <ul class="reg-lista reg-lista--dialogo">
+      @for (motivo of motivosNoPagar(); track motivo) {
+        <li>{{ motivo }}</li>
+      }
+    </ul>
+    <p class="reg-dialogo-nota">
+      Puedes registrarla de todas formas (queda en el historico con su motivo), pero
+      informa al trabajador que el pago no procede.
+    </p>
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-stroked-button [mat-dialog-close]="false">Volver a revisar</button>
+    <button mat-flat-button class="reg-btn--peligro" [mat-dialog-close]="true">
+      Registrar igualmente
+    </button>
   </mat-dialog-actions>
 </ng-template>
 

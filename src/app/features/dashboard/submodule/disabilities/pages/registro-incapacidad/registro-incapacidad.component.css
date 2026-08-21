@@ -55,7 +55,12 @@
   border: 1px solid var(--disab-border);
   box-shadow: var(--disab-shadow-md) !important;
   background: var(--disab-surface);
-  overflow: hidden;
+  /* `visible` y NO `hidden`: cualquier overflow != visible entre el panel de
+     validacion y el contenedor de scroll crea un clipping box y el
+     `position: sticky` del panel queda anclado a la tarjeta en vez de al
+     scroll — el panel "se quedaba arriba" (reunion 2026-08-20). Las esquinas
+     redondeadas del hero se conservan con su propio border-radius. */
+  overflow: visible;
   padding: 0 !important;
 }
 
@@ -74,6 +79,9 @@
   /* Recorta SOLO el ::before decorativo, nunca el texto: el contenido real va en
      .disab-hero-texts con z-index 1 y sin restriccion de alto. */
   overflow: hidden;
+  /* La tarjeta ya no recorta (overflow visible por el sticky del panel): las
+     esquinas superiores redondeadas ahora las pone el propio hero. */
+  border-radius: var(--disab-radius) var(--disab-radius) 0 0;
 }
 
 .disab-hero::before {
@@ -220,7 +228,12 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 24px;
-  align-items: start;
+  /* stretch (el default) y NO `start`: con `start` el <aside> colapsa a la altura
+     de su contenido y el hijo `position: sticky` no tiene recorrido para pegarse
+     — que es exactamente el "se queda arriba" que reporto la funcional (reunion
+     2026-08-20). Con el aside estirado a la fila completa, .reg-panel-sticky
+     acompana el scroll y las alertas se ven TODO el tiempo. */
+  align-items: stretch;
 }
 
 .reg-principal {
@@ -713,6 +726,8 @@
 
 .reg-panel {
   min-width: 0;
+  /* Sin altura propia: el grid lo estira a la fila y el sticky interno viaja. */
+  align-self: stretch;
 }
 
 .reg-panel-sticky {
@@ -1094,6 +1109,35 @@
   color: var(--disab-text-muted);
 }
 
+/* Formulario Salud Total (reunion 2026-08-20): tarjeta guiada ----- */
+.reg-salud-total {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--disab-radius-sm);
+  border: 1px dashed var(--disab-primary);
+  background: var(--disab-primary-light);
+}
+
+.reg-salud-total-texto {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--disab-text);
+}
+
+.reg-salud-total-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reg-salud-total-acciones a,
+.reg-salud-total-acciones button {
+  font-size: 12.5px;
+}
+
 /* Archivo elegido ------------------------------------------ */
 .reg-archivo {
   display: grid;
@@ -1437,6 +1481,11 @@
 
 .reg-dialogo-titulo mat-icon {
   color: var(--disab-danger, #d32f2f);
+}
+
+/* Aviso prominente de NO PAGAR (reunion 2026-08-20). */
+.reg-dialogo-titulo--critico {
+  color: var(--disab-danger, #d32f2f) !important;
 }
 
 .reg-dialogo-texto {

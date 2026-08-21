@@ -20,6 +20,8 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { of } from 'rxjs';
 
 import { RegistroIncapacidadComponent } from './registro-incapacidad.component';
 import {
@@ -952,10 +954,22 @@ describe('RegistroIncapacidadComponent', () => {
     }));
 
     it('un segundo guardado ACTUALIZA y no crea un duplicado', fakeAsync(() => {
+      elegirPdf('INCAPACIDAD_MEDICA');
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(validacionBase());
+      }
+
       comp.guardar(false);
       http
         .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
         .flush({ id: 55, consecutivoSistema: 'INC-55' });
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2/55/soportes'))
+        .flush(soporteSubido('INCAPACIDAD_MEDICA'), { status: 201, statusText: 'Created' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'))
+        .flush({ id: 55, soportesCargados: ['INCAPACIDAD_MEDICA'] });
       expect(comp.idEfectivo()).toBe(55);
       expect(comp.etiquetaGuardar()).toBe('Guardar cambios');
 
@@ -963,15 +977,34 @@ describe('RegistroIncapacidadComponent', () => {
       const segunda = http.expectOne((r) => r.url.endsWith('/Incapacidades/v2/55'));
       expect(segunda.request.method).toBe('PUT');
       segunda.flush({ id: 55, consecutivoSistema: 'INC-55' });
+      // El archivo local sigue elegido: se re-sube (reemplaza) y se relee.
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2/55/soportes'))
+        .flush(soporteSubido('INCAPACIDAD_MEDICA'), { status: 201, statusText: 'Created' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'))
+        .flush({ id: 55, soportesCargados: ['INCAPACIDAD_MEDICA'] });
       flush();
     }));
 
     it('traduce el 409 de la promocion a motivos y deja la incapacidad en RECIBIDA', fakeAsync(() => {
+      elegirPdf('INCAPACIDAD_MEDICA');
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(validacionBase());
+      }
+
       comp.guardar(true);
 
       http
         .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
         .flush({ id: 77, consecutivoSistema: 'INC-77' });
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2/77/soportes'))
+        .flush(soporteSubido('INCAPACIDAD_MEDICA'), { status: 201, statusText: 'Created' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/77'))
+        .flush({ id: 77, soportesCargados: ['INCAPACIDAD_MEDICA'] });
 
       http
         .expectOne((r) => r.url.endsWith('/Incapacidades/v2/77/validar'))
@@ -979,6 +1012,106 @@ describe('RegistroIncapacidadComponent', () => {
 
       expect(comp.resultado()?.validada).toBe(false);
       expect(comp.motivosDialogo()).toEqual(['Falta el FURAT']);
+      flush();
+    }));
+
+    // ── Reunion 2026-08-20: minimo de soportes para RECIBIR ─────────────
+
+    it('sin el soporte de la incapacidad NO se guarda: mensaje claro y cero peticiones', fakeAsync(() => {
+      comp.guardar(false);
+
+      http.expectNone((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'));
+      expect(comp.errorGuardado()).toContain('Incapacidad');
+      expect(comp.soportesBloqueantesGuardar()).toContain('Incapacidad');
+      flush();
+    }));
+
+  });
+
+  // ── Reunion 2026-08-20: aviso prominente cuando el motor dice NO PAGAR ──
+
+  describe('aviso NO PAGAR al guardar', () => {
+    beforeEach(fakeAsync(() => {
+      resolverCargaInicial();
+      seleccionarEmpleado();
+      completarIncapacidad();
+      tick(400);
+      // La validacion en vivo dice NO PAGAR desde el arranque de este escenario.
+      http.expectOne((r) => r.url.endsWith('/Incapacidades/v2/validar')).flush(
+        validacionBase({
+          responsablePago: 'NO_PAGAR',
+          cumpleCotizacion: false,
+          alertas: [
+            {
+              nivel: 'CRITICA',
+              codigo: 'NO_CUMPLE_COTIZACION',
+              mensaje: 'No cumple el tiempo minimo de cotizacion: no se paga.',
+            },
+          ],
+        }),
+      );
+      flush();
+    }));
+
+    it('abre el aviso con el motivo critico y solo guarda si el usuario confirma', fakeAsync(() => {
+      elegirPdf('INCAPACIDAD_MEDICA');
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(
+          validacionBase({
+            responsablePago: 'NO_PAGAR',
+            cumpleCotizacion: false,
+            alertas: [
+              {
+                nivel: 'CRITICA',
+                codigo: 'NO_CUMPLE_COTIZACION',
+                mensaje: 'No cumple el tiempo minimo de cotizacion: no se paga.',
+              },
+            ],
+          }),
+        );
+      }
+
+      expect(comp.motivosNoPagar()).toEqual([
+        'No cumple el tiempo minimo de cotizacion: no se paga.',
+      ]);
+
+      // El dialogo se confirma: el guardado debe continuar.
+      const dialogo = comp['dialogo'] as MatDialog;
+      const abrir = spyOn(dialogo, 'open').and.returnValue({
+        afterClosed: () => of(true),
+      } as unknown as ReturnType<MatDialog['open']>);
+
+      comp.guardar(false);
+
+      expect(abrir).toHaveBeenCalled();
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
+        .flush({ id: 91, consecutivoSistema: 'INC-91' });
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2/91/soportes'))
+        .flush(soporteSubido('INCAPACIDAD_MEDICA'), { status: 201, statusText: 'Created' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/91'))
+        .flush({ id: 91, soportesCargados: ['INCAPACIDAD_MEDICA'] });
+      flush();
+    }));
+
+    it('si el usuario cancela el aviso, no se envia nada', fakeAsync(() => {
+      elegirPdf('INCAPACIDAD_MEDICA');
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(validacionBase({ responsablePago: 'NO_PAGAR', cumpleCotizacion: false }));
+      }
+
+      const dialogo = comp['dialogo'] as MatDialog;
+      spyOn(dialogo, 'open').and.returnValue({
+        afterClosed: () => of(false),
+      } as unknown as ReturnType<MatDialog['open']>);
+
+      comp.guardar(false);
+
+      http.expectNone((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'));
       flush();
     }));
   });

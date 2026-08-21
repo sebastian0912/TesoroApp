@@ -753,8 +753,8 @@ describe('exportacion de incapacidades', () => {
 
   it('formatea las fechas como dd/MM/yyyy sin correr el dia', () => {
     const filas = construirFilasExportacion([FILA_A], ['fechaInicio', 'fechaFin'], ETIQUETAS);
-    expect(filas[0]['Fecha de inicio']).toBe('31/01/2026');
-    expect(filas[0]['Fecha de fin']).toBe('04/02/2026');
+    expect(filas[0]['Fecha inicio']).toBe('31/01/2026');
+    expect(filas[0]['Fecha fin']).toBe('04/02/2026');
   });
 
   it('deja vacios los numeros que el backend no envio, sin inventar ceros', () => {
@@ -765,11 +765,35 @@ describe('exportacion de incapacidades', () => {
     expect(filas[0]['Dias']).toBe(5);
   });
 
-  it('las columnas por defecto son las que se ven en la tabla', () => {
+  it('las columnas por defecto son las 42 del consolidado oficial (reunion 2026-08-20)', () => {
+    expect(CLAVES_EXPORTACION_POR_DEFECTO.length).toBe(42);
     expect(CLAVES_EXPORTACION_POR_DEFECTO).toContain('cedula');
     expect(CLAVES_EXPORTACION_POR_DEFECTO).toContain('estado');
+    expect(CLAVES_EXPORTACION_POR_DEFECTO).toContain('codigoSede');
+    expect(CLAVES_EXPORTACION_POR_DEFECTO).toContain('transcrita');
     expect(CLAVES_EXPORTACION_POR_DEFECTO).not.toContain('id');
     expect(CLAVES_EXPORTACION_POR_DEFECTO.length).toBeLessThan(COLUMNAS_EXPORTABLES.length);
+  });
+
+  it('el consolidado arranca con Semana, Lugar radicado, Codigo unico y Codigo sede, en ese orden', () => {
+    const cabeceras = cabecerasExportacion(CLAVES_EXPORTACION_POR_DEFECTO);
+    expect(cabeceras.slice(0, 6)).toEqual([
+      'Semana',
+      'Lugar radicado',
+      'Codigo unico',
+      'Codigo sede',
+      'Numero contrato',
+      'Empleador',
+    ]);
+    expect(cabeceras[cabeceras.length - 1]).toBe('Radicado por');
+  });
+
+  it('la columna Codigo unico prefiere el codigo consecutivo de cartera (TASB018)', () => {
+    const conCodigo: IncapacidadResumenExtendido = { ...FILA_A, codigoConsecutivo: 'TASB018' };
+    const filas = construirFilasExportacion([conCodigo, FILA_A], ['consecutivoSistema'], ETIQUETAS);
+    expect(filas[0]['Codigo unico']).toBe('TASB018');
+    // Sin codigo de cartera (historicas) cae al codigo tecnico.
+    expect(String(filas[1]['Codigo unico']).length).toBeGreaterThan(0);
   });
 
   it('el CSV usa punto y coma y escapa lo que haga falta', () => {
@@ -782,7 +806,7 @@ describe('exportacion de incapacidades', () => {
     const csv = construirCsv(filas, cabecerasExportacion(claves));
     const lineas = csv.split('\r\n');
 
-    expect(lineas[0]).toBe('Cedula;Nombre del trabajador');
+    expect(lineas[0]).toBe('Cedula;Nombre completo');
     expect(lineas[1]).toBe('1005851505;"PEREZ; ANA ""LA JEFA"""');
   });
 

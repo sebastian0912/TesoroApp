@@ -79,6 +79,10 @@ import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
 import { IncapacidadService } from '../../services/incapacidad/incapacidad.service';
 import { IncapacidadV2Service } from '../../services/incapacidad-v2/incapacidad-v2.service';
 import {
+  DatosFormularioSaludTotal,
+  DialogoFormularioSaludTotalComponent,
+} from './dialogos/dialogo-formulario-salud-total/dialogo-formulario-salud-total.component';
+import {
   ARL_POR_DEFECTO,
   AlertaValidacion,
   CodigoDiagnostico,
@@ -116,6 +120,7 @@ const ORDEN_SOPORTES: readonly TipoSoporte[] = [
   'REGISTRO_NACIDO_VIVO',
   'FURAT',
   'FURIPS',
+  'SOAT',
   'FORMULARIO_SALUD_TOTAL',
 ] as const;
 
@@ -127,6 +132,7 @@ const ICONO_SOPORTE: Readonly<Record<TipoSoporte, string>> = {
   REGISTRO_NACIDO_VIVO: 'child_care',
   FURAT: 'report',
   FURIPS: 'local_hospital',
+  SOAT: 'directions_car',
   FORMULARIO_SALUD_TOTAL: 'assignment',
 };
 
@@ -138,8 +144,17 @@ const ETIQUETA_SOPORTE: Readonly<Record<TipoSoporte, string>> = {
   REGISTRO_NACIDO_VIVO: 'Registro de nacido vivo',
   FURAT: 'FURAT',
   FURIPS: 'FURIPS',
+  SOAT: 'SOAT',
   FORMULARIO_SALUD_TOTAL: 'Formulario Salud Total',
 };
+
+/**
+ * Formato oficial de Salud Total ("Formato para descarte de evento laboral", M-GINT-F103):
+ * es el que hay que diligenciar y subir como soporte cuando la EPS es Salud Total y el tipo
+ * es enfermedad general. Se enlaza para que ninguna oficina tenga que adivinar cual es.
+ */
+export const URL_FORMATO_SALUD_TOTAL =
+  'https://saludtotal.com.co/wp-content/uploads/2025/05/M-GINT-F103-FORMATO-PARA-DESCARTE-DE-EVENTO-LABORAL.pdf';
 
 /** Icono por nivel de alerta. */
 const ICONO_ALERTA: Readonly<Record<string, string>> = {
@@ -315,6 +330,9 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   private readonly plantillaBloqueo = viewChild.required<TemplateRef<unknown>>('plantillaBloqueo');
   private readonly plantillaConfirmar =
     viewChild.required<TemplateRef<unknown>>('plantillaConfirmar');
+  /** Aviso PROMINENTE al guardar cuando el motor dice NO PAGAR (reunion 2026-08-20). */
+  private readonly plantillaNoPagar =
+    viewChild.required<TemplateRef<unknown>>('plantillaNoPagar');
 
   // ── Usuario logueado (Oficina y "quien recibe") ───────────────────────
   /**
@@ -401,6 +419,9 @@ export class RegistroIncapacidadComponent implements OnDestroy {
         // cuanto llega, pero arranca poblado para que la validacion en vivo
         // pueda dispararse desde el primer momento.
         estadoDocumento: new FormControl<EstadoDocumento>('OK', { nonNullable: true }),
+        // Reunion 2026-08-20: quien recibe marca si el soporte ya viene transcrito
+        // por la IPS. null = sin marcar (no se asume ni Si ni No).
+        transcrita: new FormControl<boolean | null>(null),
         observaciones: new FormControl('', { nonNullable: true }),
       },
       { validators: [rangoFechasValido] },
@@ -716,6 +737,49 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     return this.soportesVisibles()
       .filter((s) => s.obligatorio && !cargados.has(s.tipo))
       .map((s) => s.etiqueta || ETIQUETA_SOPORTE[s.tipo]);
+  });
+
+  /**
+   * Soportes SIN los cuales ni siquiera se puede GUARDAR (reunion 2026-08-20):
+   *  - la incapacidad medica, siempre ("se debe al menos subir el soporte de la
+   *    incapacidad; el resto se puede completar despues editando"), y
+   *  - el formulario de Salud Total cuando el backend lo exige (EPS Salud Total +
+   *    enfermedad general): "se lo estamos dando, no tiene excusa para no subirlo".
+   * Los demas obligatorios solo bloquean el paso a VALIDADA, no el guardado.
+   */
+  readonly soportesBloqueantesGuardar = computed<string[]>(() => {
+    const cargados = new Set(this.tiposCargados());
+    const bloqueantes: string[] = [];
+    if (!cargados.has('INCAPACIDAD_MEDICA')) {
+      bloqueantes.push(ETIQUETA_SOPORTE['INCAPACIDAD_MEDICA']);
+    }
+    const saludTotal = this.soportesVisibles().find(
+      (s) => s.tipo === 'FORMULARIO_SALUD_TOTAL' && s.obligatorio,
+    );
+    if (saludTotal && !cargados.has('FORMULARIO_SALUD_TOTAL')) {
+      bloqueantes.push(saludTotal.etiqueta || ETIQUETA_SOPORTE['FORMULARIO_SALUD_TOTAL']);
+    }
+    return bloqueantes;
+  });
+
+  /** true cuando el soporte visible es el formulario de Salud Total (tarjeta especial). */
+  esFormularioSaludTotal(tipo: TipoSoporte): boolean {
+    return tipo === 'FORMULARIO_SALUD_TOTAL';
+  }
+
+  /** Link del formato oficial, expuesto a la plantilla. */
+  readonly urlFormatoSaludTotal = URL_FORMATO_SALUD_TOTAL;
+
+  /** Alertas criticas del motor, para el aviso prominente de NO PAGAR al guardar. */
+  readonly motivosNoPagar = computed<string[]>(() => {
+    const v = this.validacion();
+    if (!v || v.responsablePago !== 'NO_PAGAR') return [];
+    const criticas = (v.alertas ?? [])
+      .filter((a) => a.nivel === 'CRITICA')
+      .map((a) => a.mensaje);
+    return criticas.length
+      ? criticas
+      : ['El motor de reglas determino que esta incapacidad NO se paga.'];
   });
 
   // ── Que falta para poder guardar ──────────────────────────────────────
@@ -1123,6 +1187,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       nombreIps: (inc.ipsNombre ?? '').trim(),
       numeroIncapacidad: (inc.numeroIncapacidad ?? '').trim(),
       estadoDocumento: inc.estadoDocumento,
+      transcrita: inc.transcrita ?? null,
       observaciones: (inc.observaciones ?? '').trim(),
     });
 
@@ -1468,6 +1533,36 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     });
   }
 
+  /**
+   * Abre el diligenciamiento EN LINEA del formato de Salud Total con los datos del
+   * trabajador prellenados; al cerrar con exito, el PDF diligenciado queda adjunto
+   * como soporte FORMULARIO_SALUD_TOTAL (pendiente de subir, igual que un archivo
+   * elegido a mano).
+   */
+  abrirFormularioSaludTotal(): void {
+    const p = this.form.controls.personal.getRawValue();
+    const o = this.form.controls.oficina.getRawValue();
+    const datos: DatosFormularioSaludTotal = {
+      nombres: [p.primerNombre, p.segundoNombre].filter(Boolean).join(' ').trim(),
+      apellidos: [p.primerApellido, p.segundoApellido].filter(Boolean).join(' ').trim(),
+      telefono: (p.celular || p.whatsapp || '').trim(),
+      arl: (p.arl || ARL_POR_DEFECTO).trim(),
+      cargo: '',
+      responsable: (o.nombreQuienRecibe || '').trim(),
+      cedula: (p.numeroDocumento || '').trim(),
+    };
+    this.dialogo
+      .open<DialogoFormularioSaludTotalComponent, DatosFormularioSaludTotal, File | undefined>(
+        DialogoFormularioSaludTotalComponent,
+        { width: '640px', maxWidth: '95vw', data: datos, autoFocus: false },
+      )
+      .afterClosed()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((archivo) => {
+        if (archivo) this.registrarArchivo('FORMULARIO_SALUD_TOTAL', archivo);
+      });
+  }
+
   quitarArchivo(tipo: TipoSoporte): void {
     const yaEstabaArriba = this.archivos()[tipo]?.estado === 'cargado';
 
@@ -1575,12 +1670,48 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       return;
     }
 
+    // Reunion 2026-08-20: sin el soporte de la incapacidad (y sin el formulario de
+    // Salud Total cuando aplica) NO se recibe. El resto de documentos si puede
+    // completarse despues editando el registro.
+    const bloqueantes = this.soportesBloqueantesGuardar();
+    if (bloqueantes.length > 0) {
+      this.errorGuardado.set(
+        `Para recibir la incapacidad debes adjuntar: ${bloqueantes.join(' y ')}. ` +
+          'Los demas soportes se pueden completar despues editando el registro.',
+      );
+      this.desplazarASoportes();
+      return;
+    }
+
     const peticion = this.construirRequestCreacion();
     if (!peticion) {
       this.errorGuardado.set('No se pudo armar la incapacidad: revisa los datos del trabajador.');
       return;
     }
 
+    // Reunion 2026-08-20: si el motor dice NO PAGAR (no cumple cotizacion, prescrita,
+    // documento malo), el aviso tiene que saltarle en la cara a quien registra — no
+    // quedarse quieto en el panel lateral. Se puede continuar, pero a sabiendas.
+    if (this.motivosNoPagar().length > 0) {
+      this.dialogo
+        .open(this.plantillaNoPagar(), {
+          width: '540px',
+          panelClass: 'reg-dialogo-panel',
+          autoFocus: false,
+        })
+        .afterClosed()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((continuar) => {
+          if (continuar === true) this.ejecutarGuardado(conValidacion, peticion);
+        });
+      return;
+    }
+
+    this.ejecutarGuardado(conValidacion, peticion);
+  }
+
+  /** El guardado propiamente dicho (tras pasar los chequeos y avisos de `guardar`). */
+  private ejecutarGuardado(conValidacion: boolean, peticion: CrearIncapacidadV2Request): void {
     const id = this.idEfectivo();
     this.guardando.set(true);
     // ORDEN OBLIGATORIO: guardar -> subir soportes (+ relectura) -> promover.
@@ -1770,6 +1901,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       ipsNombre: i.nombreIps.trim(),
 
       estadoDocumento: i.estadoDocumento,
+      transcrita: i.transcrita,
       // Declaracion OPTIMISTA de lo que el usuario acaba de elegir: sirve para
       // que el motor de reglas no marque como faltantes los soportes que estan
       // a punto de subirse. La verdad la fija el servidor, que recalcula
@@ -1855,6 +1987,13 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   private desplazarArriba(): void {
     const raiz = this.host.nativeElement as HTMLElement | null;
     raiz?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** Lleva la vista a la seccion de soportes (cuando falta el documento minimo). */
+  private desplazarASoportes(): void {
+    const raiz = this.host.nativeElement as HTMLElement | null;
+    const seccion = raiz?.querySelector<HTMLElement>('.reg-grid-soportes, .reg-vacio');
+    seccion?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   alternarPanel(): void {
