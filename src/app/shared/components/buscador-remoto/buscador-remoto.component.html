@@ -1,0 +1,104 @@
+<mat-form-field appearance="outline" class="buscador-remoto">
+  <mat-label>{{ etiqueta() }}</mat-label>
+
+  @if (icono()) {
+    <mat-icon matPrefix class="buscador-remoto__icono" aria-hidden="true">{{ icono() }}</mat-icon>
+  }
+
+  <input
+    matInput
+    type="text"
+    autocomplete="off"
+    spellcheck="false"
+    [formControl]="control"
+    [matAutocomplete]="panel"
+    [placeholder]="placeholder()"
+    [required]="requerido()"
+    [attr.aria-label]="etiqueta()"
+    [attr.aria-required]="requerido()"
+    [attr.aria-busy]="cargando()"
+    [attr.aria-describedby]="idAyuda"
+  />
+
+  @if (cargando()) {
+    <mat-spinner
+      matSuffix
+      class="buscador-remoto__spinner"
+      [diameter]="18"
+      [strokeWidth]="2"
+      aria-hidden="true"
+    ></mat-spinner>
+  } @else if (hayTexto() && !deshabilitado()) {
+    <button
+      matSuffix
+      mat-icon-button
+      type="button"
+      class="buscador-remoto__limpiar"
+      aria-label="Limpiar la busqueda"
+      (click)="limpiar()"
+    >
+      <mat-icon aria-hidden="true">close</mat-icon>
+    </button>
+  }
+
+  <!--
+    El mensaje de error va en el hint y NO en <mat-error>: `mat-error` solo
+    se pinta cuando el control esta en errorState (validadores), y aqui el
+    fallo es de red, no de validacion.
+  -->
+  <mat-hint [id]="idAyuda" [class.buscador-remoto__hint--error]="!!error()">
+    {{ error() || ayudaEfectiva() }}
+  </mat-hint>
+</mat-form-field>
+
+<!-- Anuncio para lectores de pantalla: cambia solo cuando cambia el estado. -->
+<span class="buscador-remoto__sr" aria-live="polite" role="status">
+  @if (cargando()) {
+    Buscando...
+  } @else if (error()) {
+    {{ error() }}
+  } @else if (sinResultados()) {
+    Sin resultados para {{ termino() }}
+  } @else if (opcionesVista().length) {
+    {{ opcionesVista().length }} resultados disponibles
+  }
+</span>
+
+<mat-autocomplete
+  #panel="matAutocomplete"
+  class="buscador-remoto__panel"
+  autoActiveFirstOption
+  [displayWith]="mostrarValor"
+  (optionSelected)="alSeleccionar($event)"
+>
+  @if (cargando()) {
+    <mat-option class="buscador-remoto__estado" disabled>
+      <span class="buscador-remoto__estado-texto">Buscando...</span>
+    </mat-option>
+  } @else if (error()) {
+    <mat-option class="buscador-remoto__estado buscador-remoto__estado--error" disabled>
+      <span class="buscador-remoto__estado-texto">{{ error() }}</span>
+    </mat-option>
+  } @else if (sinResultados()) {
+    <mat-option class="buscador-remoto__estado" disabled>
+      <span class="buscador-remoto__estado-texto">Sin resultados para "{{ termino() }}"</span>
+    </mat-option>
+  } @else {
+    @for (opcion of opcionesVista(); track $index) {
+      <mat-option [value]="opcion.item" class="buscador-remoto__opcion">
+        <span class="buscador-remoto__principal">
+          @for (parte of opcion.segmentos; track $index) {
+            @if (parte.resaltado) {
+              <strong class="buscador-remoto__match">{{ parte.texto }}</strong>
+            } @else {
+              <span>{{ parte.texto }}</span>
+            }
+          }
+        </span>
+        @if (opcion.secundario) {
+          <span class="buscador-remoto__secundario">{{ opcion.secundario }}</span>
+        }
+      </mat-option>
+    }
+  }
+</mat-autocomplete>

@@ -1,0 +1,223 @@
+<div class="cmr-hero">
+  <div class="cmr-hero-icono">
+    <mat-icon>upload_file</mat-icon>
+  </div>
+
+  <div class="cmr-hero-textos">
+    <h2 class="cmr-hero-titulo" mat-dialog-title>Carga masiva de radicados</h2>
+    <p class="cmr-hero-sub">Radica en lote los numeros de radicado desde un archivo</p>
+  </div>
+
+  <button
+    type="button"
+    mat-icon-button
+    class="cmr-cerrar"
+    (click)="cerrar()"
+    aria-label="Cerrar"
+    matTooltip="Cerrar"
+  >
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<mat-dialog-content class="cmr-cuerpo">
+
+  <!-- ════════ 1. Como debe venir el archivo ════════ -->
+  <section class="cmr-bloque">
+    <header class="cmr-bloque-cabecera">
+      <span class="cmr-paso">1</span>
+      <h3 class="cmr-bloque-titulo">Prepara el archivo</h3>
+    </header>
+
+    <p class="cmr-nota">
+      El archivo ({{ extensionesTexto }}) debe traer las columnas
+      <strong>Cedula</strong>, <strong>Fecha inicio</strong> (dd/mm/aaaa — junto con la
+      cedula forma el codigo unico de cartera) y <strong>Numero radicado</strong>.
+      Son opcionales <strong>Fecha radicado</strong> y <strong>Donde se radico</strong>
+      (correo | pagina | punto fisico).
+    </p>
+
+    <button
+      type="button"
+      mat-stroked-button
+      class="cmr-btn cmr-btn-plantilla"
+      (click)="descargarPlantilla()"
+      matTooltip="Excel con las cabeceras y una fila de ejemplo"
+    >
+      <mat-icon>download</mat-icon>
+      <span>Descargar plantilla</span>
+    </button>
+  </section>
+
+  <!-- ════════ 2. Archivo ════════ -->
+  <section class="cmr-bloque">
+    <header class="cmr-bloque-cabecera">
+      <span class="cmr-paso">2</span>
+      <h3 class="cmr-bloque-titulo">Elige el archivo</h3>
+    </header>
+
+    <input
+      #inputArchivo
+      type="file"
+      class="cmr-input-oculto"
+      accept=".xlsx,.csv"
+      (change)="alSeleccionarArchivo($event)"
+    />
+
+    <div
+      class="cmr-dropzone"
+      [class.cmr-dropzone-activa]="arrastrando()"
+      (dragover)="alArrastrarEncima($event)"
+      (dragleave)="alSalirArrastre($event)"
+      (drop)="alSoltar($event)"
+      (click)="inputArchivo.click()"
+      role="button"
+      tabindex="0"
+      (keydown.enter)="inputArchivo.click()"
+      aria-label="Elegir archivo de radicados"
+    >
+      @if (archivo()) {
+        <div class="cmr-archivo">
+          <mat-icon class="cmr-archivo-icono">description</mat-icon>
+          <div class="cmr-archivo-textos">
+            <span class="cmr-archivo-nombre">{{ nombreArchivo() }}</span>
+            <span class="cmr-archivo-tamano">{{ tamanoLegible() }}</span>
+          </div>
+          <button
+            type="button"
+            mat-icon-button
+            class="cmr-archivo-quitar"
+            (click)="quitarArchivo(); $event.stopPropagation()"
+            aria-label="Quitar archivo"
+            matTooltip="Quitar archivo"
+          >
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </div>
+      } @else {
+        <mat-icon class="cmr-dropzone-icono">cloud_upload</mat-icon>
+        <p class="cmr-dropzone-texto">
+          Arrastra el archivo aqui o <strong>haz clic para buscarlo</strong>
+        </p>
+        <p class="cmr-dropzone-ayuda">{{ extensionesTexto }} · maximo 5 MB</p>
+      }
+    </div>
+  </section>
+
+  <!-- ════════ Procesando ════════ -->
+  @if (procesando()) {
+    <section class="cmr-progreso" aria-live="polite">
+      <div class="cmr-progreso-texto">
+        <mat-icon class="cmr-progreso-icono">sync</mat-icon>
+        <span>Procesando el archivo fila a fila. No cierres esta ventana.</span>
+      </div>
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    </section>
+  }
+
+  <!-- ════════ Error ════════ -->
+  @if (error()) {
+    <p class="cmr-error-inline" role="alert">
+      <mat-icon>error_outline</mat-icon>
+      {{ error() }}
+    </p>
+  }
+
+  <!-- ════════ 3. Resultado ════════ -->
+  @if (resultado(); as res) {
+    <section class="cmr-bloque">
+      <header class="cmr-bloque-cabecera">
+        <span class="cmr-paso">3</span>
+        <h3 class="cmr-bloque-titulo">Resultado</h3>
+
+        @if (hayFallidos()) {
+          <button
+            type="button"
+            mat-stroked-button
+            class="cmr-btn cmr-btn-fallidos"
+            (click)="exportarFallidos()"
+            matTooltip="Excel con las filas fallidas y su motivo"
+          >
+            <mat-icon>file_download</mat-icon>
+            <span>Exportar fallidos</span>
+          </button>
+        }
+      </header>
+
+      <div class="cmr-contadores">
+        <div class="cmr-contador cmr-contador-total">
+          <span class="cmr-contador-valor">{{ res.total }}</span>
+          <span class="cmr-contador-etiqueta">Total</span>
+        </div>
+        <div class="cmr-contador cmr-contador-exitosos">
+          <span class="cmr-contador-valor">{{ res.exitosos }}</span>
+          <span class="cmr-contador-etiqueta">Exitosos</span>
+        </div>
+        <div class="cmr-contador cmr-contador-fallidos">
+          <span class="cmr-contador-valor">{{ res.fallidos }}</span>
+          <span class="cmr-contador-etiqueta">Fallidos</span>
+        </div>
+      </div>
+
+      <div class="cmr-tabla-envoltura">
+        <table class="cmr-tabla">
+          <thead>
+            <tr>
+              <th class="cmr-col-fila">Fila</th>
+              <th>Cedula</th>
+              <th>Fecha inicio</th>
+              <th>Radicado</th>
+              <th>Resultado</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (fila of res.filas; track fila.fila) {
+              <tr [class.cmr-fila-fallida]="!fila.ok">
+                <td class="cmr-col-fila">{{ fila.fila }}</td>
+                <td>{{ fila.cedula }}</td>
+                <td>{{ fila.fechaInicio }}</td>
+                <td>{{ fila.numeroRadicado }}</td>
+                <td>
+                  <span class="cmr-resultado" [class.cmr-resultado-ok]="fila.ok">
+                    @if (fila.ok) {
+                      <mat-icon class="cmr-icono-ok">check_circle</mat-icon>
+                    } @else {
+                      <mat-icon class="cmr-icono-error">cancel</mat-icon>
+                    }
+                    {{ fila.mensaje }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions class="cmr-acciones">
+  @if (resultado(); as res) {
+    <span class="cmr-resumen">
+      <mat-icon>summarize</mat-icon>
+      {{ res.exitosos }} de {{ res.total }} filas radicadas
+    </span>
+  }
+
+  <span class="cmr-espaciador"></span>
+
+  <button type="button" mat-stroked-button class="cmr-btn" (click)="cerrar()">
+    <span>Cerrar</span>
+  </button>
+
+  <button
+    type="button"
+    mat-flat-button
+    class="cmr-btn cmr-btn-procesar"
+    [disabled]="!puedeProcesar()"
+    (click)="procesar()"
+  >
+    <mat-icon>playlist_add_check</mat-icon>
+    <span>Procesar</span>
+  </button>
+</mat-dialog-actions>

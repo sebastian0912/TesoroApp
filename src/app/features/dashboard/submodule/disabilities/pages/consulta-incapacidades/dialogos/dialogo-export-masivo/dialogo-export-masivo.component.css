@@ -1,0 +1,422 @@
+/* ============================================================
+   DIALOGO: EXPORTACION MASIVA (trabajos asincronos del servidor)
+   ============================================================ */
+
+:host {
+  --disab-primary: #1976d2;
+  --disab-primary-dark: #1565c0;
+  --disab-primary-light: #e3f2fd;
+  --disab-border: rgba(15, 23, 42, 0.08);
+  --disab-text: #1a1a2e;
+  --disab-text-muted: #64748b;
+  --disab-success: #2e7d32;
+  --disab-danger: #c62828;
+  --disab-radius-sm: 10px;
+  --disab-gradient: linear-gradient(135deg, #1976d2 0%, #00acc1 100%);
+  display: block;
+  background: #f7f9fc;
+}
+
+/* ── Cabecera ──────────────────────────────────────────────── */
+.exm-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--disab-gradient);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.exm-hero::before {
+  content: 'cloud_sync';
+  font-family: 'Material Icons';
+  position: absolute;
+  right: -18px;
+  top: -26px;
+  font-size: 140px;
+  color: rgba(255, 255, 255, 0.08);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.exm-hero-icono {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.exm-hero-icono mat-icon {
+  color: #fff;
+  font-size: 26px;
+  width: 26px;
+  height: 26px;
+}
+
+.exm-hero-textos {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.exm-hero-titulo {
+  margin: 0 !important;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.exm-hero-sub {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.exm-cerrar {
+  color: #fff;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Cuerpo ────────────────────────────────────────────────── */
+.exm-cuerpo {
+  padding: 16px 20px 6px !important;
+  max-height: 62vh;
+  background: #f7f9fc;
+}
+
+.exm-bloque {
+  background: #fff;
+  border: 1px solid var(--disab-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.exm-bloque-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.exm-paso {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--disab-primary);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.exm-bloque-titulo {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--disab-text);
+}
+
+/* ── Tarjetas de tipo ──────────────────────────────────────── */
+.exm-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.exm-tarjeta {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1.5px solid var(--disab-border);
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.exm-tarjeta:hover {
+  border-color: rgba(25, 118, 210, 0.4);
+  background: #f8fbff;
+}
+
+.exm-tarjeta-activa,
+.exm-tarjeta-activa:hover {
+  border-color: var(--disab-primary);
+  background: var(--disab-primary-light);
+  box-shadow: 0 0 0 1px var(--disab-primary) inset;
+}
+
+.exm-tarjeta-icono {
+  font-size: 26px;
+  width: 26px;
+  height: 26px;
+  color: var(--disab-primary);
+}
+
+.exm-tarjeta-titulo {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--disab-text);
+  line-height: 1.35;
+}
+
+.exm-tarjeta-descripcion {
+  font-size: 12px;
+  color: var(--disab-text-muted);
+  line-height: 1.45;
+}
+
+.exm-tarjeta-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: var(--disab-primary);
+}
+
+/* ── Notas y avisos ────────────────────────────────────────── */
+.exm-nota {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--disab-text-muted);
+  line-height: 1.45;
+}
+
+.exm-nota mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--disab-primary);
+}
+
+.exm-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: var(--disab-radius-sm);
+  background: #fff8e1;
+  border: 1px solid rgba(178, 106, 0, 0.25);
+  color: #8a5a00;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.exm-aviso mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.exm-nota-persistente {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border-radius: var(--disab-radius-sm);
+  background: #eef4fb;
+  border: 1px dashed rgba(25, 118, 210, 0.35);
+  color: var(--disab-text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.exm-nota-persistente mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--disab-primary);
+}
+
+/* ── Progreso ──────────────────────────────────────────────── */
+.exm-progreso {
+  border-color: rgba(25, 118, 210, 0.28);
+}
+
+.exm-progreso-texto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--disab-text);
+  margin-bottom: 10px;
+}
+
+.exm-progreso-icono {
+  color: var(--disab-primary);
+}
+
+.exm-progreso-detalle {
+  min-width: 0;
+}
+
+/* ── Completado ────────────────────────────────────────────── */
+.exm-listo {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-color: rgba(46, 125, 50, 0.3);
+  background: #f2fbf3;
+}
+
+.exm-listo-icono {
+  font-size: 30px;
+  width: 30px;
+  height: 30px;
+  color: var(--disab-success);
+  flex-shrink: 0;
+}
+
+.exm-listo-titulo {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--disab-text);
+}
+
+.exm-listo-detalle {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--disab-success);
+  word-break: break-all;
+}
+
+.exm-listo-nota {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--disab-text-muted);
+  line-height: 1.45;
+}
+
+/* ── Error del trabajo ─────────────────────────────────────── */
+.exm-fallo {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-color: rgba(198, 40, 40, 0.3);
+  background: #fff5f5;
+}
+
+.exm-fallo-icono {
+  font-size: 30px;
+  width: 30px;
+  height: 30px;
+  color: var(--disab-danger);
+  flex-shrink: 0;
+}
+
+.exm-fallo-titulo {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--disab-text);
+}
+
+.exm-fallo-detalle {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: #8e1c1c;
+  line-height: 1.45;
+}
+
+/* ── Errores locales ───────────────────────────────────────── */
+.exm-error-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border-radius: var(--disab-radius-sm);
+  background: #ffebee;
+  border: 1px solid rgba(198, 40, 40, 0.25);
+  color: #8e1c1c;
+  font-size: 12.5px;
+}
+
+.exm-error-inline mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* ── Acciones ──────────────────────────────────────────────── */
+.exm-acciones {
+  padding: 12px 20px 18px !important;
+  background: #f7f9fc;
+  border-top: 1px solid var(--disab-border);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exm-espaciador {
+  flex: 1 1 auto;
+}
+
+.exm-btn {
+  border-radius: 11px !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px;
+}
+
+.exm-btn-primario {
+  background: var(--disab-primary) !important;
+  color: #fff !important;
+}
+
+.exm-btn-primario[disabled] {
+  background: #cbd5e1 !important;
+  color: #ffffff !important;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .exm-cuerpo {
+    padding: 14px 14px 4px !important;
+  }
+
+  .exm-tarjetas {
+    grid-template-columns: 1fr;
+  }
+
+  .exm-acciones {
+    padding: 12px 14px 16px !important;
+  }
+
+  .exm-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}

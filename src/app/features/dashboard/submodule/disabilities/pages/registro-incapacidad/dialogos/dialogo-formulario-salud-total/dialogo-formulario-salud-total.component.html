@@ -1,0 +1,93 @@
+<h2 mat-dialog-title class="fst-titulo">
+  <mat-icon aria-hidden="true">assignment</mat-icon>
+  Formulario Salud Total
+</h2>
+
+<mat-dialog-content class="fst-contenido">
+  <p class="fst-intro">
+    Salud Total exige el <strong>Formato para descarte de evento laboral</strong> (M-GINT-F103)
+    con toda incapacidad por enfermedad general. Responde las preguntas y el sistema genera el
+    PDF oficial ya diligenciado y lo deja adjunto como soporte.
+  </p>
+
+  <div class="fst-persona">
+    <span class="fst-persona-dato">
+      <strong>{{ datos.apellidos }} {{ datos.nombres }}</strong>
+    </span>
+    @if (datos.cargo) {
+      <span class="fst-persona-dato">Cargo: {{ datos.cargo }}</span>
+    }
+    @if (datos.telefono) {
+      <span class="fst-persona-dato">Tel: {{ datos.telefono }}</span>
+    }
+    <span class="fst-persona-dato">ARL: {{ datos.arl }}</span>
+  </div>
+
+  <form [formGroup]="form">
+    <p class="fst-instruccion">
+      Responde SI o NO segun corresponda (el formato descarta que el evento sea laboral, por
+      eso las respuestas arrancan en NO):
+    </p>
+
+    <div formGroupName="respuestas" class="fst-preguntas">
+      @for (pregunta of preguntas; track $index) {
+        <div class="fst-pregunta">
+          <span class="fst-pregunta-texto">{{ $index + 1 }}. {{ pregunta }}</span>
+          <mat-radio-group [formControlName]="'p' + ($index + 1)" class="fst-opciones">
+            <mat-radio-button value="SI">Si</mat-radio-button>
+            <mat-radio-button value="NO">No</mat-radio-button>
+          </mat-radio-group>
+        </div>
+      }
+    </div>
+
+    <mat-form-field appearance="outline" class="fst-campo">
+      <mat-label>Breve relato (solo si hubo un accidente)</mat-label>
+      <textarea
+        matInput
+        formControlName="relato"
+        rows="2"
+        placeholder="Dejalo vacio si no aplica"
+      ></textarea>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="fst-campo">
+      <mat-label>Nombre de quien diligencia</mat-label>
+      <input matInput formControlName="responsable" />
+    </mat-form-field>
+  </form>
+
+  @if (error()) {
+    <p class="fst-error" role="alert">
+      <mat-icon aria-hidden="true">error</mat-icon>
+      {{ error() }}
+    </p>
+  }
+  @if (generando()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  <p class="fst-enlace">
+    ¿Prefieres llenarlo a mano?
+    <a href="https://saludtotal.com.co/wp-content/uploads/2025/05/M-GINT-F103-FORMATO-PARA-DESCARTE-DE-EVENTO-LABORAL.pdf"
+       target="_blank" rel="noopener noreferrer">
+      Abrir el formato oficial de Salud Total
+      <mat-icon aria-hidden="true" inline>open_in_new</mat-icon>
+    </a>
+    y subelo como archivo en la tarjeta del soporte.
+  </p>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancelar()">Cancelar</button>
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    [disabled]="generando()"
+    (click)="generar()"
+  >
+    <mat-icon aria-hidden="true">picture_as_pdf</mat-icon>
+    Generar y adjuntar
+  </button>
+</mat-dialog-actions>

@@ -1,0 +1,540 @@
+<!-- ════════ Cabecera ════════ -->
+<div class="det-hero">
+  <div class="det-hero-icono">
+    <mat-icon>assignment</mat-icon>
+  </div>
+
+  <div class="det-hero-textos">
+    <h2 class="det-hero-titulo" mat-dialog-title>{{ consecutivo() }}</h2>
+    <p class="det-hero-sub">
+      {{ nombreTrabajador() }} · CC {{ cedulaTrabajador() }}
+    </p>
+    <div class="det-hero-chips">
+      <span class="det-chip" [style.color]="chipEstado().estilo.color" [style.backgroundColor]="chipEstado().estilo.background">
+        {{ chipEstado().texto }}
+      </span>
+      <span class="det-chip" [style.color]="chipEstadoDocumento().estilo.color" [style.backgroundColor]="chipEstadoDocumento().estilo.background">
+        {{ chipEstadoDocumento().texto }}
+      </span>
+      <span class="det-chip" [style.color]="chipResponsable().estilo.color" [style.backgroundColor]="chipResponsable().estilo.background">
+        {{ chipResponsable().texto }}
+      </span>
+      @if (esHistorico()) {
+        <span
+          class="det-chip"
+          style="color: #5b4a00; background-color: #fff3cd"
+          matTooltip="Importada del historico de formularios anterior al aplicativo"
+        >
+          Historico
+        </span>
+      }
+    </div>
+  </div>
+
+  <button
+    type="button"
+    mat-icon-button
+    class="det-cerrar"
+    (click)="cerrar()"
+    aria-label="Cerrar el detalle"
+    matTooltip="Cerrar"
+  >
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<mat-dialog-content class="det-cuerpo">
+  @if (cargando()) {
+    <div class="det-cargando">
+      <mat-spinner diameter="34"></mat-spinner>
+      <span>Cargando el detalle…</span>
+    </div>
+  }
+
+  @if (error()) {
+    <div class="det-aviso det-aviso-error" role="alert">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <!-- ════════ Alertas del motor de reglas ════════ -->
+  @if (alertas().length) {
+    <section class="det-bloque">
+      <header class="det-bloque-cabecera">
+        <mat-icon class="det-bloque-icono">notifications_active</mat-icon>
+        <h3 class="det-bloque-titulo">Alertas</h3>
+        <span class="det-bloque-hint">Calculadas por el motor de reglas</span>
+      </header>
+
+      <ul class="det-alertas">
+        @for (alerta of alertas(); track alerta.codigo + alerta.mensaje) {
+          <li
+            class="det-alerta"
+            [style.color]="colorAlerta(alerta).color"
+            [style.backgroundColor]="colorAlerta(alerta).background"
+          >
+            <mat-icon>{{ iconoAlerta(alerta) }}</mat-icon>
+            <div class="det-alerta-texto">
+              <strong>{{ alerta.mensaje }}</strong>
+              <span class="det-alerta-codigo">{{ alerta.codigo }}</span>
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <!-- ════════ Ficha ════════ -->
+  @for (grupo of grupos(); track trackGrupo($index, grupo)) {
+    <section class="det-bloque">
+      <header class="det-bloque-cabecera">
+        <mat-icon class="det-bloque-icono">{{ grupo.icono }}</mat-icon>
+        <h3 class="det-bloque-titulo">{{ grupo.titulo }}</h3>
+      </header>
+
+      <dl class="det-ficha">
+        @for (campo of grupo.campos; track trackCampo($index, campo)) {
+          <div class="det-campo" [class.det-campo-ancho]="campo.ancho">
+            <dt>{{ campo.etiqueta }}</dt>
+            <dd>{{ campo.valor }}</dd>
+          </div>
+        }
+      </dl>
+    </section>
+  }
+
+  <!-- ════════ Soportes ════════ -->
+  <section class="det-bloque">
+    <header class="det-bloque-cabecera">
+      <mat-icon class="det-bloque-icono">attach_file</mat-icon>
+      <h3 class="det-bloque-titulo">Soportes</h3>
+      @if (faltanSoportes()) {
+        <span class="det-bloque-hint det-hint-alerta">Faltan soportes obligatorios</span>
+      }
+    </header>
+
+    @if (errorSoporte()) {
+      <div class="det-aviso det-aviso-error" role="alert">
+        <mat-icon>error_outline</mat-icon>
+        <span>{{ errorSoporte() }}</span>
+      </div>
+    }
+
+    @if (docHistorico()) {
+      <div class="det-doc-historico">
+        <a
+          mat-stroked-button
+          class="det-soporte-btn"
+          [href]="docHistorico()"
+          target="_blank"
+          rel="noopener"
+          matTooltip="El documento del historico vive en el Drive de cartera (abre con tu cuenta de Google)"
+        >
+          <mat-icon>history</mat-icon>
+          <span>Documento del historico (Drive)</span>
+        </a>
+      </div>
+    }
+
+    @if (soportes().length === 0) {
+      <div class="det-vacio">
+        <mat-icon>folder_off</mat-icon>
+        <span>
+          {{ esHistorico()
+            ? 'Incapacidad importada del historico: su documento esta en el enlace de Drive.'
+            : 'Esta incapacidad no tiene soportes registrados.' }}
+        </span>
+      </div>
+    } @else {
+      <ul class="det-soportes">
+        @for (soporte of soportes(); track trackSoporte($index, soporte)) {
+          <li class="det-soporte" [class.det-soporte-falta]="soporte.obligatorio && !soporte.cargado">
+            <span class="det-soporte-icono">
+              <mat-icon>{{ soporte.icono }}</mat-icon>
+            </span>
+
+            <div class="det-soporte-textos">
+              <span class="det-soporte-titulo">
+                {{ soporte.etiqueta }}
+                @if (soporte.obligatorio) {
+                  <span class="det-obligatorio" matTooltip="Sin este soporte no se puede validar">
+                    obligatorio
+                  </span>
+                }
+              </span>
+              <span class="det-soporte-meta">
+                @if (soporte.cargado) {
+                  {{ soporte.nombreArchivo || 'Archivo cargado' }}
+                  @if (soporte.subidoEn) {
+                    · {{ soporte.subidoEn }}
+                  }
+                } @else {
+                  Pendiente de cargar
+                }
+              </span>
+            </div>
+
+            @if (soporte.url) {
+              <button
+                type="button"
+                mat-icon-button
+                matTooltip="Ver el archivo aqui mismo"
+                [disabled]="descargandoSoporteTipo() === soporte.tipo"
+                (click)="verSoporte(soporte)"
+                [attr.aria-label]="'Ver ' + soporte.etiqueta"
+              >
+                <mat-icon>visibility</mat-icon>
+              </button>
+              <button
+                type="button"
+                mat-stroked-button
+                class="det-soporte-btn"
+                [disabled]="descargandoSoporteTipo() === soporte.tipo"
+                (click)="descargarSoporte(soporte)"
+                [attr.aria-label]="'Descargar ' + soporte.etiqueta"
+                matTooltip="Descargar el archivo"
+              >
+                @if (descargandoSoporteTipo() === soporte.tipo) {
+                  <mat-spinner diameter="16"></mat-spinner>
+                } @else {
+                  <mat-icon>download</mat-icon>
+                }
+                <span>Descargar</span>
+              </button>
+            } @else {
+              <span class="det-soporte-sin-archivo">
+                <mat-icon>block</mat-icon>
+                Sin archivo
+              </span>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <!-- ════════ Radicacion (V44) ════════ -->
+  @if (muestraRadicacion()) {
+    <section class="det-bloque">
+      <header class="det-bloque-cabecera">
+        <mat-icon class="det-bloque-icono">outgoing_mail</mat-icon>
+        <h3 class="det-bloque-titulo">Radicacion</h3>
+        @if (radicacion(); as rad) {
+          <span class="det-bloque-hint">
+            {{ rad.epsDestino || 'Sin entidad destino' }} · {{ rad.formaCargueEtiqueta }}
+            @if (carpetaCartera()) {
+              · Carpeta: {{ carpetaCartera() }}
+            }
+          </span>
+        }
+      </header>
+
+      @if (cargandoRadicacion()) {
+        <div class="det-cargando">
+          <mat-spinner diameter="26"></mat-spinner>
+          <span>Cargando la radicacion…</span>
+        </div>
+      }
+
+      @if (errorRadicacion()) {
+        <div class="det-aviso det-aviso-error" role="alert">
+          <mat-icon>error_outline</mat-icon>
+          <span>{{ errorRadicacion() }}</span>
+        </div>
+      }
+
+      @if (radicacion(); as rad) {
+        <!-- Datos del radicado (si ya existe) -->
+        @if (yaRadicada()) {
+          <dl class="det-ficha">
+            <div class="det-campo">
+              <dt>Numero de radicado</dt>
+              <dd class="rad-numero">{{ rad.numeroRadicado }}</dd>
+            </div>
+            <div class="det-campo">
+              <dt>Fecha de radicado</dt>
+              <dd>{{ rad.fechaRadicado || '—' }}</dd>
+            </div>
+            <div class="det-campo">
+              <dt>Donde se radico</dt>
+              <dd>{{ rad.dondeRadicadoEtiqueta || '—' }}</dd>
+            </div>
+            <div class="det-campo">
+              <dt>Radicado por</dt>
+              <dd>{{ rad.radicadoPor || '—' }}</dd>
+            </div>
+          </dl>
+        }
+
+        <!-- Archivos EXACTOS para el portal de la EPS/ARL -->
+        @if (rad.archivos.length === 0) {
+          <div class="det-vacio">
+            <mat-icon>picture_as_pdf</mat-icon>
+            <span>
+              Aun no se ha generado el paquete de radicacion. Al pasar a "Pendiente de
+              radicacion" se generan los PDF con el nombre exacto que exige
+              {{ rad.epsDestino || 'la entidad' }}.
+            </span>
+          </div>
+        } @else {
+          <ul class="det-soportes">
+            @for (archivo of rad.archivos; track trackArchivoRadicacion($index, archivo)) {
+              <li class="det-soporte">
+                <span class="det-soporte-icono rad-icono-pdf">
+                  <mat-icon>picture_as_pdf</mat-icon>
+                </span>
+
+                <div class="det-soporte-textos">
+                  <span class="det-soporte-titulo rad-nombre-archivo">
+                    {{ archivo.nombreArchivo }}
+                  </span>
+                  <span class="det-soporte-meta">
+                    {{ archivo.tipoEtiqueta }}
+                    @if (tamanoArchivo(archivo.sizeBytes)) {
+                      · {{ tamanoArchivo(archivo.sizeBytes) }}
+                    }
+                    ·
+                    @if (archivo.sincronizado) {
+                      <span class="rad-sync rad-sync-ok">
+                        <mat-icon inline>cloud_done</mat-icon> En gestion documental
+                      </span>
+                    } @else {
+                      <span class="rad-sync rad-sync-pend">
+                        <mat-icon inline>cloud_off</mat-icon> Pendiente de sincronizar
+                      </span>
+                    }
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  mat-icon-button
+                  matTooltip="Ver el PDF en otra pestana"
+                  [disabled]="descargandoArchivoId() === archivo.id"
+                  (click)="descargarArchivoRadicacion(archivo, true)"
+                  [attr.aria-label]="'Ver ' + archivo.nombreArchivo"
+                >
+                  <mat-icon>visibility</mat-icon>
+                </button>
+                <button
+                  type="button"
+                  mat-stroked-button
+                  class="det-soporte-btn"
+                  [disabled]="descargandoArchivoId() === archivo.id"
+                  (click)="descargarArchivoRadicacion(archivo)"
+                  [attr.aria-label]="'Descargar ' + archivo.nombreArchivo"
+                  matTooltip="Descargar con el nombre exacto que exige el portal"
+                >
+                  @if (descargandoArchivoId() === archivo.id) {
+                    <mat-spinner diameter="16"></mat-spinner>
+                  } @else {
+                    <mat-icon>download</mat-icon>
+                  }
+                  <span>Descargar</span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+
+        <!-- Mini-formulario para registrar el radicado -->
+        @if (radicarAbierto()) {
+          <div class="rad-form">
+            <div class="rad-form-campos">
+              <label class="rad-campo">
+                <span>Numero de radicado *</span>
+                <input
+                  type="text"
+                  [value]="radicarNumero()"
+                  (input)="radicarNumero.set($any($event.target).value)"
+                  placeholder="El numero que entrego la EPS/ARL"
+                />
+              </label>
+              <label class="rad-campo">
+                <span>Fecha de radicado</span>
+                <input
+                  type="date"
+                  [value]="radicarFecha()"
+                  (input)="radicarFecha.set($any($event.target).value)"
+                />
+              </label>
+              <div class="rad-campo">
+                <span>Donde se radico</span>
+                <div class="rad-dondes">
+                  @for (donde of dondesRadicado(); track donde.codigo) {
+                    <button
+                      type="button"
+                      class="rad-donde"
+                      [class.rad-donde-activo]="radicarDonde() === donde.codigo"
+                      (click)="radicarDonde.set($any(donde.codigo))"
+                    >
+                      {{ donde.etiqueta }}
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
+            <div class="rad-form-acciones">
+              <button type="button" mat-stroked-button (click)="cancelarRadicar()">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                mat-flat-button
+                class="det-btn-editar"
+                [disabled]="accionRadicacion()"
+                (click)="confirmarRadicar()"
+              >
+                <mat-icon>task_alt</mat-icon>
+                <span>{{ yaRadicada() ? 'Actualizar radicado' : 'Confirmar radicado' }}</span>
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Acciones de radicacion -->
+        <div class="rad-acciones">
+          @if (puedePasarAPendiente()) {
+            <button
+              type="button"
+              mat-flat-button
+              class="det-btn-editar"
+              [disabled]="accionRadicacion()"
+              (click)="pasarAPendiente()"
+              matTooltip="Genera los PDF renombrados y los guarda en la gestion documental"
+            >
+              <mat-icon>drive_file_move</mat-icon>
+              <span>Pasar a pendiente de radicacion</span>
+            </button>
+          }
+          @if (puedeRadicar() && !radicarAbierto()) {
+            <button
+              type="button"
+              mat-stroked-button
+              [disabled]="accionRadicacion()"
+              (click)="abrirRadicar()"
+            >
+              <mat-icon>task_alt</mat-icon>
+              <span>{{ yaRadicada() ? 'Actualizar radicado' : 'Radicar' }}</span>
+            </button>
+          }
+          @if (rad.archivos.length > 0) {
+            <button
+              type="button"
+              mat-stroked-button
+              [disabled]="accionRadicacion()"
+              (click)="regenerarPaquete()"
+              matTooltip="Rehace los PDF (por ejemplo tras reemplazar un soporte)"
+            >
+              <mat-icon>refresh</mat-icon>
+              <span>Regenerar paquete</span>
+            </button>
+          }
+          @if (accionRadicacion()) {
+            <mat-spinner diameter="22"></mat-spinner>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ════════ Visor embebido (soportes y PDFs de radicacion) ════════ -->
+  @if (preview(); as visor) {
+    <section class="det-bloque det-visor" id="det-visor-documento">
+      <header class="det-bloque-cabecera">
+        <mat-icon class="det-bloque-icono">preview</mat-icon>
+        <h3 class="det-bloque-titulo det-visor-titulo">{{ visor.titulo }}</h3>
+        <button
+          type="button"
+          mat-icon-button
+          class="det-visor-cerrar"
+          (click)="cerrarPreview()"
+          matTooltip="Cerrar la vista previa"
+          aria-label="Cerrar la vista previa"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+
+      @if (visor.esImagen) {
+        <img class="det-visor-imagen" [src]="visor.crudo" [alt]="visor.titulo" />
+      } @else {
+        <iframe class="det-visor-marco" [src]="visor.url" [title]="visor.titulo"></iframe>
+      }
+    </section>
+  }
+
+  <!-- ════════ Linea de tiempo ════════ -->
+  <section class="det-bloque">
+    <header class="det-bloque-cabecera">
+      <mat-icon class="det-bloque-icono">timeline</mat-icon>
+      <h3 class="det-bloque-titulo">Historico de estados</h3>
+      @if (historialReconstruido()) {
+        <span class="det-bloque-hint">
+          El servidor no envio el historico completo: se muestra la traza de auditoria
+        </span>
+      }
+    </header>
+
+    @if (historial().length === 0) {
+      <div class="det-vacio">
+        <mat-icon>history_toggle_off</mat-icon>
+        <span>Todavia no hay movimientos registrados.</span>
+      </div>
+    } @else {
+      <ol class="det-linea">
+        @for (evento of historial(); track $index) {
+          <li class="det-linea-item">
+            <span class="det-linea-punto" [style.backgroundColor]="historialColor(evento)"></span>
+            <div class="det-linea-texto">
+              <strong>{{ historialEtiqueta(evento) }}</strong>
+              <span class="det-linea-meta">
+                {{ historialFecha(evento) }}
+                @if (evento.usuario) {
+                  · {{ evento.usuario }}
+                }
+              </span>
+              @if (evento.comentario) {
+                <span class="det-linea-comentario">{{ evento.comentario }}</span>
+              }
+            </div>
+          </li>
+        }
+      </ol>
+    }
+  </section>
+</mat-dialog-content>
+
+<!-- ════════ Acciones ════════ -->
+<mat-dialog-actions class="det-acciones">
+  <button type="button" mat-stroked-button class="det-btn" (click)="cerrar()">
+    <mat-icon>close</mat-icon>
+    <span>Cerrar</span>
+  </button>
+
+  <span class="det-espaciador"></span>
+
+  <button
+    type="button"
+    mat-stroked-button
+    class="det-btn det-btn-eliminar"
+    (click)="eliminar()"
+    matTooltip="Borrado logico: se conserva el historico"
+  >
+    <mat-icon>delete_outline</mat-icon>
+    <span>Eliminar</span>
+  </button>
+
+  @if (puedeValidar()) {
+    <button type="button" mat-stroked-button class="det-btn det-btn-validar" (click)="validar()">
+      <mat-icon>verified</mat-icon>
+      <span>Validar</span>
+    </button>
+  }
+
+  <button type="button" mat-flat-button class="det-btn det-btn-editar" (click)="editar()">
+    <mat-icon>edit</mat-icon>
+    <span>Editar</span>
+  </button>
+</mat-dialog-actions>
