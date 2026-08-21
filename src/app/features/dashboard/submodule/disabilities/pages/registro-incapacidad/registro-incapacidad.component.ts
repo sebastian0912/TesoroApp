@@ -445,6 +445,13 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   // ── Modo edicion (ruta hermana `registro/:id`) ────────────────────────
   /** Id de la incapacidad en edicion; `null` cuando es un alta nueva. */
   readonly idEdicion = signal<number | null>(null);
+
+  /**
+   * `origen` del registro cargado en modo edicion (`HISTORICO` = importado de los
+   * formularios viejos). A las historicas NO se les exige el soporte minimo al
+   * guardar: su documento vive como link de Drive, no como soporte v2.
+   */
+  readonly origenEdicion = signal<string | null>(null);
   readonly cargandoRegistro = signal(false);
   readonly errorRegistro = signal('');
   readonly esEdicion = computed(() => this.idEdicion() !== null);
@@ -1145,6 +1152,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
         distinctUntilChanged(),
         tap((id) => {
           this.idEdicion.set(id);
+          if (id === null) this.origenEdicion.set(null);
           this.errorRegistro.set('');
           this.cargandoRegistro.set(id !== null);
         }),
@@ -1168,6 +1176,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
 
   /** Vuelca una incapacidad ya guardada en el formulario. */
   private aplicarIncapacidadExistente(inc: IncapacidadV2): void {
+    this.origenEdicion.set(inc.origen ?? null);
     // Los soportes que el servidor ya tiene no se piden otra vez.
     this.sincronizarSoportesDelServidor(inc);
 
@@ -1670,22 +1679,53 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       return;
     }
 
+    const peticion = this.construirRequestCreacion();
+    if (!peticion) {
+      this.errorGuardado.set('No se pudo armar la incapacidad: revisa los datos del trabajador.');
+      return;
+    }
+
+    // Los chequeos de abajo (soporte minimo, aviso NO PAGAR) se deciden sobre una
+    // validacion FRESCA, no sobre la del panel: la del panel corre con debounce de
+    // 400 ms y un guardado rapido podria evaluar gates con datos viejos.
+    const reqValidacion = this.construirRequestValidacion();
+    this.guardando.set(true);
+    (reqValidacion === null
+      ? of(this.validacion())
+      : this.srv.validar(reqValidacion).pipe(
+          tap((v) => this.validacion.set(v)),
+          // Si /validar esta caido se sigue con lo que haya (o sin gate): bloquear el
+          // guardado exigiendo un soporte cuyo cargador ni se pinta seria un callejon.
+          catchError(() => of(this.validacion())),
+        )
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((validacionFresca) => {
+        this.guardando.set(false);
+        this.continuarGuardado(conValidacion, peticion, validacionFresca);
+      });
+  }
+
+  /** Gates previos al guardado, evaluados sobre la validacion fresca. */
+  private continuarGuardado(
+    conValidacion: boolean,
+    peticion: CrearIncapacidadV2Request,
+    validacionFresca: ValidacionResponse | null,
+  ): void {
     // Reunion 2026-08-20: sin el soporte de la incapacidad (y sin el formulario de
-    // Salud Total cuando aplica) NO se recibe. El resto de documentos si puede
-    // completarse despues editando el registro.
-    const bloqueantes = this.soportesBloqueantesGuardar();
+    // Salud Total cuando aplica) NO se recibe; el resto se completa editando.
+    // Excepciones: las HISTORICAS importadas (su documento vive como link de Drive,
+    // exigirles soporte bloquearia la edicion de 55 mil registros) y el caso sin
+    // validacion disponible (el backend decide; los soportes se cargan despues).
+    const esHistorica = this.origenEdicion() === 'HISTORICO';
+    const bloqueantes =
+      esHistorica || validacionFresca === null ? [] : this.soportesBloqueantesGuardar();
     if (bloqueantes.length > 0) {
       this.errorGuardado.set(
         `Para recibir la incapacidad debes adjuntar: ${bloqueantes.join(' y ')}. ` +
           'Los demas soportes se pueden completar despues editando el registro.',
       );
       this.desplazarASoportes();
-      return;
-    }
-
-    const peticion = this.construirRequestCreacion();
-    if (!peticion) {
-      this.errorGuardado.set('No se pudo armar la incapacidad: revisa los datos del trabajador.');
       return;
     }
 
@@ -1955,6 +1995,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     this.valorInicialPersona.set('');
     this.errorRegistro.set('');
     this.idCreado.set(null);
+    this.origenEdicion.set(null);
 
     const manuales = (this.catalogos()?.estadosDocumento ?? []).filter((e) => !e.automatico);
     this.form.reset({

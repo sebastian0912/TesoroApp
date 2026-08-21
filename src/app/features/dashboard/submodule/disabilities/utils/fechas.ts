@@ -60,7 +60,10 @@ function construirFechaLocal(anio: number, mes: number, dia: number): Date | nul
 export function esFechaPlausible(fecha: Date | null | undefined): boolean {
   if (!fecha || Number.isNaN(fecha.getTime())) return false;
   const anio = fecha.getFullYear();
-  return anio >= ANIO_MINIMO_PLAUSIBLE && anio <= new Date().getFullYear();
+  // +1: una incapacidad de diciembre (o una licencia de maternidad) termina
+  // legitimamente en enero del año siguiente; el tope sigue filtrando la
+  // basura real de la base (9994-03-30 y similares).
+  return anio >= ANIO_MINIMO_PLAUSIBLE && anio <= new Date().getFullYear() + 1;
 }
 
 /**

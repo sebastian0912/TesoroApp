@@ -68,9 +68,10 @@ describe('utils/fechas', () => {
       expect(parsearFechaFlexible(`${ANIO_MINIMO_PLAUSIBLE}-06-15`)).not.toBeNull();
     });
 
-    it('descarta fechas futuras (ano posterior al actual)', () => {
-      const anioFuturo = new Date().getFullYear() + 1;
-      expect(parsearFechaFlexible(`${anioFuturo}-01-01`)).toBeNull();
+    it('acepta el año siguiente (fecha fin de una incapacidad de diciembre) y descarta lo demas', () => {
+      const anioSiguiente = new Date().getFullYear() + 1;
+      expect(parsearFechaFlexible(`${anioSiguiente}-01-01`)).not.toBeNull();
+      expect(parsearFechaFlexible(`${anioSiguiente + 1}-01-01`)).toBeNull();
     });
 
     it('descarta fechas de calendario inexistentes', () => {

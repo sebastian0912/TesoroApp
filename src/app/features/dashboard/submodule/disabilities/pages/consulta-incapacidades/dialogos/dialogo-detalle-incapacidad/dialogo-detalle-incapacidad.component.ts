@@ -164,6 +164,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
       d?.codigoConsecutivo ||
       this.datos.resumen?.codigoConsecutivo ||
       d?.codigoUnico ||
+      this.datos.resumen?.codigoUnico ||
       this.datos.resumen?.consecutivoSistema ||
       `#${this.datos.id}`
     );
