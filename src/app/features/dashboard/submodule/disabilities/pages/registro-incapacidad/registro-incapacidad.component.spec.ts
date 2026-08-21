@@ -227,6 +227,19 @@ describe('RegistroIncapacidadComponent', () => {
     );
   }
 
+  /**
+   * Dispara el guardado y atiende la validacion FRESCA que `guardar()` pide antes de
+   * evaluar los gates (soporte minimo, aviso NO PAGAR) — asi los gates nunca corren
+   * sobre el resultado viejo del debounce de 400 ms.
+   */
+  function guardarYFlushValidar(
+    conValidacion: boolean,
+    respuesta: ValidacionResponse = validacionBase(),
+  ): void {
+    comp.guardar(conValidacion);
+    http.expectOne((r) => r.url.endsWith('/Incapacidades/v2/validar')).flush(respuesta);
+  }
+
   /** Deja el formulario con el nucleo minimo que dispara la validacion. */
   function completarIncapacidad(): void {
     comp.form.controls.incapacidad.patchValue({
@@ -779,7 +792,7 @@ describe('RegistroIncapacidadComponent', () => {
         req.flush(validacionBase());
       }
 
-      comp.guardar(false);
+      guardarYFlushValidar(false);
 
       const creacion = http.expectOne(
         (r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'),
@@ -824,7 +837,7 @@ describe('RegistroIncapacidadComponent', () => {
         req.flush(validacionBase());
       }
 
-      comp.guardar(true);
+      guardarYFlushValidar(true);
 
       http
         .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
@@ -857,7 +870,7 @@ describe('RegistroIncapacidadComponent', () => {
         req.flush(validacionBase());
       }
 
-      comp.guardar(false);
+      guardarYFlushValidar(false);
       http
         .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
         .flush({ id: 55 });
@@ -887,7 +900,7 @@ describe('RegistroIncapacidadComponent', () => {
         req.flush(validacionBase());
       }
 
-      comp.guardar(false);
+      guardarYFlushValidar(false);
       http
         .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
         .flush({ id: 55 });
@@ -921,7 +934,7 @@ describe('RegistroIncapacidadComponent', () => {
         req.flush(validacionBase());
       }
 
-      comp.guardar(false);
+      guardarYFlushValidar(false);
       http
         .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
         .flush({ id: 55 });
@@ -960,7 +973,7 @@ describe('RegistroIncapacidadComponent', () => {
         req.flush(validacionBase());
       }
 
-      comp.guardar(false);
+      guardarYFlushValidar(false);
       http
         .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
         .flush({ id: 55, consecutivoSistema: 'INC-55' });
@@ -973,7 +986,7 @@ describe('RegistroIncapacidadComponent', () => {
       expect(comp.idEfectivo()).toBe(55);
       expect(comp.etiquetaGuardar()).toBe('Guardar cambios');
 
-      comp.guardar(false);
+      guardarYFlushValidar(false);
       const segunda = http.expectOne((r) => r.url.endsWith('/Incapacidades/v2/55'));
       expect(segunda.request.method).toBe('PUT');
       segunda.flush({ id: 55, consecutivoSistema: 'INC-55' });
@@ -994,7 +1007,7 @@ describe('RegistroIncapacidadComponent', () => {
         req.flush(validacionBase());
       }
 
-      comp.guardar(true);
+      guardarYFlushValidar(true);
 
       http
         .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
@@ -1018,7 +1031,7 @@ describe('RegistroIncapacidadComponent', () => {
     // ── Reunion 2026-08-20: minimo de soportes para RECIBIR ─────────────
 
     it('sin el soporte de la incapacidad NO se guarda: mensaje claro y cero peticiones', fakeAsync(() => {
-      comp.guardar(false);
+      guardarYFlushValidar(false);
 
       http.expectNone((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'));
       expect(comp.errorGuardado()).toContain('Incapacidad');
@@ -1082,7 +1095,20 @@ describe('RegistroIncapacidadComponent', () => {
         afterClosed: () => of(true),
       } as unknown as ReturnType<MatDialog['open']>);
 
-      comp.guardar(false);
+      guardarYFlushValidar(
+        false,
+        validacionBase({
+          responsablePago: 'NO_PAGAR',
+          cumpleCotizacion: false,
+          alertas: [
+            {
+              nivel: 'CRITICA',
+              codigo: 'NO_CUMPLE_COTIZACION',
+              mensaje: 'No cumple el tiempo minimo de cotizacion: no se paga.',
+            },
+          ],
+        }),
+      );
 
       expect(abrir).toHaveBeenCalled();
       http
@@ -1109,7 +1135,10 @@ describe('RegistroIncapacidadComponent', () => {
         afterClosed: () => of(false),
       } as unknown as ReturnType<MatDialog['open']>);
 
-      comp.guardar(false);
+      guardarYFlushValidar(
+        false,
+        validacionBase({ responsablePago: 'NO_PAGAR', cumpleCotizacion: false }),
+      );
 
       http.expectNone((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'));
       flush();

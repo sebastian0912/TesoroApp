@@ -109,9 +109,9 @@ export function soportesCompletos(fila: IncapacidadResumenExtendido): boolean | 
   return cargados >= exigidos;
 }
 
-/** Si/No para el archivo; vacio cuando el dato no existe (nunca "undefined"). */
+/** SI/NO para el archivo (mismo formato que el Excel del servidor); vacio si no hay dato. */
 function siNo(valor: boolean | null | undefined): string {
-  return valor === true ? 'Si' : valor === false ? 'No' : '';
+  return valor === true ? 'SI' : valor === false ? 'NO' : '';
 }
 
 /**
