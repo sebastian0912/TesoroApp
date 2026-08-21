@@ -1,0 +1,681 @@
+/* ============================================================
+   DIALOGO: DETALLE DE INCAPACIDAD
+   ============================================================ */
+
+:host {
+  --disab-primary: #1976d2;
+  --disab-primary-dark: #1565c0;
+  --disab-primary-light: #e3f2fd;
+  --disab-border: rgba(15, 23, 42, 0.08);
+  --disab-text: #1a1a2e;
+  --disab-text-muted: #64748b;
+  --disab-danger: #c62828;
+  --disab-radius-sm: 10px;
+  --disab-gradient: linear-gradient(135deg, #1976d2 0%, #00acc1 100%);
+  display: block;
+  background: #f7f9fc;
+}
+
+/* ── Cabecera ──────────────────────────────────────────────── */
+.det-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 22px;
+  background: var(--disab-gradient);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.det-hero::before {
+  content: 'assignment';
+  font-family: 'Material Icons';
+  position: absolute;
+  right: -20px;
+  top: -30px;
+  font-size: 160px;
+  color: rgba(255, 255, 255, 0.08);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.det-hero-icono {
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.det-hero-icono mat-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  color: #fff;
+}
+
+.det-hero-textos {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.det-hero-titulo {
+  margin: 0 0 2px !important;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: #fff;
+}
+
+.det-hero-sub {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.det-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.det-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.det-cerrar {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ── Cuerpo ────────────────────────────────────────────────── */
+.det-cuerpo {
+  padding: 18px 22px 8px !important;
+  max-height: 66vh;
+  background: #f7f9fc;
+}
+
+.det-cargando {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 18px;
+  color: var(--disab-text-muted);
+  font-size: 13.5px;
+}
+
+.det-aviso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: var(--disab-radius-sm);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.det-aviso-error {
+  background: #fff8e1;
+  border: 1px solid rgba(178, 106, 0, 0.25);
+  color: #8a5a00;
+}
+
+/* ── Bloques ───────────────────────────────────────────────── */
+.det-bloque {
+  background: #fff;
+  border: 1px solid var(--disab-border);
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  margin-bottom: 14px;
+}
+
+.det-bloque-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.det-bloque-icono {
+  color: var(--disab-primary);
+  background: var(--disab-primary-light);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+}
+
+.det-bloque-titulo {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--disab-text);
+}
+
+.det-bloque-hint {
+  margin-left: auto;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--disab-text-muted);
+}
+
+.det-hint-alerta {
+  color: #ef6c00;
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* ── Ficha ─────────────────────────────────────────────────── */
+.det-ficha {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+}
+
+.det-campo {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--disab-radius-sm);
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+.det-campo-ancho {
+  grid-column: span 2;
+}
+
+.det-campo dt {
+  margin: 0 0 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--disab-text-muted);
+}
+
+.det-campo dd {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--disab-text);
+  word-break: break-word;
+}
+
+/* ── Alertas ───────────────────────────────────────────────── */
+.det-alertas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.det-alerta {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--disab-radius-sm);
+  font-size: 13px;
+}
+
+.det-alerta mat-icon {
+  flex-shrink: 0;
+}
+
+.det-alerta-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.det-alerta-codigo {
+  font-size: 11px;
+  opacity: 0.8;
+  letter-spacing: 0.3px;
+}
+
+/* ── Soportes ──────────────────────────────────────────────── */
+.det-soportes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.det-soporte {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--disab-radius-sm);
+  border: 1px solid var(--disab-border);
+  background: #fbfdff;
+  flex-wrap: wrap;
+}
+
+.det-soporte-falta {
+  border-color: rgba(239, 108, 0, 0.35);
+  background: #fff8f0;
+}
+
+.det-soporte-icono {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--disab-primary-light);
+  color: var(--disab-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.det-soporte-falta .det-soporte-icono {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.det-soporte-textos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.det-soporte-titulo {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--disab-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.det-obligatorio {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #ef6c00;
+  background: #fff3e0;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.det-soporte-meta {
+  font-size: 12px;
+  color: var(--disab-text-muted);
+  word-break: break-word;
+}
+
+.det-soporte-btn {
+  border-radius: 10px !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+}
+
+.det-soporte-sin-archivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--disab-text-muted);
+}
+
+.det-soporte-sin-archivo mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Linea de tiempo ───────────────────────────────────────── */
+.det-linea {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 6px;
+  position: relative;
+}
+
+.det-linea::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(25, 118, 210, 0.35), rgba(0, 172, 193, 0.25));
+  border-radius: 2px;
+}
+
+.det-linea-item {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  padding: 6px 0 12px 0;
+}
+
+.det-linea-punto {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  margin-left: 6px;
+  margin-top: 4px;
+  flex-shrink: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+  background: var(--disab-primary);
+  z-index: 1;
+}
+
+.det-linea-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.det-linea-texto strong {
+  font-size: 13.5px;
+  color: var(--disab-text);
+}
+
+.det-linea-meta {
+  font-size: 12px;
+  color: var(--disab-text-muted);
+}
+
+.det-linea-comentario {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--disab-text);
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+
+/* ── Vacio ─────────────────────────────────────────────────── */
+.det-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 10px;
+  color: var(--disab-text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.det-vacio mat-icon {
+  font-size: 34px;
+  width: 34px;
+  height: 34px;
+  opacity: 0.55;
+}
+
+/* ── Acciones ──────────────────────────────────────────────── */
+.det-acciones {
+  padding: 12px 22px 18px !important;
+  background: #f7f9fc;
+  border-top: 1px solid var(--disab-border);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.det-espaciador {
+  flex: 1 1 auto;
+}
+
+.det-btn {
+  border-radius: 11px !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px;
+}
+
+.det-btn-eliminar {
+  color: var(--disab-danger) !important;
+  border-color: rgba(198, 40, 40, 0.4) !important;
+}
+
+.det-btn-validar {
+  color: #2e7d32 !important;
+  border-color: rgba(46, 125, 50, 0.4) !important;
+}
+
+.det-btn-editar {
+  background: var(--disab-primary) !important;
+  color: #fff !important;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .det-hero {
+    padding: 16px;
+  }
+
+  .det-cuerpo {
+    padding: 14px 14px 6px !important;
+    max-height: 62vh;
+  }
+
+  .det-ficha {
+    grid-template-columns: 1fr;
+  }
+
+  .det-campo-ancho {
+    grid-column: span 1;
+  }
+
+  .det-acciones {
+    padding: 12px 14px 16px !important;
+  }
+
+  .det-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* ════════ Radicacion (V44) ════════ */
+
+.rad-nombre-archivo {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
+
+.rad-numero {
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+
+.rad-icono-pdf mat-icon {
+  color: #b3261e;
+}
+
+.rad-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.78rem;
+}
+
+.rad-sync mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.rad-sync-ok {
+  color: #1b873f;
+}
+
+.rad-sync-pend {
+  color: #b26a00;
+}
+
+.rad-form {
+  border: 1px dashed rgba(15, 43, 90, 0.25);
+  border-radius: 12px;
+  padding: 14px;
+  margin: 10px 0 4px;
+  background: rgba(15, 43, 90, 0.03);
+}
+
+.rad-form-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.rad-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: rgba(0, 0, 0, 0.62);
+}
+
+.rad-campo input {
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  color: rgba(0, 0, 0, 0.87);
+  background: #fff;
+}
+
+.rad-campo input:focus {
+  outline: 2px solid #0f2b5a;
+  outline-offset: 1px;
+}
+
+.rad-dondes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rad-donde {
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  border-radius: 999px;
+  background: #fff;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.rad-donde:hover {
+  background: rgba(15, 43, 90, 0.06);
+}
+
+.rad-donde-activo {
+  background: #0f2b5a;
+  border-color: #0f2b5a;
+  color: #fff;
+}
+
+.rad-form-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rad-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@media (max-width: 640px) {
+  .rad-acciones {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rad-acciones button {
+    justify-content: center;
+  }
+}
+
+/* ── Historico importado (V45) ─────────────────────────────────────── */
+
+.det-doc-historico {
+  margin-bottom: 10px;
+}
+
+/* ── Visor embebido de documentos ──────────────────────────────────── */
+/* Un solo visor para soportes y PDFs de radicacion: el navegador pinta
+   el blob (con JWT ya resuelto por HttpClient), sin salir del dialogo. */
+
+.det-visor-titulo {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.det-visor-cerrar {
+  flex-shrink: 0;
+}
+
+.det-visor-marco {
+  width: 100%;
+  height: min(70vh, 720px);
+  border: 1px solid var(--disab-border, rgba(15, 43, 90, 0.14));
+  border-radius: 12px;
+  background: #fff;
+}
+
+.det-visor-imagen {
+  display: block;
+  max-width: 100%;
+  max-height: min(70vh, 720px);
+  margin: 0 auto;
+  border: 1px solid var(--disab-border, rgba(15, 43, 90, 0.14));
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* En pantallas chicas el iframe del PDF es poco util: se acorta y el
+   flujo natural es el boton Descargar. */
+@media (max-width: 700px) {
+  .det-visor-marco {
+    height: 46vh;
+  }
+}

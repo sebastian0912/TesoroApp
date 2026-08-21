@@ -1,0 +1,204 @@
+<div class="exp-hero">
+  <div class="exp-hero-icono">
+    <mat-icon>file_download</mat-icon>
+  </div>
+
+  <div class="exp-hero-textos">
+    <h2 class="exp-hero-titulo" mat-dialog-title>Exportar incapacidades</h2>
+    <p class="exp-hero-sub">Elige las columnas, el formato y el alcance de la descarga</p>
+  </div>
+
+  <button
+    type="button"
+    mat-icon-button
+    class="exp-cerrar"
+    (click)="cerrar()"
+    aria-label="Cerrar"
+    matTooltip="Cerrar"
+  >
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<mat-dialog-content class="exp-cuerpo">
+
+  <!-- ════════ 1. Columnas ════════ -->
+  <section class="exp-bloque">
+    <header class="exp-bloque-cabecera">
+      <span class="exp-paso">1</span>
+      <h3 class="exp-bloque-titulo">Columnas a exportar</h3>
+      <span class="exp-contador">{{ totalSeleccionadas() }} de {{ columnas.length }}</span>
+    </header>
+
+    <div class="exp-atajos">
+      <button type="button" class="exp-atajo" (click)="marcarTodas()" [disabled]="todasMarcadas()">
+        <mat-icon>done_all</mat-icon>
+        Todas
+      </button>
+      <button
+        type="button"
+        class="exp-atajo"
+        (click)="marcarNinguna()"
+        [disabled]="ningunaMarcada()"
+      >
+        <mat-icon>remove_done</mat-icon>
+        Ninguna
+      </button>
+      <button type="button" class="exp-atajo" (click)="marcarVisibles()">
+        <mat-icon>visibility</mat-icon>
+        Las visibles en la tabla
+      </button>
+    </div>
+
+    <div class="exp-columnas">
+      @for (columna of columnas; track trackColumna($index, columna)) {
+        <mat-checkbox
+          class="exp-columna"
+          color="primary"
+          [checked]="estaMarcada(columna.clave)"
+          (change)="alternar(columna.clave, $event.checked)"
+        >
+          <span class="exp-columna-texto">
+            {{ columna.etiqueta }}
+            @if (columna.enTabla) {
+              <mat-icon class="exp-columna-marca" matTooltip="Se ve en la tabla">
+                table_rows
+              </mat-icon>
+            }
+          </span>
+        </mat-checkbox>
+      }
+    </div>
+
+    @if (ningunaMarcada()) {
+      <p class="exp-error-inline">
+        <mat-icon>error_outline</mat-icon>
+        Marca al menos una columna para poder exportar.
+      </p>
+    }
+  </section>
+
+  <!-- ════════ 2. Formato ════════ -->
+  <section class="exp-bloque">
+    <header class="exp-bloque-cabecera">
+      <span class="exp-paso">2</span>
+      <h3 class="exp-bloque-titulo">Formato</h3>
+    </header>
+
+    <mat-button-toggle-group
+      class="exp-toggle"
+      [value]="formato()"
+      (change)="cambiarFormato($event.value)"
+      aria-label="Formato del archivo"
+    >
+      <mat-button-toggle value="xlsx">
+        <mat-icon>table_view</mat-icon>
+        Excel (.xlsx)
+      </mat-button-toggle>
+      <mat-button-toggle value="csv">
+        <mat-icon>description</mat-icon>
+        CSV (.csv)
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+
+    @if (formato() === 'csv') {
+      <p class="exp-nota">
+        El CSV se genera separado por punto y coma y con BOM UTF-8, que es lo que espera
+        Excel en configuracion regional de Colombia.
+      </p>
+    }
+  </section>
+
+  <!-- ════════ 3. Alcance ════════ -->
+  <section class="exp-bloque">
+    <header class="exp-bloque-cabecera">
+      <span class="exp-paso">3</span>
+      <h3 class="exp-bloque-titulo">Alcance</h3>
+    </header>
+
+    <mat-button-toggle-group
+      class="exp-toggle"
+      [value]="alcance()"
+      (change)="cambiarAlcance($event.value)"
+      aria-label="Alcance de la exportacion"
+    >
+      <mat-button-toggle value="pagina">
+        <mat-icon>filter_1</mat-icon>
+        Solo esta pagina ({{ datos.filasPaginaActual.length }})
+      </mat-button-toggle>
+      <mat-button-toggle value="todos">
+        <mat-icon>all_inclusive</mat-icon>
+        Todos los resultados ({{ datos.total }})
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <p class="exp-nota">
+      @if (alcance() === 'pagina') {
+        Se exportaran unicamente los registros que ves ahora mismo en la tabla.
+      } @else {
+        Se pediran al servidor TODAS las paginas que cumplen los filtros actuales,
+        no solo lo que esta cargado en pantalla.
+      }
+    </p>
+
+    @if (hayAvisoDeVolumen()) {
+      <p class="exp-aviso">
+        <mat-icon>warning_amber</mat-icon>
+        Son {{ datos.total }} registros: la descarga puede tardar. Puedes cancelarla
+        mientras avanza.
+      </p>
+    }
+  </section>
+
+  <!-- ════════ Progreso ════════ -->
+  @if (exportando()) {
+    <section class="exp-progreso" aria-live="polite">
+      <div class="exp-progreso-texto">
+        <mat-icon class="exp-progreso-icono">cloud_download</mat-icon>
+        <span>
+          Descargando lote {{ lotesDescargados() }} de {{ lotesTotales() }} ·
+          <strong>{{ filasDescargadas() }}</strong> registros
+        </span>
+      </div>
+      <mat-progress-bar mode="determinate" [value]="progreso()"></mat-progress-bar>
+    </section>
+  }
+
+  @if (error()) {
+    <p class="exp-error-inline" role="alert">
+      <mat-icon>error_outline</mat-icon>
+      {{ error() }}
+    </p>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions class="exp-acciones">
+  <span class="exp-resumen">
+    <mat-icon>summarize</mat-icon>
+    {{ filasPrevistas() }} registros × {{ totalSeleccionadas() }} columnas
+  </span>
+
+  <span class="exp-espaciador"></span>
+
+  @if (exportando()) {
+    <button type="button" mat-stroked-button class="exp-btn exp-btn-cancelar" (click)="cancelar()">
+      <mat-icon>stop_circle</mat-icon>
+      <span>Cancelar</span>
+    </button>
+  } @else {
+    <button type="button" mat-stroked-button class="exp-btn" (click)="cerrar()">
+      <span>Cerrar</span>
+    </button>
+
+    <button
+      type="button"
+      mat-flat-button
+      class="exp-btn exp-btn-descargar"
+      [disabled]="!puedeExportar()"
+      (click)="exportar()"
+    >
+      <mat-icon>download</mat-icon>
+      <span>Descargar</span>
+    </button>
+  }
+</mat-dialog-actions>

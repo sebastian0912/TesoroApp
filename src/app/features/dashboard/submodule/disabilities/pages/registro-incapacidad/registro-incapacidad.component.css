@@ -1,0 +1,1627 @@
+/* ============================================================
+   REGISTRO DE INCAPACIDAD (v2)
+
+   Reutiliza el lenguaje visual del modulo (clases .disab-*) y anade
+   las piezas propias de esta pantalla con prefijo .reg-*.
+
+   Notas de la casa aplicadas aqui:
+    - `src/styles.css` fuerza `button { min-height: 48px !important }`;
+      los botones compactos se compensan con padding, no peleando con eso.
+    - `src/styles.css` anula TODAS las animaciones bajo
+      `prefers-reduced-motion`. Por eso NINGUN estado se comunica solo con
+      una transicion: siempre hay icono, texto y color.
+   ============================================================ */
+
+:host {
+  --disab-primary: #1976d2;
+  --disab-primary-dark: #1565c0;
+  --disab-primary-light: #e3f2fd;
+  --disab-accent: #00bcd4;
+  --disab-accent-dark: #00838f;
+  --disab-success: #2e7d32;
+  --disab-success-light: #e8f5e9;
+  --disab-danger: #d32f2f;
+  --disab-danger-light: #ffebee;
+  --disab-warn: #f57c00;
+  --disab-warn-light: #fff3e0;
+  --disab-bg: #f5f7fb;
+  --disab-surface: #ffffff;
+  --disab-border: rgba(15, 23, 42, 0.08);
+  --disab-text: #1a1a2e;
+  --disab-text-muted: #64748b;
+  --disab-radius: 16px;
+  --disab-radius-sm: 10px;
+  --disab-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --disab-shadow-md: 0 6px 18px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+  --disab-gradient: linear-gradient(135deg, #1976d2 0%, #00acc1 100%);
+
+  display: block;
+  background: var(--disab-bg);
+  min-height: 100%;
+}
+
+.reg-pagina {
+  padding: 12px 8px 40px;
+}
+
+.reg-pagina-contenido {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Tarjeta principal ──────────────────────────────────────── */
+.disab-card {
+  border-radius: var(--disab-radius) !important;
+  border: 1px solid var(--disab-border);
+  box-shadow: var(--disab-shadow-md) !important;
+  background: var(--disab-surface);
+  /* `visible` y NO `hidden`: cualquier overflow != visible entre el panel de
+     validacion y el contenedor de scroll crea un clipping box y el
+     `position: sticky` del panel queda anclado a la tarjeta en vez de al
+     scroll — el panel "se quedaba arriba" (reunion 2026-08-20). Las esquinas
+     redondeadas del hero se conservan con su propio border-radius. */
+  overflow: visible;
+  padding: 0 !important;
+}
+
+/* ── Hero ──────────────────────────────────────────────────── */
+.disab-hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  /* Amplio y con aire: el subtitulo son 2-3 lineas y antes se recortaba contra
+     el `overflow: hidden` que necesita el icono decorativo del ::before. */
+  padding: 34px 36px;
+  min-height: 132px;
+  background: var(--disab-gradient);
+  color: #fff;
+  position: relative;
+  /* Recorta SOLO el ::before decorativo, nunca el texto: el contenido real va en
+     .disab-hero-texts con z-index 1 y sin restriccion de alto. */
+  overflow: hidden;
+  /* La tarjeta ya no recorta (overflow visible por el sticky del panel): las
+     esquinas superiores redondeadas ahora las pone el propio hero. */
+  border-radius: var(--disab-radius) var(--disab-radius) 0 0;
+}
+
+.disab-hero::before {
+  content: 'assignment';
+  font-family: 'Material Icons';
+  position: absolute;
+  right: -30px;
+  top: -40px;
+  font-size: 220px;
+  color: rgba(255, 255, 255, 0.08);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.disab-hero-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.disab-hero-icon mat-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+  color: #fff;
+}
+
+.disab-hero-texts {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.disab-hero-title {
+  margin: 0 0 7px;
+  font-size: 25px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #fff;
+}
+
+.disab-hero-sub {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.5;
+  max-width: 82ch;
+  /* Sin recortes: que crezca lo que necesite. */
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.disab-card-body {
+  padding: 24px 28px 30px !important;
+  display: block;
+}
+
+/* ── Secciones ──────────────────────────────────────────────── */
+.disab-section {
+  display: block;
+}
+
+.disab-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.disab-section-icon {
+  color: var(--disab-primary);
+  background: var(--disab-primary-light);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.disab-section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--disab-text);
+  letter-spacing: 0.2px;
+}
+
+.disab-section-hint {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--disab-text-muted);
+  font-style: italic;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.disab-section-hint-icono {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+  vertical-align: middle;
+}
+
+.disab-divider {
+  margin: 24px 0 !important;
+}
+
+/* ── Grids responsivos ──────────────────────────────────────── */
+.disab-grid {
+  display: grid;
+  gap: 4px 16px;
+}
+
+.reg-grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.reg-grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.reg-grid-soportes {
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 16px;
+}
+
+/* ── Layout principal: formulario + panel pegajoso ──────────── */
+.reg-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  /* stretch (el default) y NO `start`: con `start` el <aside> colapsa a la altura
+     de su contenido y el hijo `position: sticky` no tiene recorrido para pegarse
+     — que es exactamente el "se queda arriba" que reporto la funcional (reunion
+     2026-08-20). Con el aside estirado a la fila completa, .reg-panel-sticky
+     acompana el scroll y las alertas se ven TODO el tiempo. */
+  align-items: stretch;
+}
+
+.reg-principal {
+  min-width: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   A) BUSCADOR + TARJETA DE LA PERSONA
+   ═══════════════════════════════════════════════════════════ */
+
+.reg-seccion-busqueda {
+  margin-bottom: 4px;
+}
+
+.reg-buscador-persona {
+  display: block;
+  max-width: 620px;
+}
+
+.reg-persona {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  margin-top: 12px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(25, 118, 210, 0.18);
+  background: linear-gradient(135deg, #e3f2fd 0%, #e0f7fa 100%);
+  box-shadow: var(--disab-shadow-sm);
+}
+
+.reg-persona-avatar {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--disab-gradient);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(21, 101, 192, 0.28);
+}
+
+.reg-persona-datos {
+  min-width: 0;
+  flex: 1;
+}
+
+.reg-persona-nombre {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--disab-text);
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.reg-persona-cedula {
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--disab-primary-dark);
+}
+
+.reg-persona-cedula mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.reg-persona-edad {
+  color: var(--disab-text-muted);
+  font-weight: 500;
+}
+
+.reg-persona-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reg-persona-manual {
+  margin: 10px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--disab-warn);
+}
+
+.reg-persona-manual mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+/* Chips ---------------------------------------------------- */
+.disab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.disab-chip mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.reg-chip-dato {
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--disab-text);
+  border: 1px solid rgba(25, 118, 210, 0.16);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reg-chip-etiqueta {
+  color: var(--disab-text-muted);
+  font-weight: 600;
+}
+
+.reg-chip {
+  height: auto;
+  min-height: 28px;
+  padding: 5px 12px;
+  white-space: normal;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.reg-chip--ok {
+  background: var(--disab-success-light);
+  color: var(--disab-success);
+}
+
+.reg-chip--info {
+  background: var(--disab-primary-light);
+  color: var(--disab-primary-dark);
+}
+
+.reg-chip--alerta {
+  background: var(--disab-warn-light);
+  color: var(--disab-warn);
+}
+
+.reg-chip--critico {
+  background: var(--disab-danger-light);
+  color: var(--disab-danger);
+}
+
+.reg-chip--neutro {
+  background: #eef2f7;
+  color: var(--disab-text-muted);
+}
+
+/* Skeleton -------------------------------------------------- */
+.reg-persona--skeleton {
+  background: #fff;
+  border-color: var(--disab-border);
+}
+
+.reg-skel {
+  background: linear-gradient(90deg, #eef2f7 25%, #e2e8f0 37%, #eef2f7 63%);
+  background-size: 400% 100%;
+  animation: reg-brillo 1.4s ease infinite;
+  border-radius: 8px;
+}
+
+.reg-skel-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.reg-skel-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.reg-skel-linea {
+  height: 14px;
+  margin-bottom: 10px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.reg-skel-linea--titulo {
+  height: 22px;
+  max-width: 300px;
+}
+
+.reg-skel-linea--corta {
+  max-width: 180px;
+}
+
+.reg-skel-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reg-skel-chip {
+  display: inline-block;
+  height: 26px;
+  width: 110px;
+  border-radius: 13px;
+}
+
+/* El texto es el estado REAL: la animacion es decorativa y puede no
+   ejecutarse bajo prefers-reduced-motion. */
+.reg-skel-texto {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--disab-text-muted);
+}
+
+@keyframes reg-brillo {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CAMPOS
+   ═══════════════════════════════════════════════════════════ */
+
+.reg-campo {
+  width: 100%;
+}
+
+.reg-campo--completo {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.reg-campo--ancho {
+  grid-column: span 2;
+}
+
+.reg-campo--mini {
+  margin-top: 6px;
+}
+
+/* `::ng-deep` acotado a nuestras propias clases: llega al DOM interno de
+   `mat-form-field` sin fugarse al resto de la app (mismo patron que ya usa
+   `buscador-remoto` y las otras paginas del modulo). */
+.reg-campo--mini ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+/* Campo autocompletado (solo lectura): fondo suave + candado */
+.reg-campo--auto ::ng-deep .mat-mdc-text-field-wrapper {
+  background: #f3f6fb;
+}
+
+.reg-campo--auto input,
+.reg-campo--auto textarea {
+  color: var(--disab-text-muted) !important;
+  font-weight: 600;
+}
+
+.reg-icono-candado {
+  color: var(--disab-primary);
+  opacity: 0.55;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  cursor: help;
+}
+
+/* Campo que contratacion no trajo: hay que escribirlo */
+.reg-campo--manual ::ng-deep .mat-mdc-text-field-wrapper {
+  background: var(--disab-warn-light);
+}
+
+.reg-campo--manual .mat-mdc-form-field-hint {
+  color: var(--disab-warn) !important;
+  font-weight: 700;
+}
+
+.reg-campo-buscador {
+  display: block;
+  min-width: 0;
+}
+
+.reg-nota-campo,
+.reg-error-suelto {
+  margin: -8px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reg-nota-campo {
+  color: var(--disab-success);
+}
+
+.reg-error-suelto {
+  color: var(--disab-danger);
+}
+
+.reg-nota-campo mat-icon,
+.reg-error-suelto mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.reg-hint-error {
+  color: var(--disab-danger) !important;
+  font-weight: 700;
+}
+
+.reg-hint-info {
+  color: var(--disab-primary-dark) !important;
+  font-weight: 700;
+}
+
+/* ── Campos CALCULADOS por el backend ───────────────────────── */
+.reg-calculado {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  margin-bottom: 22px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f1f7ff 0%, #eefbfd 100%);
+  border: 1px dashed rgba(25, 118, 210, 0.35);
+  min-width: 0;
+}
+
+.reg-calculado-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reg-calculado-icono {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--disab-primary);
+  cursor: help;
+}
+
+.reg-calculado-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--disab-primary-dark);
+}
+
+.reg-calculado-valor {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--disab-text);
+  line-height: 1.1;
+}
+
+.reg-calculado-unidad {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--disab-text-muted);
+}
+
+.reg-calculado-vacio {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--disab-text-muted);
+}
+
+.reg-calculado-pie {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--disab-text-muted);
+  font-weight: 600;
+}
+
+.reg-calculado--destacado {
+  background: var(--disab-gradient);
+  border: none;
+}
+
+.reg-calculado--destacado .reg-calculado-label,
+.reg-calculado--destacado .reg-calculado-valor,
+.reg-calculado--destacado .reg-calculado-icono {
+  color: #fff;
+}
+
+.reg-calculado--edad {
+  margin-bottom: 22px;
+}
+
+.reg-calculado--linea .reg-calculado-valor {
+  font-size: 15px;
+}
+
+.reg-calculados-fila {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin: 4px 0 18px;
+}
+
+.reg-calculados-fila .reg-calculado {
+  margin-bottom: 0;
+}
+
+/* ── Buscador dentro de un mat-select ───────────────────────────
+   OJO: el panel del select vive en el CDK overlay, FUERA del host, asi
+   que las variables `--disab-*` declaradas en `:host` no llegan hasta
+   alli. Por eso todo este bloque lleva valor de respaldo. Los estilos si
+   aplican porque los elementos los creo esta plantilla (conservan su
+   atributo de encapsulacion). */
+.reg-select-buscador {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid var(--disab-border, rgba(15, 23, 42, 0.08));
+}
+
+.reg-select-buscador mat-icon {
+  color: var(--disab-primary, #1976d2);
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+}
+
+.reg-select-buscador-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--disab-text, #1a1a2e);
+  background: transparent;
+  padding: 6px 0;
+}
+
+.reg-select-vacio {
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--disab-text-muted, #64748b);
+  font-style: italic;
+}
+
+.reg-opcion-auto {
+  margin-left: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--disab-warn, #f57c00);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   E) PANEL DE VALIDACION
+   ═══════════════════════════════════════════════════════════ */
+
+.reg-panel {
+  min-width: 0;
+  /* Sin altura propia: el grid lo estira a la fila y el sticky interno viaja. */
+  align-self: stretch;
+}
+
+.reg-panel-sticky {
+  position: sticky;
+  top: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--disab-border);
+  background: var(--disab-surface);
+  box-shadow: var(--disab-shadow-sm);
+  overflow: hidden;
+}
+
+.reg-panel-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--disab-gradient);
+  color: #fff;
+}
+
+.reg-panel-cabecera mat-icon {
+  color: #fff;
+}
+
+.reg-panel-titulo {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  flex: 1;
+}
+
+.reg-panel-cabecera .mat-mdc-progress-spinner {
+  --mdc-circular-progress-active-indicator-color: #fff;
+}
+
+/* El toggle del acordeon solo tiene sentido en movil. */
+.reg-panel-toggle {
+  display: none !important;
+  color: #fff;
+}
+
+.reg-panel-cuerpo {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+}
+
+.reg-bloque {
+  border-radius: 12px;
+  border: 1px solid var(--disab-border);
+  background: #fbfcfe;
+  padding: 12px 14px;
+}
+
+.reg-bloque--ok {
+  background: var(--disab-success-light);
+  border-color: rgba(46, 125, 50, 0.25);
+}
+
+.reg-bloque--alerta {
+  background: var(--disab-warn-light);
+  border-color: rgba(245, 124, 0, 0.3);
+}
+
+.reg-bloque--critico {
+  background: var(--disab-danger-light);
+  border-color: rgba(211, 47, 47, 0.3);
+}
+
+.reg-bloque-titulo {
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--disab-text);
+}
+
+.reg-bloque-titulo mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.reg-bloque--ok .reg-bloque-titulo {
+  color: var(--disab-success);
+}
+
+.reg-bloque--alerta .reg-bloque-titulo {
+  color: var(--disab-warn);
+}
+
+.reg-bloque--critico .reg-bloque-titulo {
+  color: var(--disab-danger);
+}
+
+.reg-bloque-texto {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--disab-text);
+}
+
+.reg-bloque-nota {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--disab-text-muted);
+  line-height: 1.45;
+}
+
+.reg-lista {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--disab-text);
+}
+
+.reg-lista li + li {
+  margin-top: 2px;
+}
+
+/* Barra de reparto de dias --------------------------------- */
+.reg-barra {
+  display: flex;
+  height: 30px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #eef2f7;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.reg-barra-empresa,
+.reg-barra-entidad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.reg-barra-empresa {
+  background: #f57c00;
+}
+
+.reg-barra-entidad {
+  background: var(--disab-primary);
+}
+
+.reg-barra-leyenda {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--disab-text-muted);
+}
+
+.reg-punto {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.reg-punto--empresa {
+  background: #f57c00;
+}
+
+.reg-punto--entidad {
+  background: var(--disab-primary);
+}
+
+.reg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+/* Alertas del motor de reglas ------------------------------ */
+.reg-alertas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reg-alerta {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  border-left: 4px solid transparent;
+}
+
+.reg-alerta mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.reg-alerta--info {
+  background: var(--disab-primary-light);
+  border-left-color: var(--disab-primary);
+  color: var(--disab-primary-dark);
+}
+
+.reg-alerta--advertencia {
+  background: var(--disab-warn-light);
+  border-left-color: var(--disab-warn);
+  color: #a35300;
+}
+
+.reg-alerta--critica {
+  background: var(--disab-danger-light);
+  border-left-color: var(--disab-danger);
+  color: #a01d1d;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   F) SOPORTES
+   ═══════════════════════════════════════════════════════════ */
+
+.disab-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--disab-border);
+  border-radius: 14px;
+  box-shadow: var(--disab-shadow-sm);
+  position: relative;
+  transition: transform 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.reg-soporte::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 3px;
+  background: var(--disab-gradient);
+  border-radius: 0 0 4px 4px;
+}
+
+.reg-soporte--obligatorio::before {
+  background: linear-gradient(135deg, #f57c00 0%, #ef6c00 100%);
+}
+
+.reg-soporte--arrastrando {
+  border-color: var(--disab-primary);
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.18);
+  background: var(--disab-primary-light);
+}
+
+.reg-soporte--cargado {
+  border-color: rgba(46, 125, 50, 0.4);
+}
+
+.reg-soporte--error {
+  border-color: rgba(211, 47, 47, 0.45);
+}
+
+.reg-soporte-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.reg-soporte-icono {
+  color: var(--disab-primary);
+  background: var(--disab-primary-light);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+}
+
+.reg-soporte-titulo {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--disab-text);
+  flex: 1;
+  min-width: 0;
+}
+
+.reg-badge {
+  height: 22px;
+  padding: 0 9px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.reg-badge--obligatorio {
+  background: var(--disab-warn-light);
+  color: #a35300;
+}
+
+.reg-badge--opcional {
+  background: #eef2f7;
+  color: var(--disab-text-muted);
+}
+
+/* Zona de arrastrar y soltar ------------------------------- */
+.reg-input-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.reg-soltar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 14px;
+  border: 2px dashed rgba(25, 118, 210, 0.35);
+  border-radius: 12px;
+  background: #f8fbff;
+  cursor: pointer;
+  text-align: center;
+}
+
+.reg-soltar:hover,
+.reg-soltar:focus-within {
+  border-color: var(--disab-primary);
+  background: var(--disab-primary-light);
+}
+
+.reg-soltar mat-icon {
+  color: var(--disab-primary);
+  font-size: 30px;
+  width: 30px;
+  height: 30px;
+}
+
+.reg-soltar-texto {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--disab-text);
+}
+
+.reg-soltar-enlace {
+  color: var(--disab-primary-dark);
+  text-decoration: underline;
+  font-weight: 700;
+}
+
+.reg-soltar-formatos {
+  font-size: 11px;
+  color: var(--disab-text-muted);
+}
+
+/* Formulario Salud Total (reunion 2026-08-20): tarjeta guiada ----- */
+.reg-salud-total {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--disab-radius-sm);
+  border: 1px dashed var(--disab-primary);
+  background: var(--disab-primary-light);
+}
+
+.reg-salud-total-texto {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--disab-text);
+}
+
+.reg-salud-total-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reg-salud-total-acciones a,
+.reg-salud-total-acciones button {
+  font-size: 12.5px;
+}
+
+/* Archivo elegido ------------------------------------------ */
+.reg-archivo {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.reg-archivo-previa {
+  width: 66px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--disab-border);
+  background: #f3f6fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reg-previa-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.reg-previa-pdf {
+  width: 200%;
+  height: 200%;
+  border: 0;
+  transform: scale(0.5);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.reg-archivo-datos {
+  min-width: 0;
+}
+
+.reg-archivo-nombre {
+  margin: 0 0 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--disab-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reg-archivo-peso {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  color: var(--disab-text-muted);
+}
+
+.reg-archivo-acciones {
+  display: flex;
+  flex-direction: column;
+}
+
+.reg-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.reg-estado mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.reg-estado--pendiente {
+  color: var(--disab-text-muted);
+}
+
+.reg-estado--subiendo {
+  color: var(--disab-primary-dark);
+}
+
+.reg-estado--cargado {
+  color: var(--disab-success);
+}
+
+.reg-estado--error {
+  color: var(--disab-danger);
+}
+
+.reg-btn-mini {
+  margin-top: 6px;
+  font-size: 12px !important;
+  padding: 0 10px !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AVISOS / VACIOS / EXITO
+   ═══════════════════════════════════════════════════════════ */
+
+.reg-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border-left: 5px solid transparent;
+}
+
+.reg-aviso--alerta {
+  background: var(--disab-warn-light);
+  border-left-color: var(--disab-warn);
+}
+
+.reg-aviso--critico {
+  background: var(--disab-danger-light);
+  border-left-color: var(--disab-danger);
+}
+
+.reg-aviso mat-icon {
+  flex-shrink: 0;
+}
+
+.reg-aviso--alerta mat-icon {
+  color: var(--disab-warn);
+}
+
+.reg-aviso--critico mat-icon {
+  color: var(--disab-danger);
+}
+
+.reg-aviso-texto {
+  min-width: 0;
+}
+
+.reg-aviso-texto strong {
+  display: block;
+  font-size: 13.5px;
+  color: var(--disab-text);
+}
+
+.reg-aviso-texto p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--disab-text-muted);
+}
+
+.reg-aviso-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.reg-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 28px 20px;
+  border-radius: 12px;
+  border: 1px dashed var(--disab-border);
+  background: #fafbfe;
+}
+
+.reg-vacio mat-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+  color: rgba(25, 118, 210, 0.35);
+}
+
+.reg-vacio-titulo {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--disab-text);
+}
+
+.reg-vacio-texto {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--disab-text-muted);
+  max-width: 46ch;
+}
+
+.reg-vacio--panel {
+  padding: 20px 12px;
+}
+
+.reg-exito {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: var(--disab-success-light);
+  border-left: 5px solid var(--disab-success);
+}
+
+.reg-exito mat-icon {
+  color: var(--disab-success);
+  font-size: 26px;
+  width: 26px;
+  height: 26px;
+}
+
+.reg-exito-texto strong {
+  font-size: 14px;
+  color: var(--disab-text);
+}
+
+.reg-exito-texto p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--disab-text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   G) BARRA DE ACCIONES PEGAJOSA
+   ═══════════════════════════════════════════════════════════ */
+
+.reg-acciones {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--disab-border);
+  box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.1);
+}
+
+.reg-acciones-info {
+  flex: 1;
+  min-width: 220px;
+}
+
+.reg-acciones-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--disab-text-muted);
+}
+
+.reg-acciones-estado mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.reg-acciones-estado--alerta {
+  color: var(--disab-warn);
+}
+
+.reg-acciones-estado--ok {
+  color: var(--disab-success);
+}
+
+.reg-progreso {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 420px;
+}
+
+.reg-progreso-texto {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--disab-primary-dark);
+}
+
+.reg-acciones-botones {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reg-btn {
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  letter-spacing: 0.1px;
+}
+
+.reg-btn--guardar {
+  background: var(--disab-primary) !important;
+  color: #fff !important;
+}
+
+.reg-btn--validar {
+  background: var(--disab-success) !important;
+  color: #fff !important;
+}
+
+.reg-btn--validar[disabled] {
+  background: #cbd5e1 !important;
+  color: #ffffff !important;
+}
+
+/* Vive dentro del dialogo (overlay): variable con respaldo. */
+.reg-btn--peligro {
+  background: var(--disab-danger, #d32f2f) !important;
+  color: #fff !important;
+}
+
+/* El tooltip necesita un envoltorio: un boton deshabilitado no emite
+   eventos de puntero. */
+.reg-tooltip-wrap {
+  display: inline-flex;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DIALOGOS
+   Tambien viven en el CDK overlay: variables con respaldo.
+   ═══════════════════════════════════════════════════════════ */
+
+.reg-dialogo-titulo {
+  display: flex !important;
+  align-items: center;
+  gap: 9px;
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  color: var(--disab-text, #1a1a2e);
+}
+
+.reg-dialogo-titulo mat-icon {
+  color: var(--disab-danger, #d32f2f);
+}
+
+/* Aviso prominente de NO PAGAR (reunion 2026-08-20). */
+.reg-dialogo-titulo--critico {
+  color: var(--disab-danger, #d32f2f) !important;
+}
+
+.reg-dialogo-texto {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--disab-text, #1a1a2e);
+}
+
+.reg-dialogo-nota {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--disab-text-muted, #64748b);
+}
+
+.reg-lista--dialogo {
+  font-size: 13.5px;
+  color: var(--disab-text, #1a1a2e);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 1180px) {
+  /* El panel deja de ser lateral y pasa a ser un acordeon arriba. */
+  .reg-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .reg-panel {
+    order: -1;
+  }
+
+  .reg-panel-sticky {
+    position: static;
+  }
+
+  .reg-panel-toggle {
+    display: inline-flex !important;
+  }
+
+  .reg-panel-cuerpo {
+    max-height: none;
+  }
+
+  /* Solo en movil/tablet el acordeon puede quedar cerrado. */
+  .reg-panel-cuerpo.reg-oculto-movil {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .reg-campo--ancho {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .reg-pagina {
+    padding: 8px 4px 32px;
+  }
+
+  .disab-hero {
+    padding: 22px 18px;
+    gap: 14px;
+  }
+
+  .disab-hero-icon {
+    width: 52px;
+    height: 52px;
+  }
+
+  .disab-hero-icon mat-icon {
+    font-size: 30px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .disab-hero-title {
+    font-size: 18px;
+  }
+
+  .disab-hero::before {
+    font-size: 150px;
+  }
+
+  .disab-card-body {
+    padding: 20px 16px 24px !important;
+  }
+
+  .disab-section-hint {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  /* Todo a UNA columna */
+  .reg-grid-2,
+  .reg-grid-3,
+  .reg-grid-soportes,
+  .reg-calculados-fila {
+    grid-template-columns: 1fr;
+  }
+
+  .reg-persona {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .reg-acciones {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+  }
+
+  .reg-acciones-botones {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .reg-acciones-botones .reg-btn,
+  .reg-tooltip-wrap,
+  .reg-tooltip-wrap .reg-btn {
+    width: 100%;
+  }
+}
+
+/* Sin animaciones cuando el sistema lo pide: el estado ya se comunica
+   con icono, texto y color, nunca solo con movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .reg-skel {
+    animation: none;
+    background: #e9eef5;
+  }
+
+  .disab-tile {
+    transition: none;
+  }
+}
