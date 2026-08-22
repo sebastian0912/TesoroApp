@@ -411,8 +411,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private computeRoute(node: PermNode): string {
     const base = '/dashboard';
     if (!node.ruta) return base;
+    // Módulo que vive en OTRA aplicación (p. ej. Capacitaciones, cuyas pantallas del
+    // colaborador están en app.tuapo.co). Se devuelve tal cual: concatenarla a /dashboard
+    // producía '/dashboard/https://…' y el nodo no llevaba a ningún lado.
+    if (NavbarComponent.esExterna(node.ruta)) return node.ruta;
     if (node.ruta.startsWith('/')) return node.ruta;
     return `${base}/${node.ruta}`;
+  }
+
+  /** Una ruta con esquema http(s) apunta fuera de esta aplicación. */
+  public static esExterna(ruta: string | undefined): boolean {
+    return !!ruta && /^https?:\/\//i.test(ruta);
   }
 
   /**
@@ -509,6 +518,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   public onNodeClick(node: PermNode): void {
+    // Un módulo de otra aplicación no se navega con el router: se abre. En pestaña nueva
+    // para no sacar a la persona de lo que estuviera haciendo aquí.
+    const destino = this.getNodeRoute(node);
+    if (NavbarComponent.esExterna(destino)) {
+      window.open(destino, '_blank', 'noopener');
+      this.onLeafClick();
+      return;
+    }
     if (this.hasChildren(node)) {
       this.toggleNode(node.id);
       // Un nodo CON hijos que además tiene pantalla propia (p. ej. "Novedades" con un
