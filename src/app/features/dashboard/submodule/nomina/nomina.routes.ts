@@ -39,7 +39,9 @@ export const routes: Routes = [
   // Mantenemos 'homologador' como alias por compatibilidad con bookmarks/menus antiguos.
   { path: 'homologador-de-novedades', loadComponent: () => import('./pages/homologador/homologador.component').then(m => m.HomologadorComponent) },
   { path: 'homologador', redirectTo: 'homologador-de-novedades', pathMatch: 'full' },
-  // Submódulo "Reportes y Analítica" (solo lectura). Ruta canónica: 'reportes'
+  // Submódulo "Analítica de nómina" (solo lectura). Se llamaba "Reportes y Analítica"
+  // hasta la V46 de ms-auth-admin: se renombró para no chocar con el módulo nuevo
+  // de Reportes y Analítica (/dashboard/reportes). Ruta canónica: 'reportes'
   // porque el ítem de menú en db_admin.modulo (creado desde la UI de admin,
   // id ba6d847d-…) apunta a '/dashboard/nomina/reportes'. Se dejan alias
   // descriptivos por compatibilidad con bookmarks.
@@ -68,6 +70,13 @@ export const routes: Routes = [
   { path: 'envio-correos/enviar', loadComponent: () => import('./pages/envio-correos-envio/envio-correos-envio.component').then(m => m.EnvioCorreosEnvioComponent) },
   { path: 'envio-correos/plantillas', loadComponent: () => import('./pages/envio-correos-plantillas/envio-correos-plantillas.component').then(m => m.EnvioCorreosPlantillasComponent) },
   { path: 'envio-correos/historico', loadComponent: () => import('./pages/envio-correos-historico/envio-correos-historico.component').then(m => m.EnvioCorreosHistoricoComponent) },
+  // Submódulo "Cumpleaños": padrón por Excel + saludo automático el día del
+  // cumpleaños. Comparte las plantillas de correo del submódulo padre (tipo
+  // CUMPLEANOS), no tiene un gestor de plantillas propio.
+  // Registrar el ítem de menú en db_admin.modulo con ruta
+  // 'nomina/envio-correos/cumpleanos'.
+  { path: 'envio-correos/cumpleanos', loadComponent: () => import('./pages/envio-correos-cumpleanos/envio-correos-cumpleanos.component').then(m => m.EnvioCorreosCumpleanosComponent) },
+  { path: 'cumpleanos', redirectTo: 'envio-correos/cumpleanos', pathMatch: 'full' },
   // Alias descriptivos por si alguien guarda el bookmark con otro nombre.
   { path: 'carga-modelo-viejo', redirectTo: 'envio-correos/carga', pathMatch: 'full' },
   { path: 'modelo-antiguo', redirectTo: 'envio-correos/carga', pathMatch: 'full' },
