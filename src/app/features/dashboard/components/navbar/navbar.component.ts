@@ -411,9 +411,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private computeRoute(node: PermNode): string {
     const base = '/dashboard';
     if (!node.ruta) return base;
-    // Módulo que vive en OTRA aplicación (p. ej. Capacitaciones, cuyas pantallas del
-    // colaborador están en app.tuapo.co). Se devuelve tal cual: concatenarla a /dashboard
+    // Módulo que vive en OTRA aplicación. Se devuelve tal cual: concatenarla a /dashboard
     // producía '/dashboard/https://…' y el nodo no llevaba a ningún lado.
+    //
+    // Hoy NINGÚN nodo del menú es externo: Capacitaciones lo era hasta la V55 de
+    // ms-auth-admin y sus pantallas ya viven aquí (submodule/training). El caso se conserva
+    // porque la ruta la decide la base de datos, no este código.
     if (NavbarComponent.esExterna(node.ruta)) return node.ruta;
     if (node.ruta.startsWith('/')) return node.ruta;
     return `${base}/${node.ruta}`;

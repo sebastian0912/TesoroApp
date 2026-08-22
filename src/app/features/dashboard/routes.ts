@@ -35,6 +35,9 @@ export const routes: Routes = [
       { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.routes').then(m => m.routes) },
       { path: 'office-management', loadChildren: () => import('./submodule/office-management/office-management.routes').then(m => m.routes) },
       { path: 'reuniones', loadChildren: () => import('./submodule/reuniones/reuniones.routes').then(m => m.routes) },
+      // Capacitaciones del colaborador (learning-ms). Vive aquí y no solo en Tu-Apo-Web:
+      // el menú lo pinta esta app, y mandar a la persona a otro dominio la sacaba de su sesión.
+      { path: 'capacitaciones', loadChildren: () => import('./submodule/training/training.routes').then(m => m.routes) },
       // Carné digital: 'mi-carnet' es para cualquiera con sesión; 'identificar' es el panel
       // que se asigna por permisos (administrativos, portería, otras áreas).
       { path: 'carnet', loadChildren: () => import('./submodule/carnet/carnet.routes').then(m => m.routes) },
