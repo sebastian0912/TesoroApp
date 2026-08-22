@@ -179,6 +179,15 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   @Input() serverSide = false;
   @Output() pageChange = new EventEmitter<{ page: number; size: number }>();
   @Output() searchChange = new EventEmitter<string>();
+  /**
+   * Ordenamiento en SERVIDOR. Solo emite con serverSide=true: en modo cliente la
+   * tabla sigue ordenando ella misma sobre el dataSource, como siempre.
+   *
+   * Sin esto, una tabla en modo servidor solo podía ordenar la página que tenía a
+   * la vista, que es justo lo que no sirve cuando el conjunto tiene 50.000 filas y
+   * lo que se busca es "el mayor de todos".
+   */
+  @Output() sortChange = new EventEmitter<{ active: string; direction: 'asc' | 'desc' | '' }>();
 
   // Tabla
   displayedColumns: string[] = [];
@@ -939,6 +948,15 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   ngAfterViewInit(): void {
     if (this.sort) {
       this.dataSource.sort = this.sort;
+
+      // Modo servidor: el clic en la cabecera no ordena aquí, se lo pide al padre.
+      this.uiSubs.add(this.sort.sortChange.subscribe(ev => {
+        if (!this.serverSide) return;
+        this.sortChange.emit({
+          active: ev.active,
+          direction: ev.direction as 'asc' | 'desc' | '',
+        });
+      }));
 
       this.dataSource.sortingDataAccessor = (item: any, property: string) => {
         const col = this.colByName.get(property);

@@ -34,6 +34,7 @@ export const routes: Routes = [
       { path: 'market', loadChildren: () => import('./submodule/market/market.routes').then(m => m.routes) },
       { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.routes').then(m => m.routes) },
       { path: 'office-management', loadChildren: () => import('./submodule/office-management/office-management.routes').then(m => m.routes) },
+      { path: 'reuniones', loadChildren: () => import('./submodule/reuniones/reuniones.routes').then(m => m.routes) },
       // Carné digital: 'mi-carnet' es para cualquiera con sesión; 'identificar' es el panel
       // que se asigna por permisos (administrativos, portería, otras áreas).
       { path: 'carnet', loadChildren: () => import('./submodule/carnet/carnet.routes').then(m => m.routes) },
@@ -43,6 +44,9 @@ export const routes: Routes = [
       { path: 'herramientas-ia', loadChildren: () => import('./submodule/herramientas-ia/herramientas-ia.routes').then(m => m.routes) },
       { path: 'gestion-legal', loadChildren: () => import('./submodule/gestion-legal/gestion-legal.routes').then(m => m.routes) },
       { path: 'audit-logs', loadChildren: () => import('./submodule/audit-logs/audit-logs.routes').then(m => m.routes) },
+      // Reportes y Analítica: constructor de reportes, tableros y catálogo de datos.
+      // Las rutas hijas están declaradas en db_admin.modulo (ms-auth-admin V46).
+      { path: 'reportes', loadChildren: () => import('./submodule/reportes/reportes.routes').then(m => m.routes) },
       // Configuración de la app (antes escondida en el engranaje del header).
       { path: 'novedades', loadChildren: () => import('./submodule/novedades/novedades.routes').then(m => m.routes) },
       { path: 'configuracion', loadChildren: () => import('./submodule/configuracion/configuracion.routes').then(m => m.routes) },
